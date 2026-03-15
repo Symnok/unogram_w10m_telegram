@@ -200,8 +200,8 @@ namespace TelegramWP10
 
         private async void InitAsync() {
             try {
-                var localFolder = Windows.Storage.KnownFolders.MusicLibrary;
-                var appFolder = await localFolder.CreateFolderAsync("TelegramWP10", CreationCollisionOption.OpenIfExists);
+                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
+                var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
@@ -459,8 +459,7 @@ namespace TelegramWP10
                                 bool isImg = !string.IsNullOrEmpty(fpath) &&
                                     (fpath.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
                                      fpath.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                                     fpath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
-                                     fpath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase));
+                                     fpath.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
                                 if (isImg)
                                     { var t = UpdateMessagePhoto(mid, fpath); }
                                 // Если это полноразмерное фото для оверлея
@@ -1316,15 +1315,12 @@ namespace TelegramWP10
                             if (!string.IsNullOrEmpty(remoteUid))
                                 _remoteUniqueIdToMsgId[remoteUid] = msgId;
                             _messagesDict[msgId] = item;
-                            string sPath = stickerFile["local"]?["path"]?.ToString()?.Trim();
-                            Log("STICKER msg=" + msgId + " file_id=" + sfid + " remote_uid=" + remoteUid + " path='" + sPath + "' len=" + (sPath?.Length ?? -1));
-                            if (!string.IsNullOrWhiteSpace(sPath)) {
-                                Log("STICKER calling UpdateMessagePhoto msg=" + msgId);
-                                var stickerTask = UpdateMessagePhoto(msgId, sPath);
-                                stickerTask.ContinueWith(t => {
-                                    if (t.IsFaulted) Log("STICKER UpdateMsgPhoto FAULT: " + t.Exception?.InnerException?.Message);
-                                });
-                            }
+                            string sPath = stickerFile["local"]?["path"]?.ToString();
+                            Log("STICKER msg=" + msgId + " file_id=" + sfid + " path=" + sPath);
+                            if (!string.IsNullOrEmpty(sPath))
+                                { var t = UpdateMessagePhoto(msgId, sPath); }
+                            else
+                                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + sfid + ",\"priority\":10,\"synchronous\":false}");
                             else
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + sfid + ",\"priority\":10,\"synchronous\":false}");
                         }
@@ -1424,110 +1420,20 @@ namespace TelegramWP10
 
         private async Task UpdateMessagePhoto(long msgId, string path) {
             try {
-                BitmapImage bitmap;
-                if (path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
-                    bitmap = await DecodeWebPAsync(path);
-                else {
-                    var file = await StorageFile.GetFileFromPathAsync(path);
-                    bitmap = new BitmapImage();
-                    using (var stream = await file.OpenReadAsync())
-                        await bitmap.SetSourceAsync(stream);
-                }
+                var file = await StorageFile.GetFileFromPathAsync(path);
+                var bitmap = new BitmapImage();
+                using (var stream = await file.OpenReadAsync())
+                    await bitmap.SetSourceAsync(stream);
                 if (bitmap != null && _messagesDict.ContainsKey(msgId)) {
                     _messagesDict[msgId].AttachedPhoto = bitmap;
                     Log("UpdateMsgPhoto OK msg=" + msgId);
-                } else if (bitmap == null) {
-                    Log("UpdateMsgPhoto NULL bitmap msg=" + msgId);
                 } else {
                     Log("UpdateMsgPhoto NOT IN DICT msg=" + msgId);
                 }
             } catch (Exception ex) { Log("UpdateMsgPhoto ERR msg=" + msgId + " | " + ex.Message); }
         }
 
-        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-        private static extern System.IntPtr LoadPackagedLibrary(string lpwLibFileName, uint reserved);
-
-        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
-        private static extern System.IntPtr GetProcAddress(System.IntPtr hModule, string lpProcName);
-
-        private delegate System.IntPtr WebPDecodeBGRADelegate(
-            byte[] data, System.UIntPtr size, ref int width, ref int height);
-        private delegate void WebPFreeDelegate(System.IntPtr ptr);
-
-        private System.IntPtr _libWebP = System.IntPtr.Zero;
-        private WebPDecodeBGRADelegate _webPDecodeBGRA = null;
-        private WebPFreeDelegate _webPFree = null;
-        private bool _libWebPTried = false;
-
-        private bool EnsureLibWebP() {
-            if (_libWebPTried) return _webPDecodeBGRA != null;
-            _libWebPTried = true;
-            try {
-                Log("EnsureLibWebP: step 1 LoadPackagedLibrary");
-                _libWebP = LoadPackagedLibrary("libwebp.dll", 0);
-                Log("EnsureLibWebP: step 2 handle=" + _libWebP);
-                if (_libWebP == System.IntPtr.Zero) {
-                    Log("EnsureLibWebP: LoadPackagedLibrary failed err=" + System.Runtime.InteropServices.Marshal.GetLastWin32Error());
-                    return false;
-                }
-                Log("EnsureLibWebP: step 3 GetProcAddress WebPDecodeBGRA");
-                var pDecode = GetProcAddress(_libWebP, "WebPDecodeBGRA");
-                Log("EnsureLibWebP: step 4 pDecode=" + pDecode);
-                var pFree = GetProcAddress(_libWebP, "WebPFree");
-                Log("EnsureLibWebP: step 5 pFree=" + pFree);
-                if (pDecode == System.IntPtr.Zero || pFree == System.IntPtr.Zero) {
-                    Log("EnsureLibWebP: GetProcAddress failed");
-                    return false;
-                }
-                Log("EnsureLibWebP: step 6 GetDelegateForFunctionPointer");
-                _webPDecodeBGRA = (WebPDecodeBGRADelegate)System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer(pDecode, typeof(WebPDecodeBGRADelegate));
-                _webPFree       = (WebPFreeDelegate)System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer(pFree, typeof(WebPFreeDelegate));
-                Log("EnsureLibWebP: OK");
-                return true;
-            } catch (Exception ex) {
-                Log("EnsureLibWebP ERR: " + ex.GetType().Name + " | " + ex.Message);
-                return false;
-            }
-        }
-
-        private async Task<BitmapImage> DecodeWebPAsync(string path) {
-            try {
-                if (!EnsureLibWebP()) return null;
-                var bytes = await Task.Run(() => System.IO.File.ReadAllBytes(path));
-                int w = 0, h = 0;
-                byte[] pixels = null;
-                await Task.Run(() => {
-                    var ptr = _webPDecodeBGRA(bytes, (System.UIntPtr)bytes.Length, ref w, ref h);
-                    if (ptr == System.IntPtr.Zero) return;
-                    try {
-                        pixels = new byte[w * h * 4];
-                        System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, pixels.Length);
-                    } finally {
-                        _webPFree(ptr);
-                    }
-                });
-                if (pixels == null || w == 0 || h == 0) {
-                    Log("DecodeWebP: decode failed path=" + path);
-                    return null;
-                }
-                var ras = new InMemoryRandomAccessStream();
-                var enc = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
-                    Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, ras);
-                enc.SetPixelData(
-                    Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
-                    Windows.Graphics.Imaging.BitmapAlphaMode.Straight,
-                    (uint)w, (uint)h, 96, 96, pixels);
-                await enc.FlushAsync();
-                ras.Seek(0);
-                var bmp = new BitmapImage();
-                await bmp.SetSourceAsync(ras);
-                Log("DecodeWebP OK " + w + "x" + h);
-                return bmp;
-            } catch (Exception ex) {
-                Log("DecodeWebP ERR path=" + path + " | " + ex.Message);
-                return null;
-            }
-        }
+        
 
         private void ChatListView_ItemClick(object sender, ItemClickEventArgs e) {
             var chat = (ChatItem)e.ClickedItem;
