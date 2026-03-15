@@ -1304,7 +1304,6 @@ namespace TelegramWP10
                     bool isVideo = sticker?["is_video"]?.ToObject<bool>() ?? false;
                     // Поддерживаем только статичные WebP стикеры
                     if (!isAnimated && !isVideo) {
-                        item.IsSticker = true;
                         item.Text = "";
                         var stickerFile = sticker?["sticker"] as JObject;
                         if (stickerFile != null) {
