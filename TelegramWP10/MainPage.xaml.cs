@@ -338,25 +338,23 @@ namespace TelegramWP10
                     if (addedChatId != 0 && _chatsDict.ContainsKey(addedChatId)) {
                         var addedItem = _chatsDict[addedChatId];
                         if (addedList == "chatListMain") {
-                            // Чат переехал из архива в главный (новое сообщение от незаглушённого)
                             if (_archiveChatItems.Contains(addedItem)) {
                                 _archiveChatIds.Remove(addedChatId);
                                 _archiveChatItems.Remove(addedItem);
                                 UpdateArchiveUnreadBadge();
                             }
                             if (!_chatListItems.Contains(addedItem)) {
-                                _chatListItems.Insert(0, addedItem);
+                                InsertAfterPinned(_chatListItems, addedItem);
                                 ChatCountText.Text = _chatListItems.Count.ToString();
                             }
                         } else if (addedList == "chatListArchive") {
-                            // Чат заархивирован пользователем
                             if (_chatListItems.Contains(addedItem)) {
                                 _chatListItems.Remove(addedItem);
                                 ChatCountText.Text = _chatListItems.Count.ToString();
                             }
                             if (!_archiveChatItems.Contains(addedItem)) {
                                 _archiveChatIds.Add(addedChatId);
-                                _archiveChatItems.Insert(0, addedItem);
+                                InsertAfterPinned(_archiveChatItems, addedItem);
                             }
                         }
                     }
@@ -619,11 +617,11 @@ namespace TelegramWP10
                         var ucpPos = update["position"];
                         bool ucpPinned = ucpPos?["is_pinned"]?.ToObject<bool>() ?? false;
                         _chatsDict[ucpId].IsPinned = ucpPinned;
-                        // Перемещаем закреплённый чат наверх / открепленный на своё место
-                        if (ucpPinned) {
-                            var list = _archiveChatItems.Any(ch => ch.Id == ucpId) ? _archiveChatItems : _chatListItems;
-                            var item = list.FirstOrDefault(ch => ch.Id == ucpId);
-                            if (item != null && list.IndexOf(item) != 0) { list.Remove(item); list.Insert(0, item); }
+                        var ucpList = _archiveChatItems.Any(ch => ch.Id == ucpId) ? _archiveChatItems : _chatListItems;
+                        var ucpItem = ucpList.FirstOrDefault(ch => ch.Id == ucpId);
+                        if (ucpItem != null) {
+                            ucpList.Remove(ucpItem);
+                            InsertAfterPinned(ucpList, ucpItem);
                         }
                         Log("updateChatPosition chat=" + ucpId + " pinned=" + ucpPinned);
                     }
@@ -958,12 +956,33 @@ namespace TelegramWP10
             return new MessageItem { IsSeparator = true, SeparatorLabel = label };
         }
 
+        // Вставляет незакреплённый чат сразу после последнего закреплённого
+        // Закреплённый чат всегда вставляется в самый верх (позиция 0)
+        private void InsertAfterPinned(ObservableCollection<ChatItem> list, ChatItem item) {
+            if (item.IsPinned) {
+                list.Insert(0, item);
+                return;
+            }
+            // Находим первый незакреплённый элемент
+            int insertAt = 0;
+            for (int i = 0; i < list.Count; i++) {
+                if (list[i].IsPinned) insertAt = i + 1;
+                else break;
+            }
+            list.Insert(insertAt, item);
+        }
+
         private void MoveChatToTop(long chatId) {
             var list = _inArchive ? _archiveChatItems : _chatListItems;
             var item = list.FirstOrDefault(c => c.Id == chatId);
-            if (item == null || list.IndexOf(item) == 0) return;
+            if (item == null) return;
+            // Закреплённые не двигаем — они всегда наверху
+            if (item.IsPinned) return;
+            // Уже на правильной позиции (сразу после закреплённых)?
+            int pinnedCount = list.Count(c => c.IsPinned);
+            if (list.IndexOf(item) == pinnedCount) return;
             list.Remove(item);
-            list.Insert(0, item);
+            InsertAfterPinned(list, item);
         }
 
         private long _serverTimeOffset = 0;
