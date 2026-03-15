@@ -1321,8 +1321,6 @@ namespace TelegramWP10
                                 { var t = UpdateMessagePhoto(msgId, sPath); }
                             else
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + sfid + ",\"priority\":10,\"synchronous\":false}");
-                            else
-                                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + sfid + ",\"priority\":10,\"synchronous\":false}");
                         }
                     }
                     // Анимированные/видео стикеры — пока заглушка (оставляем "😊 Стикер" из txt)
