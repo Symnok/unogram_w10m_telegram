@@ -69,6 +69,14 @@ namespace TelegramWP10
         public string UnreadVisibility => _unreadCount > 0 ? "Visible" : "Collapsed";
         public string UnreadText => _unreadCount > 99 ? "99+" : _unreadCount.ToString();
 
+        private bool _isMarkedUnread = false;
+        public bool IsMarkedUnread {
+            get => _isMarkedUnread;
+            set { _isMarkedUnread = value; OnPropertyChanged("IsMarkedUnread"); OnPropertyChanged("MarkedUnreadVisibility"); OnPropertyChanged("UnreadVisibility"); }
+        }
+        // Пустой кружок — только когда помечено непрочитанным и нет реальных непрочитанных
+        public string MarkedUnreadVisibility => (_isMarkedUnread && _unreadCount == 0) ? "Visible" : "Collapsed";
+
         private bool _isPinned = false;
         public bool IsPinned
         {

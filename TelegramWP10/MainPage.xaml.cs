@@ -390,6 +390,7 @@ namespace TelegramWP10
                     if (lastMsg != null) FillChatLastMessage(chatItem, lastMsg, c);
                     // Непрочитанные
                     chatItem.UnreadCount = c["unread_count"]?.ToObject<int>() ?? 0;
+                    chatItem.IsMarkedUnread = c["is_marked_as_unread"]?.ToObject<bool>() ?? false;
                     // _archiveChatIds заполняется ДО загрузки главного списка — надёжнее чем positions
                     // (при bump positions уже содержит chatListMain вместо chatListArchive)
                     var positions = c["positions"] as JArray;
@@ -631,10 +632,18 @@ namespace TelegramWP10
                     long ucriId = update["chat_id"]?.ToObject<long>() ?? 0;
                     if (ucriId != 0 && _chatsDict.ContainsKey(ucriId)) {
                         _chatsDict[ucriId].UnreadCount = update["unread_count"]?.ToObject<int>() ?? 0;
-                        // Обновляем бейдж архива если чат там
+                        // Снимаем флаг IsMarkedUnread когда пришли реальные прочтения
+                        if (_chatsDict[ucriId].UnreadCount == 0)
+                            _chatsDict[ucriId].IsMarkedUnread = false;
                         if (_archiveChatItems.Any(ch => ch.Id == ucriId))
                             UpdateArchiveUnreadBadge();
                     }
+                    break;
+
+                case "updateChatIsMarkedAsUnread":
+                    long ucimId = update["chat_id"]?.ToObject<long>() ?? 0;
+                    if (ucimId != 0 && _chatsDict.ContainsKey(ucimId))
+                        _chatsDict[ucimId].IsMarkedUnread = update["is_marked_as_unread"]?.ToObject<bool>() ?? false;
                     break;
 
                 case "updateUnreadChatCount":
@@ -2005,9 +2014,22 @@ namespace TelegramWP10
                         fi.Text = isInArchive ? "📤 Переместить из архива" : "📁 Переместить в архив";
                     if (fi.Name == "MenuPinChat")
                         fi.Text = isPinned ? "📌 Открепить" : "📌 Закрепить";
+                    if (fi.Name == "MenuMarkUnread")
+                        fi.Text = chat.IsMarkedUnread ? "✅ Отметить прочитанным" : "🔵 Отметить непрочитанным";
                 }
             }
             Windows.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(grid);
+        }
+
+        private void MarkUnread_Click(object sender, RoutedEventArgs e) {
+            if (_pendingDeleteChatId == 0) return;
+            long chatId = _pendingDeleteChatId;
+            _pendingDeleteChatId = 0;
+            if (!_chatsDict.ContainsKey(chatId)) return;
+            bool newMarked = !_chatsDict[chatId].IsMarkedUnread;
+            Log("MARK UNREAD chat=" + chatId + " marked=" + newMarked);
+            var req = "{\"@type\":\"toggleChatIsMarkedAsUnread\",\"chat_id\":" + chatId + ",\"is_marked_as_unread\":" + (newMarked ? "true" : "false") + "}";
+            TdJson.SendUtf8(_client, req);
         }
 
         private void PinChat_Click(object sender, RoutedEventArgs e) {

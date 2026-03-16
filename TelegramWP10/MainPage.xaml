@@ -104,6 +104,7 @@
                             <FlyoutBase.AttachedFlyout>
                                 <MenuFlyout>
                                     <MenuFlyoutItem x:Name="MenuPinChat" Text="📌 Закрепить" Click="PinChat_Click"/>
+                                    <MenuFlyoutItem x:Name="MenuMarkUnread" Text="🔵 Отметить непрочитанным" Click="MarkUnread_Click"/>
                                     <MenuFlyoutItem x:Name="MenuArchiveChat" Text="📁 Переместить в архив" Click="ArchiveChat_Click"/>
                                     <MenuFlyoutItem Text="🗑 Удалить переписку" Click="DeleteChat_Click"/>
                                 </MenuFlyout>
@@ -154,6 +155,11 @@
                                         <TextBlock Text="{Binding UnreadText}" Foreground="White" FontSize="11"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
+                                    <!-- Пустой кружок — чат помечен непрочитанным вручную -->
+                                    <Border Background="Transparent" BorderBrush="#0088cc" BorderThickness="2"
+                                            CornerRadius="10" Width="14" Height="14"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            Visibility="{Binding MarkedUnreadVisibility}"/>
                                 </Grid>
                             </Grid>
                         </Grid>
