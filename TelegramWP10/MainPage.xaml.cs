@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Net.Http;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Controls.Primitives;
@@ -44,6 +45,14 @@ namespace TelegramWP10
         private bool _connectionReady = false;
         private bool _isAuthorized = false;
         private bool _isLoadingHistory = false;
+
+        // MTProxy
+        private class ProxyEntry { public string Host; public int Port; public string Secret; }
+        private List<ProxyEntry> _proxyList = new List<ProxyEntry>();
+        private int _proxyIndex = 0;
+        private int _currentProxyId = 0;
+        private Windows.UI.Xaml.DispatcherTimer _proxyTimer;
+        private bool _proxyConnected = false;
         private bool _isRecording = false;
         private Windows.Media.Capture.MediaCapture _mediaCapture = null;
         private Windows.Storage.StorageFile _recordingFile = null;
@@ -212,7 +221,99 @@ namespace TelegramWP10
                 await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
                 return;
             }
+            // Запускаем загрузку прокси параллельно с TDLib
+            var _ = FetchAndApplyProxyAsync();
             Task.Run(() => LongPolling());
+        }
+
+        private async Task FetchAndApplyProxyAsync() {
+            try {
+                Log("PROXY: fetching list...");
+                var http = new System.Net.Http.HttpClient();
+                http.Timeout = TimeSpan.FromSeconds(10);
+                var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.php");
+                // Парсим строки вида tg://proxy?server=HOST&port=PORT&secret=SECRET
+                // или просто HOST:PORT:SECRET
+                _proxyList.Clear();
+                foreach (var line in text.Split('\n')) {
+                    var l = line.Trim();
+                    if (string.IsNullOrEmpty(l)) continue;
+                    try {
+                        if (l.StartsWith("tg://proxy") || l.StartsWith("https://t.me/proxy")) {
+                            // Парсим query string вручную — System.Web недоступен в UWP
+                            string query = l.Contains("?") ? l.Substring(l.IndexOf('?') + 1) : "";
+                            var qp = new Dictionary<string, string>();
+                            foreach (var pair in query.Split('&')) {
+                                var kv = pair.Split('=');
+                                if (kv.Length == 2) qp[Uri.UnescapeDataString(kv[0])] = Uri.UnescapeDataString(kv[1]);
+                            }
+                            string server = qp.ContainsKey("server") ? qp["server"] : null;
+                            string portStr = qp.ContainsKey("port") ? qp["port"] : null;
+                            string secret = qp.ContainsKey("secret") ? qp["secret"] : "";
+                            if (!string.IsNullOrEmpty(server) && int.TryParse(portStr, out int port))
+                                _proxyList.Add(new ProxyEntry { Host = server, Port = port, Secret = secret });
+                        } else if (l.Contains(":")) {
+                            var parts = l.Split(':');
+                            if (parts.Length >= 2 && int.TryParse(parts[1], out int port2))
+                                _proxyList.Add(new ProxyEntry { Host = parts[0], Port = port2, Secret = parts.Length > 2 ? parts[2] : "" });
+                        }
+                    } catch { }
+                }
+                Log("PROXY: loaded " + _proxyList.Count + " proxies");
+                if (_proxyList.Count > 0) {
+                    _proxyIndex = 0;
+                    await TryNextProxyAsync();
+                }
+            } catch (Exception ex) {
+                Log("PROXY FETCH ERR: " + ex.Message);
+            }
+        }
+
+        private async Task TryNextProxyAsync() {
+            if (_proxyList.Count == 0) return;
+            if (_proxyIndex >= _proxyList.Count) _proxyIndex = 0;
+            var proxy = _proxyList[_proxyIndex];
+            Log("PROXY: trying " + proxy.Host + ":" + proxy.Port);
+            await ApplyProxyAsync(proxy.Host, proxy.Port, proxy.Secret);
+            // Таймер на 5 секунд — если не подключились, пробуем следующий
+            _proxyTimer?.Stop();
+            _proxyTimer = new Windows.UI.Xaml.DispatcherTimer();
+            _proxyTimer.Interval = TimeSpan.FromSeconds(5);
+            _proxyTimer.Tick += async (s, e) => {
+                _proxyTimer.Stop();
+                if (!_proxyConnected) {
+                    Log("PROXY: timeout, trying next");
+                    _proxyIndex++;
+                    await TryNextProxyAsync();
+                }
+            };
+            _proxyTimer.Start();
+        }
+
+        private async Task ApplyProxyAsync(string host, int port, string secret) {
+            // Удаляем старый прокси если был
+            if (_currentProxyId != 0) {
+                TdJson.SendUtf8(_client, "{\"@type\":\"removeProxy\",\"proxy_id\":" + _currentProxyId + "}");
+                _currentProxyId = 0;
+            }
+            _proxyConnected = false;
+            var req = new JObject {
+                ["@type"] = "addProxy",
+                ["server"] = host,
+                ["port"] = port,
+                ["enable"] = true,
+                ["type"] = new JObject {
+                    ["@type"] = "proxyTypeMtproto",
+                    ["secret"] = secret
+                }
+            };
+            TdJson.SendUtf8(_client, req.ToString());
+            // Показываем текущий прокси в UI
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                ProxyStatusText.Text = "🔄 " + host + ":" + port;
+                ProxyStatusText.Visibility = Visibility.Visible;
+            });
+            Log("PROXY: applied " + host + ":" + port);
         }
 
         private void SendParameters() {
@@ -542,7 +643,15 @@ namespace TelegramWP10
                     Log("CONN: " + connState);
                     if (connState == "connectionStateReady") {
                         _connectionReady = true;
+                        _proxyConnected = true;
+                        _proxyTimer?.Stop();
                         ConnectionStatusText.Text = "";
+                        // Обновляем индикатор прокси — показываем активный
+                        if (_proxyList.Count > 0 && _proxyIndex < _proxyList.Count) {
+                            var p = _proxyList[_proxyIndex];
+                            ProxyStatusText.Text = "🟢 " + p.Host + ":" + p.Port;
+                            ProxyStatusText.Visibility = Visibility.Visible;
+                        }
                     } else {
                         _connectionReady = false;
                         string connText = connState == "connectionStateConnecting" ? "· подключение..."
@@ -550,6 +659,15 @@ namespace TelegramWP10
                             : connState == "connectionStateWaitingForNetwork" ? "· нет сети"
                             : "...";
                         ConnectionStatusText.Text = connText;
+                    }
+                    break;
+
+                case "proxy":
+                    // Ответ на addProxy — сохраняем proxy_id для возможного удаления
+                    long newProxyId = update["id"]?.ToObject<long>() ?? 0;
+                    if (newProxyId != 0) {
+                        _currentProxyId = (int)newProxyId;
+                        Log("PROXY: id=" + _currentProxyId);
                     }
                     break;
 

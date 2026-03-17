@@ -16,6 +16,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <StackPanel x:Name="LoginPanel" Grid.Row="0" Visibility="Visible" Margin="0,0,0,10">
@@ -173,6 +174,9 @@
                     HorizontalAlignment="Stretch" Margin="0,8,0,0"
                     Background="#AA222222" Foreground="#FF4444"
                     Visibility="Collapsed"/>
+            <TextBlock x:Name="ProxyStatusText" Grid.Row="3" Text="" Foreground="#555555"
+                       FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,4"
+                       TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
         </Grid>
 
         <Grid x:Name="MessagesPanel" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
