@@ -227,14 +227,17 @@ namespace TelegramWP10
         }
 
         private async Task FetchAndApplyProxyAsync() {
+            List<ProxyEntry> parsed = null;
             try {
                 Log("PROXY: fetching list...");
                 var http = new System.Net.Http.HttpClient();
                 http.Timeout = TimeSpan.FromSeconds(10);
                 var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.php");
                 Log("PROXY raw: " + (text.Length > 300 ? text.Substring(0, 300) : text));
-                _proxyList.Clear();
-                foreach (var line in text.Split('\n')) {
+                parsed = new List<ProxyEntry>();
+                // Нормализуем переносы строк
+                var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+                foreach (var line in lines) {
                     var l = line.Trim();
                     if (string.IsNullOrEmpty(l)) continue;
                     try {
@@ -248,31 +251,28 @@ namespace TelegramWP10
                             string server = qp.ContainsKey("server") ? qp["server"] : null;
                             string portStr = qp.ContainsKey("port") ? qp["port"] : null;
                             string secret = qp.ContainsKey("secret") ? qp["secret"] : null;
-                            Log("PROXY parsed: server=" + server + " port=" + portStr + " secret=" + secret);
-                            // secret обязателен для MTProxy
                             if (!string.IsNullOrEmpty(server) && !string.IsNullOrEmpty(secret) && int.TryParse(portStr, out int port))
-                                _proxyList.Add(new ProxyEntry { Host = server, Port = port, Secret = secret });
+                                parsed.Add(new ProxyEntry { Host = server, Port = port, Secret = secret });
                         } else if (l.Contains(":")) {
                             var parts = l.Split(':');
-                            Log("PROXY parse HOST:PORT:SECRET parts=" + parts.Length + " line=" + l);
                             if (parts.Length >= 3 && int.TryParse(parts[1], out int port2) && !string.IsNullOrEmpty(parts[2]))
-                                _proxyList.Add(new ProxyEntry { Host = parts[0], Port = port2, Secret = parts[2] });
-                            else
-                                Log("PROXY skip: parts=" + parts.Length + " port=" + parts[1]);
+                                parsed.Add(new ProxyEntry { Host = parts[0], Port = port2, Secret = parts[2] });
                         }
-                    } catch (Exception ex) { Log("PROXY parse ERR line=" + l + " | " + ex.Message); }
+                    } catch (Exception ex) { Log("PROXY parse ERR: " + ex.Message); }
                 }
-                Log("PROXY: loaded " + _proxyList.Count + " proxies");
-                if (_proxyList.Count > 0) {
-                    _proxyIndex = 0;
-                    // Возвращаемся на UI поток для работы с Dispatcher и UI элементами
-                    await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, async () => {
-                        await TryNextProxyAsync();
-                    });
-                }
+                Log("PROXY: parsed " + parsed.Count + " proxies");
             } catch (Exception ex) {
                 Log("PROXY FETCH ERR: " + ex.Message);
+                return;
             }
+            if (parsed == null || parsed.Count == 0) return;
+            // Переходим на UI поток для работы с TDLib и UI
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, async () => {
+                _proxyList = parsed;
+                _proxyIndex = 0;
+                Log("PROXY: applying first proxy");
+                await TryNextProxyAsync();
+            });
         }
 
         private async Task TryNextProxyAsync() {
