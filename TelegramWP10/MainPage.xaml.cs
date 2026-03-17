@@ -240,7 +240,6 @@ namespace TelegramWP10
                 Log("PROXY lines=" + lines.Length + " first='" + (lines.Length > 0 ? lines[0] : "none") + "'");
                 foreach (var line in lines) {
                     var l = line.Trim();
-                    Log("PROXY line='" + l + "' len=" + l.Length);
                     if (string.IsNullOrEmpty(l)) continue;
                     try {
                         if (l.StartsWith("tg://proxy") || l.StartsWith("https://t.me/proxy")) {
@@ -262,7 +261,9 @@ namespace TelegramWP10
                         }
                     } catch (Exception ex) { Log("PROXY parse ERR: " + ex.Message); }
                 }
-                Log("PROXY: parsed " + parsed.Count + " proxies");
+                // Итоговый лог всех прокси одной строкой
+                var summary = string.Join("|", parsed.Select(p => p.Host + ":" + p.Port + ":" + p.Secret.Substring(0, Math.Min(8, p.Secret.Length))));
+                Log("PROXY parsed=" + parsed.Count + " list=" + summary);
             } catch (Exception ex) {
                 Log("PROXY FETCH ERR: " + ex.Message);
                 return;
