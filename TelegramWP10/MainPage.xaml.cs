@@ -267,11 +267,11 @@ namespace TelegramWP10
             }
             if (parsed == null || parsed.Count == 0) return;
             // Переходим на UI поток для работы с TDLib и UI
-            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, async () => {
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 _proxyList = parsed;
                 _proxyIndex = 0;
                 Log("PROXY: applying first proxy");
-                await TryNextProxyAsync();
+                var t = TryNextProxyAsync(); // fire-and-forget на UI потоке
             });
         }
 
