@@ -232,15 +232,13 @@ namespace TelegramWP10
                 var http = new System.Net.Http.HttpClient();
                 http.Timeout = TimeSpan.FromSeconds(10);
                 var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.php");
-                // Парсим строки вида tg://proxy?server=HOST&port=PORT&secret=SECRET
-                // или просто HOST:PORT:SECRET
+                Log("PROXY raw: " + (text.Length > 300 ? text.Substring(0, 300) : text));
                 _proxyList.Clear();
                 foreach (var line in text.Split('\n')) {
                     var l = line.Trim();
                     if (string.IsNullOrEmpty(l)) continue;
                     try {
                         if (l.StartsWith("tg://proxy") || l.StartsWith("https://t.me/proxy")) {
-                            // Парсим query string вручную — System.Web недоступен в UWP
                             string query = l.Contains("?") ? l.Substring(l.IndexOf('?') + 1) : "";
                             var qp = new Dictionary<string, string>();
                             foreach (var pair in query.Split('&')) {
@@ -249,15 +247,18 @@ namespace TelegramWP10
                             }
                             string server = qp.ContainsKey("server") ? qp["server"] : null;
                             string portStr = qp.ContainsKey("port") ? qp["port"] : null;
-                            string secret = qp.ContainsKey("secret") ? qp["secret"] : "";
-                            if (!string.IsNullOrEmpty(server) && int.TryParse(portStr, out int port))
+                            string secret = qp.ContainsKey("secret") ? qp["secret"] : null;
+                            Log("PROXY parsed: server=" + server + " port=" + portStr + " secret=" + secret);
+                            // secret обязателен для MTProxy
+                            if (!string.IsNullOrEmpty(server) && !string.IsNullOrEmpty(secret) && int.TryParse(portStr, out int port))
                                 _proxyList.Add(new ProxyEntry { Host = server, Port = port, Secret = secret });
                         } else if (l.Contains(":")) {
                             var parts = l.Split(':');
-                            if (parts.Length >= 2 && int.TryParse(parts[1], out int port2))
-                                _proxyList.Add(new ProxyEntry { Host = parts[0], Port = port2, Secret = parts.Length > 2 ? parts[2] : "" });
+                            // HOST:PORT:SECRET — secret обязателен
+                            if (parts.Length >= 3 && int.TryParse(parts[1], out int port2) && !string.IsNullOrEmpty(parts[2]))
+                                _proxyList.Add(new ProxyEntry { Host = parts[0], Port = port2, Secret = parts[2] });
                         }
-                    } catch { }
+                    } catch (Exception ex) { Log("PROXY parse ERR line=" + l + " | " + ex.Message); }
                 }
                 Log("PROXY: loaded " + _proxyList.Count + " proxies");
                 if (_proxyList.Count > 0) {
