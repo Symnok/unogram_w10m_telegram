@@ -300,13 +300,19 @@ namespace TelegramWP10
         }
 
         private async Task ApplyProxyAsync(string host, int port, string secret) {
-            // Удаляем старый прокси если был
             if (_currentProxyId != 0) {
                 TdJson.SendUtf8(_client, "{\"@type\":\"removeProxy\",\"proxy_id\":" + _currentProxyId + "}");
                 _currentProxyId = 0;
             }
             _proxyConnected = false;
-            Log("PROXY addProxy host=" + host + " port=" + port + " secret='" + secret + "' len=" + (secret?.Length ?? -1));
+            // TDLib для proxyTypeMtproto принимает секрет в hex.
+            // Если секрет не начинается с "dd" или "ee" — добавляем "dd" (simple MTProxy)
+            string normalizedSecret = secret ?? "";
+            if (normalizedSecret.Length == 32 &&
+                !normalizedSecret.StartsWith("dd", StringComparison.OrdinalIgnoreCase) &&
+                !normalizedSecret.StartsWith("ee", StringComparison.OrdinalIgnoreCase))
+                normalizedSecret = "dd" + normalizedSecret;
+            Log("PROXY addProxy host=" + host + " port=" + port + " secret='" + normalizedSecret + "'");
             var req = new JObject {
                 ["@type"] = "addProxy",
                 ["server"] = host,
@@ -314,11 +320,10 @@ namespace TelegramWP10
                 ["enable"] = true,
                 ["type"] = new JObject {
                     ["@type"] = "proxyTypeMtproto",
-                    ["secret"] = secret
+                    ["secret"] = normalizedSecret
                 }
             };
             TdJson.SendUtf8(_client, req.ToString());
-            // Показываем текущий прокси в UI
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 ProxyStatusText.Text = "🔄 " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
