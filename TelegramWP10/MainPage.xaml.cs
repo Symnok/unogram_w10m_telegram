@@ -237,8 +237,10 @@ namespace TelegramWP10
                 parsed = new List<ProxyEntry>();
                 // Нормализуем переносы строк
                 var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+                Log("PROXY lines=" + lines.Length + " first='" + (lines.Length > 0 ? lines[0] : "none") + "'");
                 foreach (var line in lines) {
                     var l = line.Trim();
+                    Log("PROXY line='" + l + "' len=" + l.Length);
                     if (string.IsNullOrEmpty(l)) continue;
                     try {
                         if (l.StartsWith("tg://proxy") || l.StartsWith("https://t.me/proxy")) {
