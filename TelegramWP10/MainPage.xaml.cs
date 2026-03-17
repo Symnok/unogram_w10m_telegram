@@ -254,16 +254,21 @@ namespace TelegramWP10
                                 _proxyList.Add(new ProxyEntry { Host = server, Port = port, Secret = secret });
                         } else if (l.Contains(":")) {
                             var parts = l.Split(':');
-                            // HOST:PORT:SECRET — secret обязателен
+                            Log("PROXY parse HOST:PORT:SECRET parts=" + parts.Length + " line=" + l);
                             if (parts.Length >= 3 && int.TryParse(parts[1], out int port2) && !string.IsNullOrEmpty(parts[2]))
                                 _proxyList.Add(new ProxyEntry { Host = parts[0], Port = port2, Secret = parts[2] });
+                            else
+                                Log("PROXY skip: parts=" + parts.Length + " port=" + parts[1]);
                         }
                     } catch (Exception ex) { Log("PROXY parse ERR line=" + l + " | " + ex.Message); }
                 }
                 Log("PROXY: loaded " + _proxyList.Count + " proxies");
                 if (_proxyList.Count > 0) {
                     _proxyIndex = 0;
-                    await TryNextProxyAsync();
+                    // Возвращаемся на UI поток для работы с Dispatcher и UI элементами
+                    await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, async () => {
+                        await TryNextProxyAsync();
+                    });
                 }
             } catch (Exception ex) {
                 Log("PROXY FETCH ERR: " + ex.Message);
