@@ -38,10 +38,9 @@ before_build:
 
   - mkdir %PROJECT_DIR%\build
   - cd %PROJECT_DIR%\build
-  - cmake -G "Visual Studio 15 2017" -A ARM -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=%VCPKG_TARGET_TRIPLET% -DTD_ENABLE_LTO=OFF -DOPENSSL_ROOT_DIR=C:/tools/vcpkg/installed/%VCPKG_TARGET_TRIPLET% -DOPENSSL_INCLUDE_DIR=C:/tools/vcpkg/installed/%VCPKG_TARGET_TRIPLET%/include -DOPENSSL_CRYPTO_LIBRARY=C:/tools/vcpkg/installed/%VCPKG_TARGET_TRIPLET%/lib/libcrypto.lib -DOPENSSL_SSL_LIBRARY=C:/tools/vcpkg/installed/%VCPKG_TARGET_TRIPLET%/lib/libssl.lib ..
-  - findstr /i "OPENSSL_FOUND" CMakeCache.txt || echo OPENSSL_FOUND not in cache
-  - findstr /i "OPENSSL_VERSION" CMakeCache.txt || echo OPENSSL_VERSION not in cache
-  - findstr /i "MTPROTO" CMakeCache.txt || echo MTPROTO not in cache
+  - cmake -G "Visual Studio 15 2017" -A ARM -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm-uwp -DTD_ENABLE_LTO=OFF -DOPENSSL_ROOT_DIR=C:/tools/vcpkg/installed/arm-uwp -DOPENSSL_INCLUDE_DIR=C:/tools/vcpkg/installed/arm-uwp/include -DOPENSSL_CRYPTO_LIBRARY=C:/tools/vcpkg/installed/arm-uwp/lib/libcrypto.lib -DOPENSSL_SSL_LIBRARY=C:/tools/vcpkg/installed/arm-uwp/lib/libssl.lib ..
+  - type CMakeCache.txt | findstr /i "OPENSSL"
+  - type CMakeCache.txt | findstr /i "PROXY"
 
 build_script:
   - cd %PROJECT_DIR%\build
