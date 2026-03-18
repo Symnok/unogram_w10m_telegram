@@ -221,8 +221,9 @@ namespace TelegramWP10
                 await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
                 return;
             }
-            // Запускаем загрузку прокси параллельно с TDLib
-            var _ = FetchAndApplyProxyAsync();
+            // Запускаем прокси — хардкоженный MTProxy
+            var proxyTask = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+            // var proxyTask = FetchAndApplyProxyAsync(); // получение списка с сервера — временно отключено
             Task.Run(() => LongPolling());
         }
 
@@ -332,6 +333,8 @@ namespace TelegramWP10
         }
 
         private void SendParameters() {
+            // Включаем подробное JSON логирование TDLib
+            TdJson.SendUtf8(_client, "{\"@type\":\"setLogVerbosityLevel\",\"new_verbosity_level\":5}");
             JObject p = new JObject {
                 ["@type"] = "setTdlibParameters",
                 ["use_test_dc"] = false,
@@ -363,11 +366,10 @@ namespace TelegramWP10
                         try {
                             var update = JObject.Parse(json);
                             string type = update["@type"]?.ToString();
-                            if (type != "updateOption" && type != "updateChatLastMessage" &&
-                                type != "updateChatReadInbox" && type != "updateChatReadOutbox" &&
-                                type != "updateMessageInteractionInfo" &&
-                                type != "updateChatPosition" && type != "updateChatPermissions")
-                                Log("← " + type + " | " + json.Substring(0, Math.Min(json.Length, 300)));
+                            // Логируем всё для диагностики прокси (кроме очень частых апдейтов)
+                            if (type != "updateOption" && type != "updateChatReadOutbox" &&
+                                type != "updateMessageInteractionInfo")
+                                Log("← " + type + " | " + json.Substring(0, Math.Min(json.Length, 400)));
                             HandleUpdate(type, update);
                         } catch (Exception ex) { Log("PARSE ERR: " + ex.Message); }
                     });
