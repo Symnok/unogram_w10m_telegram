@@ -1,15 +1,55 @@
 image: Visual Studio 2017
 
+configuration: Release
 platform: ARM
 
-configuration: Release
+environment:
+  VCPKG_TARGET_TRIPLET: arm-uwp
+  OPENSSL_NO_ASM: 1
+  PROJECT_DIR: c:\projects\td
+
+install:
+  - echo %VSCMD_ARG_TGT_ARCH%
+  - echo %Platform%
+  - echo %VCPKG_DEFAULT_TRIPLET%
+  - mkdir %PROJECT_DIR%
+  - git clone https://github.com/tdlib/td.git %PROJECT_DIR%
+  - cd %PROJECT_DIR%
+  - git submodule update --init --recursive
+  - choco install gperf -y
+  - choco install strawberryperl -y
+  - choco install php -y
+  - set PATH=C:\Strawberry\perl\bin;C:\tools\php83;%PATH%
+  - rd /s /q C:\tools\vcpkg
+  - git clone https://github.com/microsoft/vcpkg.git C:\tools\vcpkg
+  - cd C:\tools\vcpkg
+  - git checkout 281d107
+  - .\bootstrap-vcpkg.bat
+  - vcpkg upgrade --no-dry-run
+  - vcpkg install zlib:%VCPKG_TARGET_TRIPLET% openssl:%VCPKG_TARGET_TRIPLET% --clean-after-build
+  - vcpkg install zlib:x64-windows openssl:x64-windows --clean-after-build
+  - cd %PROJECT_DIR%
 
 before_build:
-  - nuget restore TelegramWP10.sln
+  - mkdir %PROJECT_DIR%\build_native
+  - cd %PROJECT_DIR%\build_native
+  - cmake -G "Visual Studio 15 2017" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DTD_ENABLE_LTO=OFF ..
+  - msbuild prepare_cross_compiling.vcxproj /p:Configuration=Release /p:Platform=x64 /m
 
-build:
-  project: TelegramWP10.sln
-  verbosity: minimal
+  - mkdir %PROJECT_DIR%\build
+  - cd %PROJECT_DIR%\build
+  - cmake -G "Visual Studio 15 2017" -A ARM -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=%VCPKG_TARGET_TRIPLET% -DTD_ENABLE_LTO=OFF -DOPENSSL_ROOT_DIR=C:/tools/vcpkg/installed/%VCPKG_TARGET_TRIPLET% -DOPENSSL_INCLUDE_DIR=C:/tools/vcpkg/installed/%VCPKG_TARGET_TRIPLET%/include -DOPENSSL_CRYPTO_LIBRARY=C:/tools/vcpkg/installed/%VCPKG_TARGET_TRIPLET%/lib/libcrypto.lib -DOPENSSL_SSL_LIBRARY=C:/tools/vcpkg/installed/%VCPKG_TARGET_TRIPLET%/lib/libssl.lib ..
+  - findstr /i "OPENSSL_FOUND\|OPENSSL_VERSION\|MTPROTO" CMakeCache.txt
 
-after_build:
-  - ps: Get-ChildItem -Recurse -Filter "*.appx" | % { Push-AppveyorArtifact $_.FullName }
+build_script:
+  - cd %PROJECT_DIR%\build
+  - dir /s /b tdjson.vcxproj > proj_path.txt
+  - set /p V_PROJ=<proj_path.txt
+  - echo Building project found at %V_PROJ%
+  - msbuild "%V_PROJ%" /p:Configuration=Release /p:Platform=ARM /m /p:AppxPackage=false
+
+artifacts:
+  - path: "**\tdjson.dll"
+    name: tdjson_dll
+
+test: off
