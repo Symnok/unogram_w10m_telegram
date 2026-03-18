@@ -324,6 +324,8 @@ namespace TelegramWP10
         private static string Base64UrlEncode(byte[] bytes) {
             return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
         }
+
+        private async Task TryNextProxyAsync() {
             if (_proxyList.Count == 0) return;
             if (_proxyIndex >= _proxyList.Count) _proxyIndex = 0;
             var proxy = _proxyList[_proxyIndex];
