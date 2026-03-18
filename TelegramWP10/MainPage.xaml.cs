@@ -379,10 +379,13 @@ namespace TelegramWP10
                         LoginStatus.Text = "Введите номер телефона";
                         PhoneInput.IsEnabled = true;
                         PhoneButton.IsEnabled = true;
+                        // Проверяем поддержку прокси
+                        TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
+                        Log("PROXY: sent getProxies to check support");
                         // Применяем прокси — TDLib готов принимать команды
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "ddd1a377f2cc4884c05fcd433dbf7089bd");
                             // var t = FetchAndApplyProxyAsync(); // список с сервера — временно отключено
                         }
                     }
@@ -410,7 +413,7 @@ namespace TelegramWP10
                         // Применяем прокси если ещё не применяли (сохранённая сессия минует WaitPhoneNumber)
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "ddd1a377f2cc4884c05fcd433dbf7089bd");
                             // var t = FetchAndApplyProxyAsync();
                         }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
