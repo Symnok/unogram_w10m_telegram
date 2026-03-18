@@ -278,7 +278,52 @@ namespace TelegramWP10
             });
         }
 
-        private async Task TryNextProxyAsync() {
+        private async Task TryAllSecretFormatsAsync(string host, int port, string hexSecret) {
+            // Все варианты формата секрета для proxyTypeMtproto
+            var variants = new[] {
+                hexSecret,                                    // 1. plain hex
+                "dd" + hexSecret,                            // 2. dd + hex
+                Convert.ToBase64String(HexToBytes(hexSecret)),                        // 3. plain base64
+                Convert.ToBase64String(HexToBytes("dd" + hexSecret)),                 // 4. dd base64
+                Base64UrlEncode(HexToBytes(hexSecret)),      // 5. plain base64url
+                Base64UrlEncode(HexToBytes("dd" + hexSecret)), // 6. dd base64url
+            };
+            for (int i = 0; i < variants.Length; i++) {
+                Log("PROXY try variant " + (i+1) + ": '" + variants[i] + "'");
+                await SendAddProxyAndWaitAsync(host, port, variants[i]);
+                await Task.Delay(500); // ждём ответ
+            }
+        }
+
+        private async Task SendAddProxyAndWaitAsync(string host, int port, string secret) {
+            var req = new JObject {
+                ["@type"] = "addProxy",
+                ["server"] = host,
+                ["port"] = port,
+                ["enable"] = true,
+                ["type"] = new JObject {
+                    ["@type"] = "proxyTypeMtproto",
+                    ["secret"] = secret
+                }
+            };
+            TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                ProxyStatusText.Text = "🔄 testing...";
+                ProxyStatusText.Visibility = Visibility.Visible;
+            });
+        }
+
+        private static byte[] HexToBytes(string hex) {
+            if (hex.Length % 2 != 0) hex = "0" + hex;
+            var bytes = new byte[hex.Length / 2];
+            for (int i = 0; i < bytes.Length; i++)
+                bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+            return bytes;
+        }
+
+        private static string Base64UrlEncode(byte[] bytes) {
+            return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
+        }
             if (_proxyList.Count == 0) return;
             if (_proxyIndex >= _proxyList.Count) _proxyIndex = 0;
             var proxy = _proxyList[_proxyIndex];
@@ -382,11 +427,10 @@ namespace TelegramWP10
                         // Проверяем поддержку прокси
                         TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
                         Log("PROXY: sent getProxies to check support");
-                        // Применяем прокси — TDLib готов принимать команды
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
-                            // var t = FetchAndApplyProxyAsync(); // список с сервера — временно отключено
+                            // Пробуем все форматы секрета по очереди
+                            var t = TryAllSecretFormatsAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
                         }
                     }
                     if (s == "authorizationStateWaitCode") {
@@ -413,8 +457,7 @@ namespace TelegramWP10
                         // Применяем прокси если ещё не применяли (сохранённая сессия минует WaitPhoneNumber)
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
-                            // var t = FetchAndApplyProxyAsync();
+                            var t = TryAllSecretFormatsAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
                         }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
                         _loadingArchiveIds = true;
