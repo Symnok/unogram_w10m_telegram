@@ -675,11 +675,14 @@ namespace TelegramWP10
                     break;
 
                 case "proxy":
-                    // Ответ на addProxy — сохраняем proxy_id для возможного удаления
+                    // Ответ на addProxy — получаем proxy_id и явно включаем прокси
                     long newProxyId = update["id"]?.ToObject<long>() ?? 0;
                     if (newProxyId != 0) {
                         _currentProxyId = (int)newProxyId;
-                        Log("PROXY: id=" + _currentProxyId);
+                        Log("PROXY: id=" + _currentProxyId + " — calling enableProxy");
+                        TdJson.SendUtf8(_client, "{\"@type\":\"enableProxy\",\"proxy_id\":" + _currentProxyId + "}");
+                    } else {
+                        Log("PROXY: received proxy response but id=0, json=" + update.ToString().Substring(0, Math.Min(200, update.ToString().Length)));
                     }
                     break;
 
