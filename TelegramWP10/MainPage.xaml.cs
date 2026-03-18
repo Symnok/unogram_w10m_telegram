@@ -421,13 +421,14 @@ namespace TelegramWP10
                     Log("AUTH: " + s);
                     if (s == "authorizationStateWaitTdlibParameters") {
                         SendParameters();
-                        // Отключаем все сохранённые прокси
-                        TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
-                        TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
                     }
 
-                    // Применяем прокси один раз — при первом состоянии после инициализации
-                    if (!_proxyApplied && s != "authorizationStateWaitTdlibParameters" && s != null) {
+                    // Применяем прокси только после полной инициализации TDLib (WaitPhoneNumber или позже)
+                    if (!_proxyApplied && (
+                        s == "authorizationStateWaitPhoneNumber" ||
+                        s == "authorizationStateWaitCode" ||
+                        s == "authorizationStateWaitPassword" ||
+                        s == "authorizationStateReady")) {
                         _proxyApplied = true;
                         Log("PROXY: applying at state=" + s);
                         var pt = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
