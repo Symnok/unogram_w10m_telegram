@@ -305,7 +305,6 @@ namespace TelegramWP10
                 _currentProxyId = 0;
             }
             _proxyConnected = false;
-            Log("PROXY addProxy host=" + host + " port=" + port + " secret='" + secret + "' len=" + (secret?.Length ?? -1));
             var req = new JObject {
                 ["@type"] = "addProxy",
                 ["server"] = host,
@@ -316,8 +315,9 @@ namespace TelegramWP10
                     ["secret"] = secret
                 }
             };
-            TdJson.SendUtf8(_client, req.ToString());
-            Log("PROXY: addProxy sent, waiting for response");
+            string reqJson = req.ToString(Newtonsoft.Json.Formatting.None);
+            Log("PROXY sending: " + reqJson);
+            TdJson.SendUtf8(_client, reqJson);
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 ProxyStatusText.Text = "🔄 " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
@@ -385,7 +385,8 @@ namespace TelegramWP10
                         // Применяем прокси — TDLib готов принимать команды
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "ddd1a377f2cc4884c05fcd433dbf7089bd");
+                            // Секрет в base64url (dd + hex -> bytes -> base64url без паддинга)
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "3dGjd_LMSITAX81DPb9wib0=");
                             // var t = FetchAndApplyProxyAsync(); // список с сервера — временно отключено
                         }
                     }
@@ -413,7 +414,7 @@ namespace TelegramWP10
                         // Применяем прокси если ещё не применяли (сохранённая сессия минует WaitPhoneNumber)
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "ddd1a377f2cc4884c05fcd433dbf7089bd");
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "3dGjd_LMSITAX81DPb9wib0=");
                             // var t = FetchAndApplyProxyAsync();
                         }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
