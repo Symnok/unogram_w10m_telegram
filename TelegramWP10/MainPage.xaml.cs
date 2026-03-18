@@ -329,6 +329,8 @@ namespace TelegramWP10
                 ProxyStatusText.Visibility = Visibility.Visible;
             });
             Log("PROXY: applied " + host + ":" + port);
+			string json = Newtonsoft.Json.JsonConvert.SerializeObject(req);
+            Log("REQUEST JSON: " + json);
         }
 
         private void SendParameters() {
