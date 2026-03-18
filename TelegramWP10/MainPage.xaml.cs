@@ -221,10 +221,12 @@ namespace TelegramWP10
                 await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
                 return;
             }
-            // Запускаем прокси — хардкоженный MTProxy
-            var proxyTask = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
-            // var proxyTask = FetchAndApplyProxyAsync(); // получение списка с сервера — временно отключено
             Task.Run(() => LongPolling());
+            // Небольшая задержка чтобы LongPolling успел стартовать
+            await Task.Delay(200);
+            // Запускаем прокси — хардкоженный MTProxy
+            await ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+            // var _ = FetchAndApplyProxyAsync(); // получение списка с сервера — временно отключено
         }
 
         private async Task FetchAndApplyProxyAsync() {
@@ -306,14 +308,7 @@ namespace TelegramWP10
                 _currentProxyId = 0;
             }
             _proxyConnected = false;
-            // TDLib для proxyTypeMtproto принимает секрет в hex.
-            // Если секрет не начинается с "dd" или "ee" — добавляем "dd" (simple MTProxy)
-            string normalizedSecret = secret ?? "";
-            if (normalizedSecret.Length == 32 &&
-                !normalizedSecret.StartsWith("dd", StringComparison.OrdinalIgnoreCase) &&
-                !normalizedSecret.StartsWith("ee", StringComparison.OrdinalIgnoreCase))
-                normalizedSecret = "dd" + normalizedSecret;
-            Log("PROXY addProxy host=" + host + " port=" + port + " secret='" + normalizedSecret + "'");
+            Log("PROXY addProxy host=" + host + " port=" + port + " secret='" + secret + "' len=" + (secret?.Length ?? -1));
             var req = new JObject {
                 ["@type"] = "addProxy",
                 ["server"] = host,
@@ -321,15 +316,15 @@ namespace TelegramWP10
                 ["enable"] = true,
                 ["type"] = new JObject {
                     ["@type"] = "proxyTypeMtproto",
-                    ["secret"] = normalizedSecret
+                    ["secret"] = secret
                 }
             };
             TdJson.SendUtf8(_client, req.ToString());
+            Log("PROXY: addProxy sent, waiting for response");
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 ProxyStatusText.Text = "🔄 " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
             });
-            Log("PROXY: applied " + host + ":" + port);
         }
 
         private void SendParameters() {
