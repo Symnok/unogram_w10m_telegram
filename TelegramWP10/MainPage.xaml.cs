@@ -446,7 +446,7 @@ namespace TelegramWP10
                         s == "authorizationStateReady")) {
                         _proxyApplied = true;
                         Log("PROXY: applying at state=" + s);
-                        var pt = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+                        var pt = ApplyProxyAsync("tg-gw.com", 443, "ddd1a377f2cc4884c05fcd433dbf7089bd");
                     }
 
                     if (s == "authorizationStateWaitPhoneNumber") {
