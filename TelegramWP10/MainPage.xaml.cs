@@ -201,11 +201,26 @@ namespace TelegramWP10
             _mediaSession = null;
         }
 
-        private async void Log(string m) {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _logQueue
+            = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        private bool _logFlushing = false;
+
+        private void Log(string m) {
+            _logQueue.Enqueue($"[{DateTime.Now:HH:mm:ss.fff}] {m}");
+            if (!_logFlushing) FlushLog();
+        }
+
+        private async void FlushLog() {
+            if (_logFlushing) return;
+            _logFlushing = true;
             try {
-                if (_logFile == null) return;
-                await FileIO.AppendTextAsync(_logFile, $"[{DateTime.Now:HH:mm:ss.fff}] {m}\r\n");
-            } catch { }
+                while (_logQueue.TryDequeue(out string line)) {
+                    if (_logFile == null) { _logQueue.Clear(); break; }
+                    try { await FileIO.AppendTextAsync(_logFile, line + "\r\n"); } catch { }
+                }
+            } finally { _logFlushing = false; }
+            // Если пока писали — добавили ещё
+            if (!_logQueue.IsEmpty) FlushLog();
         }
 
         private async void InitAsync() {
