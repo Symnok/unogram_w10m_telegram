@@ -419,7 +419,12 @@ namespace TelegramWP10
                 case "updateAuthorizationState":
                     var s = update["authorization_state"]?["@type"]?.ToString();
                     Log("AUTH: " + s);
-                    if (s == "authorizationStateWaitTdlibParameters") SendParameters();
+                    if (s == "authorizationStateWaitTdlibParameters") {
+                        SendParameters();
+                        // Отключаем все сохранённые прокси
+                        TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
+                        TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
+                    }
 
                     // Применяем прокси один раз — при первом состоянии после инициализации
                     if (!_proxyApplied && s != "authorizationStateWaitTdlibParameters" && s != null) {
@@ -482,6 +487,9 @@ namespace TelegramWP10
                 case "error":
                     string errMsg = update["message"]?.ToString();
                     Log("ERROR: " + errMsg);
+                    // Не показываем proxy ошибки в UI — они не относятся к авторизации
+                    if (errMsg != null && errMsg.Contains("Proxy")) break;
+                    if (errMsg != null && errMsg.Contains("proxy")) break;
                     LoginStatus.Text = "Ошибка: " + errMsg;
                     PhoneButton.IsEnabled = true;
                     CodeButton.IsEnabled = true;
@@ -721,6 +729,19 @@ namespace TelegramWP10
                             : connState == "connectionStateWaitingForNetwork" ? "· нет сети"
                             : "...";
                         ConnectionStatusText.Text = connText;
+                    }
+                    break;
+
+                case "proxies":
+                    // Удаляем все сохранённые прокси из БД
+                    var proxyItems = update["proxies"] as JArray;
+                    if (proxyItems != null) {
+                        Log("PROXY: found " + proxyItems.Count + " saved proxies — removing all");
+                        foreach (var pi in proxyItems) {
+                            int pid = pi["id"]?.ToObject<int>() ?? 0;
+                            if (pid != 0)
+                                TdJson.SendUtf8(_client, "{\"@type\":\"removeProxy\",\"proxy_id\":" + pid + "}");
+                        }
                     }
                     break;
 
