@@ -367,7 +367,9 @@ namespace TelegramWP10
                 _currentProxyId = 0;
             }
             _proxyConnected = false;
-            var req = new JObject {
+
+            // Тест 1: MTProxy
+            var reqMtp = new JObject {
                 ["@type"] = "addProxy",
                 ["server"] = host,
                 ["port"] = port,
@@ -377,9 +379,25 @@ namespace TelegramWP10
                     ["secret"] = secret
                 }
             };
-            string reqJson = req.ToString(Newtonsoft.Json.Formatting.None);
-            Log("PROXY sending: " + reqJson);
-            TdJson.SendUtf8(_client, reqJson);
+            string jsonMtp = reqMtp.ToString(Newtonsoft.Json.Formatting.None);
+            Log("PROXY MTProto: " + jsonMtp);
+            TdJson.SendUtf8(_client, jsonMtp);
+
+            // Тест 2: SOCKS5 без авторизации (публичный)
+            var reqSocks = new JObject {
+                ["@type"] = "addProxy",
+                ["server"] = "91.108.4.1",
+                ["port"] = 1080,
+                ["enable"] = false,
+                ["type"] = new JObject {
+                    ["@type"] = "proxyTypeSocks5",
+                    ["username"] = "",
+                    ["password"] = ""
+                }
+            };
+            string jsonSocks = reqSocks.ToString(Newtonsoft.Json.Formatting.None);
+            Log("PROXY SOCKS5 test: " + jsonSocks);
+            TdJson.SendUtf8(_client, jsonSocks);
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 ProxyStatusText.Text = "🔄 " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
@@ -446,6 +464,7 @@ namespace TelegramWP10
                         s == "authorizationStateReady")) {
                         _proxyApplied = true;
                         Log("PROXY: applying at state=" + s);
+                        // Тест: SOCKS5 чтобы проверить работает ли proxy механизм вообще
                         var pt = ApplyProxyAsync("195.254.165.253", 25565, "dd79e344818749bd7ac519130220c25d09");
                     }
 
