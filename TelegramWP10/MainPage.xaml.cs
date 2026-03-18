@@ -372,6 +372,8 @@ namespace TelegramWP10
         }
 
         private void SendParameters() {
+            // Убираем все сохранённые прокси из БД — могут остаться невалидные от прошлых сессий
+            TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
             // Включаем подробное JSON логирование TDLib
             TdJson.SendUtf8(_client, "{\"@type\":\"setLogVerbosityLevel\",\"new_verbosity_level\":5}");
             JObject p = new JObject {
