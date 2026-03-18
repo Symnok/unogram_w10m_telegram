@@ -431,7 +431,7 @@ namespace TelegramWP10
                         Log("PROXY: WaitPhoneNumber — applying proxy");
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "3dGjd/LMSITAX81DPb9wib0=");
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
                         }
                     }
                     if (s == "authorizationStateWaitCode") {
@@ -460,7 +460,7 @@ namespace TelegramWP10
                         if (!_proxyApplied) {
                             _proxyApplied = true;
                             Log("PROXY: authReady — applying now");
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "3dGjd/LMSITAX81DPb9wib0=");
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
                         }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
                         _loadingArchiveIds = true;
