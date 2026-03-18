@@ -372,10 +372,6 @@ namespace TelegramWP10
         }
 
         private void SendParameters() {
-            // Убираем все сохранённые прокси из БД — могут остаться невалидные от прошлых сессий
-            TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
-            // Включаем подробное JSON логирование TDLib
-            TdJson.SendUtf8(_client, "{\"@type\":\"setLogVerbosityLevel\",\"new_verbosity_level\":5}");
             JObject p = new JObject {
                 ["@type"] = "setTdlibParameters",
                 ["use_test_dc"] = false,
@@ -424,13 +420,15 @@ namespace TelegramWP10
                     var s = update["authorization_state"]?["@type"]?.ToString();
                     Log("AUTH: " + s);
                     if (s == "authorizationStateWaitTdlibParameters") SendParameters();
+
+                    // Применяем прокси один раз — при первом состоянии после инициализации
+                    if (!_proxyApplied && s != "authorizationStateWaitTdlibParameters" && s != null) {
+                        _proxyApplied = true;
+                        Log("PROXY: applying at state=" + s);
+                        var pt = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+                    }
+
                     if (s == "authorizationStateWaitPhoneNumber") {
-                        // Прокси первым — до UI операций
-                        Log("PROXY: WaitPhoneNumber — applying proxy");
-                        if (!_proxyApplied) {
-                            _proxyApplied = true;
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
-                        }
                         LoginStatus.Text = "Введите номер телефона";
                         PhoneInput.IsEnabled = true;
                         PhoneButton.IsEnabled = true;
@@ -456,13 +454,7 @@ namespace TelegramWP10
                         LoginPanel.Visibility = Visibility.Collapsed;
                         ChatListView.Visibility = Visibility.Visible;
                         LogoutButton.Visibility = Visibility.Visible;
-                        // Применяем прокси если ещё не применяли (сохранённая сессия минует WaitPhoneNumber)
                         Log("PROXY: authReady _proxyApplied=" + _proxyApplied);
-                        if (!_proxyApplied) {
-                            _proxyApplied = true;
-                            Log("PROXY: authReady — applying now");
-                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
-                        }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
                         _loadingArchiveIds = true;
                         Log("getChats archive (pre-fetch ids) sent from authReady");
