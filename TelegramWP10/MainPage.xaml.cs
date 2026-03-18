@@ -232,7 +232,7 @@ namespace TelegramWP10
                 Log("PROXY: fetching list...");
                 var http = new System.Net.Http.HttpClient();
                 http.Timeout = TimeSpan.FromSeconds(10);
-                var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.php");
+                var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.txt");
                 Log("PROXY raw: " + (text.Length > 300 ? text.Substring(0, 300) : text));
                 parsed = new List<ProxyEntry>();
                 // Нормализуем переносы строк
@@ -320,7 +320,7 @@ namespace TelegramWP10
                 ["enable"] = true,
                 ["type"] = new JObject {
                     ["@type"] = "proxyTypeMtproto",
-                    ["secret"] = (secret ?? "").Trim()
+                    ["secret"] = normalizedSecret
                 }
             };
             TdJson.SendUtf8(_client, req.ToString());
@@ -329,8 +329,6 @@ namespace TelegramWP10
                 ProxyStatusText.Visibility = Visibility.Visible;
             });
             Log("PROXY: applied " + host + ":" + port);
-			string json = Newtonsoft.Json.JsonConvert.SerializeObject(request);
-            Log("REQUEST JSON: " + json);
         }
 
         private void SendParameters() {
