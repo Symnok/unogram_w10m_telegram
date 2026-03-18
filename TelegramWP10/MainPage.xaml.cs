@@ -429,8 +429,8 @@ namespace TelegramWP10
                         Log("PROXY: sent getProxies to check support");
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            // Пробуем все форматы секрета по очереди
-                            var t = TryAllSecretFormatsAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+                            // secret = bytes в base64. dd(1 байт) + 16 байт ключа -> base64
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "3dGjd/LMSITAX81DPb9wib0=");
                         }
                     }
                     if (s == "authorizationStateWaitCode") {
@@ -457,7 +457,7 @@ namespace TelegramWP10
                         // Применяем прокси если ещё не применяли (сохранённая сессия минует WaitPhoneNumber)
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            var t = TryAllSecretFormatsAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "3dGjd/LMSITAX81DPb9wib0=");
                         }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
                         _loadingArchiveIds = true;
