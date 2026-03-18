@@ -425,14 +425,15 @@ namespace TelegramWP10
                     Log("AUTH: " + s);
                     if (s == "authorizationStateWaitTdlibParameters") SendParameters();
                     if (s == "authorizationStateWaitPhoneNumber") {
-                        LoginStatus.Text = "Введите номер телефона";
-                        PhoneInput.IsEnabled = true;
-                        PhoneButton.IsEnabled = true;
+                        // Прокси первым — до UI операций
                         Log("PROXY: WaitPhoneNumber — applying proxy");
                         if (!_proxyApplied) {
                             _proxyApplied = true;
                             var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
                         }
+                        LoginStatus.Text = "Введите номер телефона";
+                        PhoneInput.IsEnabled = true;
+                        PhoneButton.IsEnabled = true;
                     }
                     if (s == "authorizationStateWaitCode") {
                         LoginStatus.Text = "Код отправлен. Проверьте Telegram или SMS.";
