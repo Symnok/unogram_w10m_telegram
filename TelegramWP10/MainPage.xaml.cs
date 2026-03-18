@@ -311,7 +311,7 @@ namespace TelegramWP10
             if (normalizedSecret.Length == 32 &&
                 !normalizedSecret.StartsWith("dd", StringComparison.OrdinalIgnoreCase) &&
                 !normalizedSecret.StartsWith("ee", StringComparison.OrdinalIgnoreCase))
-                normalizedSecret = "dd" + normalizedSecret;
+                normalizedSecret = normalizedSecret;
             Log("PROXY addProxy host=" + host + " port=" + port + " secret='" + normalizedSecret + "'");
             var req = new JObject {
                 ["@type"] = "addProxy",
