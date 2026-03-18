@@ -407,7 +407,12 @@ namespace TelegramWP10
                         LoginPanel.Visibility = Visibility.Collapsed;
                         ChatListView.Visibility = Visibility.Visible;
                         LogoutButton.Visibility = Visibility.Visible;
-                        // Сначала запрашиваем ID архива — чтобы при updateNewChat знать какие чаты туда не добавлять
+                        // Применяем прокси если ещё не применяли (сохранённая сессия минует WaitPhoneNumber)
+                        if (!_proxyApplied) {
+                            _proxyApplied = true;
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+                            // var t = FetchAndApplyProxyAsync();
+                        }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
                         _loadingArchiveIds = true;
                         Log("getChats archive (pre-fetch ids) sent from authReady");
