@@ -320,7 +320,7 @@ namespace TelegramWP10
                 ["enable"] = true,
                 ["type"] = new JObject {
                     ["@type"] = "proxyTypeMtproto",
-                    ["secret"] = secret
+                    ["secret"] = (secret ?? "").Trim()
                 }
             };
             TdJson.SendUtf8(_client, req.ToString());
