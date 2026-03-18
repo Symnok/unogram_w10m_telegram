@@ -215,7 +215,7 @@ namespace TelegramWP10
             _logFlushing = true;
             try {
                 while (_logQueue.TryDequeue(out string line)) {
-                    if (_logFile == null) { _logQueue.Clear(); break; }
+                    if (_logFile == null) break;
                     try { await FileIO.AppendTextAsync(_logFile, line + "\r\n"); } catch { }
                 }
             } finally { _logFlushing = false; }
