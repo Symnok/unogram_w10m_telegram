@@ -428,12 +428,9 @@ namespace TelegramWP10
                         LoginStatus.Text = "Введите номер телефона";
                         PhoneInput.IsEnabled = true;
                         PhoneButton.IsEnabled = true;
-                        // Проверяем поддержку прокси
-                        TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
-                        Log("PROXY: sent getProxies to check support");
+                        Log("PROXY: WaitPhoneNumber — applying proxy");
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            // secret = bytes в base64. dd(1 байт) + 16 байт ключа -> base64
                             var t = ApplyProxyAsync("tg-gw.com", 443, "3dGjd/LMSITAX81DPb9wib0=");
                         }
                     }
@@ -459,8 +456,10 @@ namespace TelegramWP10
                         ChatListView.Visibility = Visibility.Visible;
                         LogoutButton.Visibility = Visibility.Visible;
                         // Применяем прокси если ещё не применяли (сохранённая сессия минует WaitPhoneNumber)
+                        Log("PROXY: authReady _proxyApplied=" + _proxyApplied);
                         if (!_proxyApplied) {
                             _proxyApplied = true;
+                            Log("PROXY: authReady — applying now");
                             var t = ApplyProxyAsync("tg-gw.com", 443, "3dGjd/LMSITAX81DPb9wib0=");
                         }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
