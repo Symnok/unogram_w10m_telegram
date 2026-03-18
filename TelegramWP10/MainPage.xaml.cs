@@ -53,6 +53,7 @@ namespace TelegramWP10
         private int _currentProxyId = 0;
         private Windows.UI.Xaml.DispatcherTimer _proxyTimer;
         private bool _proxyConnected = false;
+        private bool _proxyApplied = false; // чтобы не применять дважды
         private bool _isRecording = false;
         private Windows.Media.Capture.MediaCapture _mediaCapture = null;
         private Windows.Storage.StorageFile _recordingFile = null;
@@ -222,11 +223,7 @@ namespace TelegramWP10
                 return;
             }
             Task.Run(() => LongPolling());
-            // Небольшая задержка чтобы LongPolling успел стартовать
-            await Task.Delay(200);
-            // Запускаем прокси — хардкоженный MTProxy
-            await ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
-            // var _ = FetchAndApplyProxyAsync(); // получение списка с сервера — временно отключено
+            // Прокси применяется после инициализации TDLib — см. authorizationStateWaitPhoneNumber
         }
 
         private async Task FetchAndApplyProxyAsync() {
@@ -382,6 +379,12 @@ namespace TelegramWP10
                         LoginStatus.Text = "Введите номер телефона";
                         PhoneInput.IsEnabled = true;
                         PhoneButton.IsEnabled = true;
+                        // Применяем прокси — TDLib готов принимать команды
+                        if (!_proxyApplied) {
+                            _proxyApplied = true;
+                            var t = ApplyProxyAsync("tg-gw.com", 443, "d1a377f2cc4884c05fcd433dbf7089bd");
+                            // var t = FetchAndApplyProxyAsync(); // список с сервера — временно отключено
+                        }
                     }
                     if (s == "authorizationStateWaitCode") {
                         LoginStatus.Text = "Код отправлен. Проверьте Telegram или SMS.";
