@@ -1,59 +1,15 @@
 image: Visual Studio 2017
 
-configuration: Release
 platform: ARM
 
-environment:
-  VCPKG_TARGET_TRIPLET: arm-uwp
-  OPENSSL_NO_ASM: 1
-  PROJECT_DIR: c:\projects\td
-
-install:
-  - mkdir %PROJECT_DIR%
-  - git clone https://github.com/tdlib/td.git %PROJECT_DIR%
-  - cd %PROJECT_DIR%
-  - git submodule update --init --recursive
-  - choco install gperf -y
-  - choco install strawberryperl -y
-  - choco install php -y
-  - set PATH=C:\Strawberry\perl\bin;C:\tools\php83;%PATH%
-  # vcpkg — только для zlib
-  - rd /s /q C:\tools\vcpkg
-  - git clone https://github.com/microsoft/vcpkg.git C:\tools\vcpkg
-  - cd C:\tools\vcpkg
-  - git checkout 281d107
-  - .\bootstrap-vcpkg.bat
-  - vcpkg install zlib:%VCPKG_TARGET_TRIPLET% --clean-after-build
-  #- vcpkg install zlib:x64-windows openssl:x64-windows --clean-after-build
-  # Собираем OpenSSL 1.1.1w для arm-uwp вручную
-  - cd C:\openssl-1.1.1w
-  - call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x86_arm uwp
-  - perl Configure VC-WIN32-ARM no-asm no-shared no-tests --prefix=C:\openssl-arm-uwp --openssldir=C:\openssl-arm-uwp -DOPENSSL_BUILDING_OPENSSL -D_ARM_WINAPI_PARTITION_DESKTOP_SDK_AVAILABLE
-  - nmake /S
-  - nmake install_dev
-  - dir C:\openssl-arm-uwp\lib\libcrypto.lib
-  - cd %PROJECT_DIR%
+configuration: Release
 
 before_build:
-  - mkdir %PROJECT_DIR%\build_native
-  - cd %PROJECT_DIR%\build_native
-  - cmake -G "Visual Studio 15 2017" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DTD_ENABLE_LTO=OFF ..
-  - msbuild prepare_cross_compiling.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+  - nuget restore TelegramWP10.sln
 
-  - mkdir %PROJECT_DIR%\build
-  - cd %PROJECT_DIR%\build
-  - cmake -G "Visual Studio 15 2017" -A ARM -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm-uwp -DTD_ENABLE_LTO=OFF -DOPENSSL_ROOT_DIR=C:/openssl-arm-uwp -DOPENSSL_INCLUDE_DIR=C:/openssl-arm-uwp/include -DOPENSSL_CRYPTO_LIBRARY=C:/openssl-arm-uwp/lib/libcrypto.lib -DOPENSSL_SSL_LIBRARY=C:/openssl-arm-uwp/lib/libssl.lib ..
-  - type CMakeCache.txt | findstr /i "OPENSSL" & exit 0
+build:
+  project: TelegramWP10.sln
+  verbosity: minimal
 
-build_script:
-  - cd %PROJECT_DIR%\build
-  - dir /s /b tdjson.vcxproj > proj_path.txt
-  - set /p V_PROJ=<proj_path.txt
-  - echo Building project found at %V_PROJ%
-  - msbuild "%V_PROJ%" /p:Configuration=Release /p:Platform=ARM /m /p:AppxPackage=false
-
-artifacts:
-  - path: "**\tdjson.dll"
-    name: tdjson_dll
-
-test: off
+after_build:
+  - ps: Get-ChildItem -Recurse -Filter "*.appx" | % { Push-AppveyorArtifact $_.FullName }
