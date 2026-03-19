@@ -323,7 +323,7 @@ namespace TelegramWP10
             };
             TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                ProxyStatusText.Text = "🔄 testing...";
+                ProxyStatusText.Text = "[..] testing...";
                 ProxyStatusText.Visibility = Visibility.Visible;
             });
         }
@@ -377,7 +377,7 @@ namespace TelegramWP10
             TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
             Log("PROXY sent getProxies");
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                ProxyStatusText.Text = "🔄 " + host + ":" + port;
+                ProxyStatusText.Text = "[..] " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
             });
         }
@@ -731,7 +731,7 @@ namespace TelegramWP10
                         _proxyTimer?.Stop();
                         ConnectionStatusText.Text = "";
                         if (_currentProxyId != 0) {
-                            ProxyStatusText.Text = ProxyStatusText.Text.Replace("🔄 ", "🟢 ");
+                            ProxyStatusText.Text = ProxyStatusText.Text.Replace("[..] ", "[ok] ");
                             ProxyStatusText.Visibility = Visibility.Visible;
                         }
                     } else {
@@ -762,7 +762,7 @@ namespace TelegramWP10
                         string ph = proxyObj?["server"]?.ToString() ?? "";
                         int pp = proxyObj?["port"]?.ToObject<int>() ?? 0;
                         var ignored2 = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                            ProxyStatusText.Text = "🔄 " + ph + ":" + pp;
+                            ProxyStatusText.Text = "[..] " + ph + ":" + pp;
                             ProxyStatusText.Visibility = Visibility.Visible;
                         });
                     }
