@@ -465,7 +465,7 @@ namespace TelegramWP10
                         _proxyApplied = true;
                         Log("PROXY: applying at state=" + s);
                         // Тест: SOCKS5 чтобы проверить работает ли proxy механизм вообще
-                        var pt = ApplyProxyAsync("195.254.165.253", 25565, "dd79e344818749bd7ac519130220c25d09");
+                        var pt = ApplyProxyAsync("tg-gw.com", 443, "ddd1a377f2cc4884c05fcd433dbf7089bd");
                     }
 
                     if (s == "authorizationStateWaitPhoneNumber") {
