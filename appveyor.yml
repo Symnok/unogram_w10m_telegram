@@ -23,7 +23,7 @@ install:
   - rd /s /q C:\tools\vcpkg
   - git clone https://github.com/microsoft/vcpkg.git C:\tools\vcpkg
   - cd C:\tools\vcpkg
-  - git checkout 281d107
+  - git checkout 2023.04.15
   - .\bootstrap-vcpkg.bat
   - vcpkg upgrade --no-dry-run
   - vcpkg install zlib:%VCPKG_TARGET_TRIPLET% openssl:%VCPKG_TARGET_TRIPLET% --clean-after-build
@@ -38,10 +38,11 @@ before_build:
 
   - mkdir %PROJECT_DIR%\build
   - cd %PROJECT_DIR%\build
+  - dir C:\tools\vcpkg\installed\arm-uwp\lib\libcrypto.lib
+  - dir C:\tools\vcpkg\installed\arm-uwp\lib\libssl.lib
+  - dir C:\tools\vcpkg\installed\arm-uwp\include\openssl\ssl.h
   - cmake -G "Visual Studio 15 2017" -A ARM -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm-uwp -DTD_ENABLE_LTO=OFF -DOPENSSL_ROOT_DIR=C:/tools/vcpkg/installed/arm-uwp -DOPENSSL_INCLUDE_DIR=C:/tools/vcpkg/installed/arm-uwp/include -DOPENSSL_CRYPTO_LIBRARY=C:/tools/vcpkg/installed/arm-uwp/lib/libcrypto.lib -DOPENSSL_SSL_LIBRARY=C:/tools/vcpkg/installed/arm-uwp/lib/libssl.lib ..
   - type CMakeCache.txt | findstr /i "OPENSSL" & exit 0
-  - type CMakeCache.txt | findstr /i "TDMTPROTO\|tdmtproto\|MTProto\|MTPROTO" & exit 0
-  - if exist CMakeFiles\CMakeError.log type CMakeFiles\CMakeError.log
 
 build_script:
   - cd %PROJECT_DIR%\build
