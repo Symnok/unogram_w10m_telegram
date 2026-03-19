@@ -367,17 +367,9 @@ namespace TelegramWP10
                 _currentProxyId = 0;
             }
             _proxyConnected = false;
-            var req = new JObject {
-                ["@type"] = "addProxy",
-                ["server"] = host,
-                ["port"] = port,
-                ["enable"] = true,
-                ["type"] = new JObject {
-                    ["@type"] = "proxyTypeMtproto",
-                    ["secret"] = secret
-                }
-            };
-            string reqJson = req.ToString(Newtonsoft.Json.Formatting.None);
+            // Отправляем сырой JSON строкой — исключаем проблему сериализации JObject
+            string reqJson = "{\"@type\":\"addProxy\",\"server\":\"" + host + "\",\"port\":" + port +
+                             ",\"enable\":true,\"type\":{\"@type\":\"proxyTypeMtproto\",\"secret\":\"" + secret + "\"}}";
             Log("PROXY sending: " + reqJson);
             TdJson.SendUtf8(_client, reqJson);
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
