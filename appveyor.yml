@@ -23,9 +23,8 @@ install:
   - rd /s /q C:\tools\vcpkg
   - git clone https://github.com/microsoft/vcpkg.git C:\tools\vcpkg
   - cd C:\tools\vcpkg
-  - git checkout 2023.04.15
+  - git checkout 5568f110d
   - .\bootstrap-vcpkg.bat
-  - vcpkg upgrade --no-dry-run
   - vcpkg install zlib:%VCPKG_TARGET_TRIPLET% openssl:%VCPKG_TARGET_TRIPLET% --clean-after-build
   - vcpkg install zlib:x64-windows openssl:x64-windows --clean-after-build
   - cd %PROJECT_DIR%
