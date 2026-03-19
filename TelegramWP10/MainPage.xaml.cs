@@ -247,7 +247,7 @@ namespace TelegramWP10
                 Log("PROXY: fetching list...");
                 var http = new System.Net.Http.HttpClient();
                 http.Timeout = TimeSpan.FromSeconds(10);
-                var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.txt");
+                var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.php");
                 Log("PROXY raw: " + (text.Length > 200 ? text.Substring(0, 200) : text));
                 parsed = new List<ProxyEntry>();
                 var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
