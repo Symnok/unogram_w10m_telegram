@@ -9,9 +9,6 @@ environment:
   PROJECT_DIR: c:\projects\td
 
 install:
-  - echo %VSCMD_ARG_TGT_ARCH%
-  - echo %Platform%
-  - echo %VCPKG_DEFAULT_TRIPLET%
   - mkdir %PROJECT_DIR%
   - git clone https://github.com/tdlib/td.git %PROJECT_DIR%
   - cd %PROJECT_DIR%
@@ -20,13 +17,24 @@ install:
   - choco install strawberryperl -y
   - choco install php -y
   - set PATH=C:\Strawberry\perl\bin;C:\tools\php83;%PATH%
+  # vcpkg — только для zlib
   - rd /s /q C:\tools\vcpkg
   - git clone https://github.com/microsoft/vcpkg.git C:\tools\vcpkg
   - cd C:\tools\vcpkg
-  - git checkout 2021.05.12
+  - git checkout 281d107
   - .\bootstrap-vcpkg.bat
-  - vcpkg install zlib:%VCPKG_TARGET_TRIPLET% openssl:%VCPKG_TARGET_TRIPLET% --clean-after-build
+  - vcpkg install zlib:%VCPKG_TARGET_TRIPLET% --clean-after-build
   - vcpkg install zlib:x64-windows openssl:x64-windows --clean-after-build
+  # Собираем OpenSSL 1.1.1w для arm-uwp вручную
+  - ps: Invoke-WebRequest -Uri "https://www.openssl.org/source/openssl-1.1.1w.tar.gz" -OutFile "C:\openssl.tar.gz"
+  - cd C:\
+  - 7z x openssl.tar.gz -so | 7z x -si -ttar -oC:\openssl-src
+  - cd C:\openssl-src\openssl-1.1.1w
+  - call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x86_arm uwp
+  - perl Configure VC-WIN32-ARM no-asm no-shared no-tests --prefix=C:\openssl-arm-uwp --openssldir=C:\openssl-arm-uwp -DOPENSSL_BUILDING_OPENSSL -D_ARM_WINAPI_PARTITION_DESKTOP_SDK_AVAILABLE
+  - nmake /S
+  - nmake install_dev
+  - dir C:\openssl-arm-uwp\lib\libcrypto.lib
   - cd %PROJECT_DIR%
 
 before_build:
@@ -37,10 +45,7 @@ before_build:
 
   - mkdir %PROJECT_DIR%\build
   - cd %PROJECT_DIR%\build
-  - dir C:\tools\vcpkg\installed\arm-uwp\lib\libcrypto.lib
-  - dir C:\tools\vcpkg\installed\arm-uwp\lib\libssl.lib
-  - dir C:\tools\vcpkg\installed\arm-uwp\include\openssl\ssl.h
-  - cmake -G "Visual Studio 15 2017" -A ARM -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm-uwp -DTD_ENABLE_LTO=OFF -DOPENSSL_ROOT_DIR=C:/tools/vcpkg/installed/arm-uwp -DOPENSSL_INCLUDE_DIR=C:/tools/vcpkg/installed/arm-uwp/include -DOPENSSL_CRYPTO_LIBRARY=C:/tools/vcpkg/installed/arm-uwp/lib/libcrypto.lib -DOPENSSL_SSL_LIBRARY=C:/tools/vcpkg/installed/arm-uwp/lib/libssl.lib ..
+  - cmake -G "Visual Studio 15 2017" -A ARM -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DCMAKE_TOOLCHAIN_FILE=C:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm-uwp -DTD_ENABLE_LTO=OFF -DOPENSSL_ROOT_DIR=C:/openssl-arm-uwp -DOPENSSL_INCLUDE_DIR=C:/openssl-arm-uwp/include -DOPENSSL_CRYPTO_LIBRARY=C:/openssl-arm-uwp/lib/libcrypto.lib -DOPENSSL_SSL_LIBRARY=C:/openssl-arm-uwp/lib/libssl.lib ..
   - type CMakeCache.txt | findstr /i "OPENSSL" & exit 0
 
 build_script:
