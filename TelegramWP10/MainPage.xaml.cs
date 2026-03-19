@@ -431,6 +431,7 @@ namespace TelegramWP10
                     Log("AUTH: " + s);
                     if (s == "authorizationStateWaitTdlibParameters") {
                         SendParameters();
+                        TdJson.SendUtf8(_client, "{\"@type\":\"getOption\",\"name\":\"version\"}");
                     }
 
                     // Применяем прокси только после полной инициализации TDLib (WaitPhoneNumber или позже)
@@ -744,8 +745,9 @@ namespace TelegramWP10
                     }
                     break;
 
+                case "addedProxies":
                 case "proxies":
-                    Log("PROXY getProxies response: " + update.ToString(Newtonsoft.Json.Formatting.None).Substring(0, Math.Min(500, update.ToString().Length)));
+                    Log("PROXY list response: " + update.ToString(Newtonsoft.Json.Formatting.None).Substring(0, Math.Min(500, update.ToString().Length)));
                     var proxyItems = update["proxies"] as JArray;
                     if (proxyItems != null) {
                         Log("PROXY: found " + proxyItems.Count + " saved proxies — removing all");
