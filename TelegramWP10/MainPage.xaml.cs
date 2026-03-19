@@ -367,9 +367,10 @@ namespace TelegramWP10
                 _currentProxyId = 0;
             }
             _proxyConnected = false;
-            // Отправляем сырой JSON строкой — исключаем проблему сериализации JObject
-            string reqJson = "{\"@type\":\"addProxy\",\"server\":\"" + host + "\",\"port\":" + port +
-                             ",\"enable\":true,\"type\":{\"@type\":\"proxyTypeMtproto\",\"secret\":\"" + secret + "\"}}";
+            // TDLib 1.8+ использует вложенный объект proxy вместо отдельных server/port/type
+            string reqJson = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
+                             "\",\"port\":" + port +
+                             ",\"type\":{\"@type\":\"proxyTypeMtproto\",\"secret\":\"" + secret + "\"}},\"enable\":true}";
             Log("PROXY sending: " + reqJson);
             TdJson.SendUtf8(_client, reqJson);
             // Проверяем что сохранилось
