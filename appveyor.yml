@@ -24,12 +24,9 @@ install:
   - git checkout 281d107
   - .\bootstrap-vcpkg.bat
   - vcpkg install zlib:%VCPKG_TARGET_TRIPLET% --clean-after-build
-  - vcpkg install zlib:x64-windows openssl:x64-windows --clean-after-build
+  #- vcpkg install zlib:x64-windows openssl:x64-windows --clean-after-build
   # Собираем OpenSSL 1.1.1w для arm-uwp вручную
-  - ps: Invoke-WebRequest -Uri "https://www.openssl.org/source/openssl-1.1.1w.tar.gz" -OutFile "C:\openssl.tar.gz"
-  - cd C:\
-  - 7z x openssl.tar.gz -so | 7z x -si -ttar -oC:\openssl-src
-  - cd C:\openssl-src\openssl-1.1.1w
+  - cd C:\openssl-1.1.1w
   - call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x86_arm uwp
   - perl Configure VC-WIN32-ARM no-asm no-shared no-tests --prefix=C:\openssl-arm-uwp --openssldir=C:\openssl-arm-uwp -DOPENSSL_BUILDING_OPENSSL -D_ARM_WINAPI_PARTITION_DESKTOP_SDK_AVAILABLE
   - nmake /S
