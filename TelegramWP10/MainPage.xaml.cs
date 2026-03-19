@@ -372,6 +372,9 @@ namespace TelegramWP10
                              ",\"enable\":true,\"type\":{\"@type\":\"proxyTypeMtproto\",\"secret\":\"" + secret + "\"}}";
             Log("PROXY sending: " + reqJson);
             TdJson.SendUtf8(_client, reqJson);
+            // Проверяем что сохранилось
+            TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
+            Log("PROXY sent getProxies");
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 ProxyStatusText.Text = "🔄 " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
@@ -742,7 +745,7 @@ namespace TelegramWP10
                     break;
 
                 case "proxies":
-                    // Удаляем все сохранённые прокси из БД
+                    Log("PROXY getProxies response: " + update.ToString(Newtonsoft.Json.Formatting.None).Substring(0, Math.Min(500, update.ToString().Length)));
                     var proxyItems = update["proxies"] as JArray;
                     if (proxyItems != null) {
                         Log("PROXY: found " + proxyItems.Count + " saved proxies — removing all");
