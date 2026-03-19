@@ -247,12 +247,10 @@ namespace TelegramWP10
                 Log("PROXY: fetching list...");
                 var http = new System.Net.Http.HttpClient();
                 http.Timeout = TimeSpan.FromSeconds(10);
-                var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.php");
-                Log("PROXY raw: " + (text.Length > 300 ? text.Substring(0, 300) : text));
+                var text = await http.GetStringAsync("https://open-amitie-radio-rs-89235677.koyeb.app/mtproxy.txt");
+                Log("PROXY raw: " + (text.Length > 200 ? text.Substring(0, 200) : text));
                 parsed = new List<ProxyEntry>();
-                // Нормализуем переносы строк
                 var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-                Log("PROXY lines=" + lines.Length + " first='" + (lines.Length > 0 ? lines[0] : "none") + "'");
                 foreach (var line in lines) {
                     var l = line.Trim();
                     if (string.IsNullOrEmpty(l)) continue;
@@ -276,68 +274,18 @@ namespace TelegramWP10
                         }
                     } catch (Exception ex) { Log("PROXY parse ERR: " + ex.Message); }
                 }
-                // Итоговый лог всех прокси одной строкой
-                var summary = string.Join("|", parsed.Select(p => p.Host + ":" + p.Port + ":" + p.Secret.Substring(0, Math.Min(8, p.Secret.Length))));
-                Log("PROXY parsed=" + parsed.Count + " list=" + summary);
+                Log("PROXY: parsed " + parsed.Count + " proxies");
             } catch (Exception ex) {
                 Log("PROXY FETCH ERR: " + ex.Message);
                 return;
             }
             if (parsed == null || parsed.Count == 0) return;
-            // Переходим на UI поток для работы с TDLib и UI
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 _proxyList = parsed;
                 _proxyIndex = 0;
                 Log("PROXY: applying first proxy");
                 var t = TryNextProxyAsync(); // fire-and-forget на UI потоке
             });
-        }
-
-        private async Task TryAllSecretFormatsAsync(string host, int port, string hexSecret) {
-            // Все варианты формата секрета для proxyTypeMtproto
-            var variants = new[] {
-                hexSecret,                                    // 1. plain hex
-                "dd" + hexSecret,                            // 2. dd + hex
-                Convert.ToBase64String(HexToBytes(hexSecret)),                        // 3. plain base64
-                Convert.ToBase64String(HexToBytes("dd" + hexSecret)),                 // 4. dd base64
-                Base64UrlEncode(HexToBytes(hexSecret)),      // 5. plain base64url
-                Base64UrlEncode(HexToBytes("dd" + hexSecret)), // 6. dd base64url
-            };
-            for (int i = 0; i < variants.Length; i++) {
-                Log("PROXY try variant " + (i+1) + ": '" + variants[i] + "'");
-                await SendAddProxyAndWaitAsync(host, port, variants[i]);
-                await Task.Delay(500); // ждём ответ
-            }
-        }
-
-        private async Task SendAddProxyAndWaitAsync(string host, int port, string secret) {
-            var req = new JObject {
-                ["@type"] = "addProxy",
-                ["server"] = host,
-                ["port"] = port,
-                ["enable"] = true,
-                ["type"] = new JObject {
-                    ["@type"] = "proxyTypeMtproto",
-                    ["secret"] = secret
-                }
-            };
-            TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
-            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                ProxyStatusText.Text = "[..] testing...";
-                ProxyStatusText.Visibility = Visibility.Visible;
-            });
-        }
-
-        private static byte[] HexToBytes(string hex) {
-            if (hex.Length % 2 != 0) hex = "0" + hex;
-            var bytes = new byte[hex.Length / 2];
-            for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
-            return bytes;
-        }
-
-        private static string Base64UrlEncode(byte[] bytes) {
-            return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_');
         }
 
         private async Task TryNextProxyAsync() {
@@ -373,9 +321,6 @@ namespace TelegramWP10
                              ",\"type\":{\"@type\":\"proxyTypeMtproto\",\"secret\":\"" + secret + "\"}},\"enable\":true}";
             Log("PROXY sending: " + reqJson);
             TdJson.SendUtf8(_client, reqJson);
-            // Проверяем что сохранилось
-            TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
-            Log("PROXY sent getProxies");
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 ProxyStatusText.Text = "[..] " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
@@ -442,9 +387,8 @@ namespace TelegramWP10
                         s == "authorizationStateWaitPassword" ||
                         s == "authorizationStateReady")) {
                         _proxyApplied = true;
-                        Log("PROXY: applying at state=" + s);
-                        // Тест: SOCKS5 чтобы проверить работает ли proxy механизм вообще
-                        var pt = ApplyProxyAsync("tg-gw.com", 443, "ddd1a377f2cc4884c05fcd433dbf7089bd");
+                        Log("PROXY: fetching proxy list at state=" + s);
+                        var pt = FetchAndApplyProxyAsync();
                     }
 
                     if (s == "authorizationStateWaitPhoneNumber") {
