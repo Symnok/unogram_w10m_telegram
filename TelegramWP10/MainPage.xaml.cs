@@ -730,10 +730,8 @@ namespace TelegramWP10
                         _proxyConnected = true;
                         _proxyTimer?.Stop();
                         ConnectionStatusText.Text = "";
-                        // Обновляем индикатор прокси — показываем активный
-                        if (_proxyList.Count > 0 && _proxyIndex < _proxyList.Count) {
-                            var p = _proxyList[_proxyIndex];
-                            ProxyStatusText.Text = "🟢 " + p.Host + ":" + p.Port;
+                        if (_currentProxyId != 0) {
+                            ProxyStatusText.Text = ProxyStatusText.Text.Replace("🔄 ", "🟢 ");
                             ProxyStatusText.Visibility = Visibility.Visible;
                         }
                     } else {
@@ -748,27 +746,25 @@ namespace TelegramWP10
 
                 case "addedProxies":
                 case "proxies":
-                    Log("PROXY list response: " + update.ToString(Newtonsoft.Json.Formatting.None).Substring(0, Math.Min(500, update.ToString().Length)));
                     var proxyItems = update["proxies"] as JArray;
-                    if (proxyItems != null) {
-                        Log("PROXY: found " + proxyItems.Count + " saved proxies — removing all");
-                        foreach (var pi in proxyItems) {
-                            int pid = pi["id"]?.ToObject<int>() ?? 0;
-                            if (pid != 0)
-                                TdJson.SendUtf8(_client, "{\"@type\":\"removeProxy\",\"proxy_id\":" + pid + "}");
-                        }
-                    }
+                    if (proxyItems != null)
+                        Log("PROXY list: count=" + proxyItems.Count);
                     break;
 
-                case "proxy":
-                    // Ответ на addProxy — получаем proxy_id и явно включаем прокси
+                case "addedProxy":
+                    // Ответ на addProxy — получаем proxy_id
                     long newProxyId = update["id"]?.ToObject<long>() ?? 0;
                     if (newProxyId != 0) {
                         _currentProxyId = (int)newProxyId;
-                        Log("PROXY: id=" + _currentProxyId + " — calling enableProxy");
-                        TdJson.SendUtf8(_client, "{\"@type\":\"enableProxy\",\"proxy_id\":" + _currentProxyId + "}");
-                    } else {
-                        Log("PROXY: received proxy response but id=0, json=" + update.ToString().Substring(0, Math.Min(200, update.ToString().Length)));
+                        Log("PROXY: id=" + _currentProxyId + " is_enabled=" + update["is_enabled"]);
+                        // Обновляем индикатор
+                        var proxyObj = update["proxy"];
+                        string ph = proxyObj?["server"]?.ToString() ?? "";
+                        int pp = proxyObj?["port"]?.ToObject<int>() ?? 0;
+                        var ignored2 = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                            ProxyStatusText.Text = "🔄 " + ph + ":" + pp;
+                            ProxyStatusText.Visibility = Visibility.Visible;
+                        });
                     }
                     break;
 
