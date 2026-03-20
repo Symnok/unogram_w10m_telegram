@@ -2492,8 +2492,14 @@ namespace TelegramWP10
             }
         }
 
-        private void LogoutButton_Click(object sender, RoutedEventArgs e) {
-            TdJson.SendUtf8(_client, "{\"@type\":\"logOut\"}");
+        private async void LogoutButton_Click(object sender, RoutedEventArgs e) {
+            var dialog = new Windows.UI.Popups.MessageDialog("Выйти из аккаунта?", "Выход");
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Выйти", cmd => {
+                TdJson.SendUtf8(_client, "{\"@type\":\"logOut\"}");
+            }));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
+            dialog.DefaultCommandIndex = 1;
+            await dialog.ShowAsync();
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e) {
