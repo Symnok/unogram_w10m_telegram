@@ -322,13 +322,19 @@ namespace TelegramWP10
             _proxyTimer.Start();
         }
 
-        private async Task ApplyProxyAsync(string host, int port, string secret) {
+        private void ClearAllProxies() {
+            // Удаляем все известные прокси
             if (_currentProxyId != 0) {
                 TdJson.SendUtf8(_client, "{\"@type\":\"removeProxy\",\"proxy_id\":" + _currentProxyId + "}");
                 _currentProxyId = 0;
             }
+            // Запрашиваем список чтобы удалить все остальные (накопленные)
+            TdJson.SendUtf8(_client, "{\"@type\":\"getProxies\"}");
             _proxyConnected = false;
-            // TDLib 1.8+ использует вложенный объект proxy вместо отдельных server/port/type
+        }
+
+        private async Task ApplyProxyAsync(string host, int port, string secret) {
+            ClearAllProxies();
             string reqJson = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
                              "\",\"port\":" + port +
                              ",\"type\":{\"@type\":\"proxyTypeMtproto\",\"secret\":\"" + secret + "\"}},\"enable\":true}";
@@ -701,8 +707,15 @@ namespace TelegramWP10
                 case "addedProxies":
                 case "proxies":
                     var proxyItems = update["proxies"] as JArray;
-                    if (proxyItems != null)
+                    if (proxyItems != null) {
                         Log("PROXY list: count=" + proxyItems.Count);
+                        // Удаляем все прокси кроме текущего активного
+                        foreach (var pi in proxyItems) {
+                            int pid = pi["id"]?.ToObject<int>() ?? 0;
+                            if (pid != 0 && pid != _currentProxyId)
+                                TdJson.SendUtf8(_client, "{\"@type\":\"removeProxy\",\"proxy_id\":" + pid + "}");
+                        }
+                    }
                     break;
 
                 case "addedProxy":
@@ -2288,6 +2301,7 @@ namespace TelegramWP10
                     string port = s.Values.ContainsKey("proxy_http_port") ? (string)s.Values["proxy_http_port"] : "";
                     if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port) && int.TryParse(port, out int p)) {
                         Log("PROXY: HTTP from saved settings " + host + ":" + p);
+                        ClearAllProxies();
                         string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
                                      "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeHttp\",\"username\":\"\",\"password\":\"\",\"http_only\":false}},\"enable\":true}";
                         TdJson.SendUtf8(_client, req);
@@ -2301,6 +2315,7 @@ namespace TelegramWP10
                     string port = s.Values.ContainsKey("proxy_socks_port") ? (string)s.Values["proxy_socks_port"] : "";
                     if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port) && int.TryParse(port, out int p)) {
                         Log("PROXY: SOCKS5 from saved settings " + host + ":" + p);
+                        ClearAllProxies();
                         string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
                                      "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"\",\"password\":\"\"}},\"enable\":true}";
                         TdJson.SendUtf8(_client, req);
@@ -2426,6 +2441,7 @@ namespace TelegramWP10
                     return;
                 }
                 _proxyApplied = true;
+                ClearAllProxies();
                 string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
                              "\",\"port\":" + port + ",\"type\":{\"@type\":\"proxyTypeHttp\",\"username\":\"\",\"password\":\"\",\"http_only\":false}},\"enable\":true}";
                 Log("PROXY HTTP: " + req);
@@ -2444,6 +2460,7 @@ namespace TelegramWP10
                     return;
                 }
                 _proxyApplied = true;
+                ClearAllProxies();
                 string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
                              "\",\"port\":" + port + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"\",\"password\":\"\"}},\"enable\":true}";
                 Log("PROXY SOCKS5: " + req);
