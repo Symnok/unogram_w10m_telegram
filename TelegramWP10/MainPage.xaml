@@ -219,7 +219,9 @@
                     <!-- SOCKS5 поля -->
                     <StackPanel x:Name="SocksFields" Visibility="Collapsed">
                         <TextBox x:Name="SocksHost" Header="Хост / IP" PlaceholderText="example.com" Margin="0,0,0,6"/>
-                        <TextBox x:Name="SocksPort" Header="Порт" PlaceholderText="1080" InputScope="Number" Margin="0,0,0,12"/>
+                        <TextBox x:Name="SocksPort" Header="Порт" PlaceholderText="1080" InputScope="Number" Margin="0,0,0,6"/>
+                        <TextBox x:Name="SocksUser" Header="Логин (опционально)" PlaceholderText="" Margin="0,0,0,6"/>
+                        <PasswordBox x:Name="SocksPass" Header="Пароль (опционально)" Margin="0,0,0,12"/>
                     </StackPanel>
 
                     <Button Content="Применить" Click="ProxyApply_Click"

@@ -2313,11 +2313,13 @@ namespace TelegramWP10
                 case ProxyMode.Socks: {
                     string host = s.Values.ContainsKey("proxy_socks_host") ? (string)s.Values["proxy_socks_host"] : "";
                     string port = s.Values.ContainsKey("proxy_socks_port") ? (string)s.Values["proxy_socks_port"] : "";
+                    string user = s.Values.ContainsKey("proxy_socks_user") ? (string)s.Values["proxy_socks_user"] : "";
+                    string pass = s.Values.ContainsKey("proxy_socks_pass") ? (string)s.Values["proxy_socks_pass"] : "";
                     if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port) && int.TryParse(port, out int p)) {
-                        Log("PROXY: SOCKS5 from saved settings " + host + ":" + p);
+                        Log("PROXY: SOCKS5 from saved settings " + host + ":" + p + " user=" + user);
                         ClearAllProxies();
                         string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
-                                     "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"\",\"password\":\"\"}},\"enable\":true}";
+                                     "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"" + user + "\",\"password\":\"" + pass + "\"}},\"enable\":true}";
                         TdJson.SendUtf8(_client, req);
                         ProxyStatusText.Text = "[..] " + host + ":" + p;
                         ProxyStatusText.Visibility = Visibility.Visible;
@@ -2338,6 +2340,8 @@ namespace TelegramWP10
                 s.Values["proxy_http_port"]  = HttpPort.Text.Trim();
                 s.Values["proxy_socks_host"] = SocksHost.Text.Trim();
                 s.Values["proxy_socks_port"] = SocksPort.Text.Trim();
+                s.Values["proxy_socks_user"] = SocksUser.Text.Trim();
+                s.Values["proxy_socks_pass"] = SocksPass.Password;
                 Log("PROXY saved: mode=" + (int)_proxyMode + " mtp=" + MtpHost.Text.Trim() + " socks=" + SocksHost.Text.Trim());
             } catch (Exception ex) {
                 Log("PROXY save ERR: " + ex.Message);
@@ -2359,8 +2363,10 @@ namespace TelegramWP10
             if (s.Values.ContainsKey("proxy_mtp_secret")) MtpSecret.Text = (string)s.Values["proxy_mtp_secret"];
             if (s.Values.ContainsKey("proxy_http_host"))  HttpHost.Text  = (string)s.Values["proxy_http_host"];
             if (s.Values.ContainsKey("proxy_http_port"))  HttpPort.Text  = (string)s.Values["proxy_http_port"];
-            if (s.Values.ContainsKey("proxy_socks_host")) SocksHost.Text = (string)s.Values["proxy_socks_host"];
-            if (s.Values.ContainsKey("proxy_socks_port")) SocksPort.Text = (string)s.Values["proxy_socks_port"];
+            if (s.Values.ContainsKey("proxy_socks_host")) SocksHost.Text  = (string)s.Values["proxy_socks_host"];
+            if (s.Values.ContainsKey("proxy_socks_port")) SocksPort.Text  = (string)s.Values["proxy_socks_port"];
+            if (s.Values.ContainsKey("proxy_socks_user")) SocksUser.Text  = (string)s.Values["proxy_socks_user"];
+            if (s.Values.ContainsKey("proxy_socks_pass")) SocksPass.Password = (string)s.Values["proxy_socks_pass"];
         }
 
         private void ProxySettingsButton_Click(object sender, RoutedEventArgs e) {
@@ -2451,6 +2457,8 @@ namespace TelegramWP10
             } else if (_proxyMode == ProxyMode.Socks) {
                 string host = SocksHost.Text.Trim();
                 string portStr = SocksPort.Text.Trim();
+                string user = SocksUser.Text.Trim();
+                string pass = SocksPass.Password;
                 if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr)) {
                     LoginStatus.Text = "Заполните все поля SOCKS5";
                     return;
@@ -2462,8 +2470,8 @@ namespace TelegramWP10
                 _proxyApplied = true;
                 ClearAllProxies();
                 string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
-                             "\",\"port\":" + port + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"\",\"password\":\"\"}},\"enable\":true}";
-                Log("PROXY SOCKS5: " + req);
+                             "\",\"port\":" + port + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"" + user + "\",\"password\":\"" + pass + "\"}},\"enable\":true}";
+                Log("PROXY SOCKS5: " + host + ":" + port + " user=" + user);
                 TdJson.SendUtf8(_client, req);
                 ProxyStatusText.Text = "[..] " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
