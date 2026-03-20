@@ -241,6 +241,11 @@ namespace TelegramWP10
                 _logFile = await appFolder.CreateFileAsync(logName, CreationCollisionOption.ReplaceExisting);
                 Log("=== СТАРТ === db=" + _dbPath);
                 Log("files=" + _filesFolder.Path);
+                // Логируем сохранённые настройки прокси
+                var ls2 = Windows.Storage.ApplicationData.Current.LocalSettings;
+                Log("PROXY settings: mode_key_exists=" + ls2.Values.ContainsKey("proxy_mode") +
+                    " mode=" + (ls2.Values.ContainsKey("proxy_mode") ? ls2.Values["proxy_mode"].ToString() : "none") +
+                    " _proxyMode=" + (int)_proxyMode);
             } catch (Exception ex) {
                 await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
                 return;
@@ -2308,15 +2313,20 @@ namespace TelegramWP10
         }
 
         private void SaveProxySettings() {
-            var s = Windows.Storage.ApplicationData.Current.LocalSettings;
-            s.Values["proxy_mode"] = (int)_proxyMode;
-            s.Values["proxy_mtp_host"]   = MtpHost.Text.Trim();
-            s.Values["proxy_mtp_port"]   = MtpPort.Text.Trim();
-            s.Values["proxy_mtp_secret"] = MtpSecret.Text.Trim();
-            s.Values["proxy_http_host"]  = HttpHost.Text.Trim();
-            s.Values["proxy_http_port"]  = HttpPort.Text.Trim();
-            s.Values["proxy_socks_host"] = SocksHost.Text.Trim();
-            s.Values["proxy_socks_port"] = SocksPort.Text.Trim();
+            try {
+                var s = Windows.Storage.ApplicationData.Current.LocalSettings;
+                s.Values["proxy_mode"] = (int)_proxyMode;
+                s.Values["proxy_mtp_host"]   = MtpHost.Text.Trim();
+                s.Values["proxy_mtp_port"]   = MtpPort.Text.Trim();
+                s.Values["proxy_mtp_secret"] = MtpSecret.Text.Trim();
+                s.Values["proxy_http_host"]  = HttpHost.Text.Trim();
+                s.Values["proxy_http_port"]  = HttpPort.Text.Trim();
+                s.Values["proxy_socks_host"] = SocksHost.Text.Trim();
+                s.Values["proxy_socks_port"] = SocksPort.Text.Trim();
+                Log("PROXY saved: mode=" + (int)_proxyMode + " mtp=" + MtpHost.Text.Trim() + " socks=" + SocksHost.Text.Trim());
+            } catch (Exception ex) {
+                Log("PROXY save ERR: " + ex.Message);
+            }
         }
 
         private void LoadProxySettings() {
