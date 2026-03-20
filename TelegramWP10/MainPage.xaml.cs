@@ -57,7 +57,7 @@ namespace TelegramWP10
 
         // Режим прокси
         private enum ProxyMode { None, Auto, Mtproto, Http, Socks }
-        private ProxyMode _proxyMode = ProxyMode.Auto; // по умолчанию — автовыбор
+        private ProxyMode _proxyMode = ProxyMode.None; // по умолчанию — прямое подключение
         private bool _isRecording = false;
         private Windows.Media.Capture.MediaCapture _mediaCapture = null;
         private Windows.Storage.StorageFile _recordingFile = null;
@@ -384,16 +384,8 @@ namespace TelegramWP10
                         TdJson.SendUtf8(_client, "{\"@type\":\"getOption\",\"name\":\"version\"}");
                     }
 
-                    // Применяем прокси только после полной инициализации TDLib (WaitPhoneNumber или позже)
-                    if (!_proxyApplied && (
-                        s == "authorizationStateWaitPhoneNumber" ||
-                        s == "authorizationStateWaitCode" ||
-                        s == "authorizationStateWaitPassword" ||
-                        s == "authorizationStateReady")) {
-                        _proxyApplied = true;
-                        Log("PROXY: fetching proxy list at state=" + s);
-                        var pt = FetchAndApplyProxyAsync();
-                    }
+                    // Прокси применяется только если пользователь выбрал режим в настройках
+                    // _proxyMode == None по умолчанию — автозапуска нет
 
                     if (s == "authorizationStateWaitPhoneNumber") {
                         LoginStatus.Text = "Введите номер телефона";
