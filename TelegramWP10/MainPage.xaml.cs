@@ -465,13 +465,24 @@ namespace TelegramWP10
                 case "error":
                     string errMsg = update["message"]?.ToString();
                     Log("ERROR: " + errMsg);
-                    // Не показываем proxy ошибки в UI — они не относятся к авторизации
-                    if (errMsg != null && errMsg.Contains("Proxy")) break;
-                    if (errMsg != null && errMsg.Contains("proxy")) break;
+                    // Не показываем proxy ошибки в UI
+                    if (errMsg != null && (
+                        errMsg.Contains("Proxy") ||
+                        errMsg.Contains("proxy") ||
+                        errMsg.Contains("proxy secret") ||
+                        errMsg.Contains("Unsupported proxy"))) {
+                        // При невалидном секрете — сразу пробуем следующий прокси
+                        if (errMsg.Contains("secret") || errMsg.Contains("non-empty")) {
+                            Log("PROXY: bad secret, skipping to next");
+                            _proxyTimer?.Stop();
+                            _proxyIndex++;
+                            var skipTask = TryNextProxyAsync();
+                        }
+                        break;
+                    }
                     LoginStatus.Text = "Ошибка: " + errMsg;
                     PhoneButton.IsEnabled = true;
                     CodeButton.IsEnabled = true;
-                    // loadChats вернёт error когда все чаты загружены
                     if (_loadingChats && (errMsg?.Contains("CHAT_LIST_EMPTY") ?? false)) {
                         _loadingChats = false;
                         Log("loadChats done — all chats loaded, total=" + _chatListItems.Count);
