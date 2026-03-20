@@ -54,6 +54,10 @@ namespace TelegramWP10
         private Windows.UI.Xaml.DispatcherTimer _proxyTimer;
         private bool _proxyConnected = false;
         private bool _proxyApplied = false; // чтобы не применять дважды
+
+        // Режим прокси
+        private enum ProxyMode { None, Auto, Mtproto, Http, Socks }
+        private ProxyMode _proxyMode = ProxyMode.Auto; // по умолчанию — автовыбор
         private bool _isRecording = false;
         private Windows.Media.Capture.MediaCapture _mediaCapture = null;
         private Windows.Storage.StorageFile _recordingFile = null;
@@ -2250,6 +2254,106 @@ namespace TelegramWP10
             }));
             dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
             await dialog.ShowAsync();
+        }
+
+        private void ProxySettingsButton_Click(object sender, RoutedEventArgs e) {
+            // Выставляем текущий режим в UI
+            ProxyModeNone.IsChecked     = _proxyMode == ProxyMode.None;
+            ProxyModeAuto.IsChecked     = _proxyMode == ProxyMode.Auto;
+            ProxyModeMtproto.IsChecked  = _proxyMode == ProxyMode.Mtproto;
+            ProxyModeHttp.IsChecked     = _proxyMode == ProxyMode.Http;
+            ProxyModeSocks.IsChecked    = _proxyMode == ProxyMode.Socks;
+            UpdateProxyFields();
+            // Центрируем popup
+            ProxyPopup.HorizontalOffset = (ActualWidth - 320) / 2;
+            ProxyPopup.VerticalOffset   = (ActualHeight - 400) / 2;
+            ProxyPopup.IsOpen = true;
+        }
+
+        private void ProxyMode_Checked(object sender, RoutedEventArgs e) {
+            UpdateProxyFields();
+        }
+
+        private void UpdateProxyFields() {
+            if (MtprotoFields == null) return;
+            MtprotoFields.Visibility = (ProxyModeMtproto?.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+            HttpFields.Visibility    = (ProxyModeHttp?.IsChecked    == true) ? Visibility.Visible : Visibility.Collapsed;
+            SocksFields.Visibility   = (ProxyModeSocks?.IsChecked   == true) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ProxyCancel_Click(object sender, RoutedEventArgs e) {
+            ProxyPopup.IsOpen = false;
+        }
+
+        private void ProxyApply_Click(object sender, RoutedEventArgs e) {
+            ProxyPopup.IsOpen = false;
+            if (ProxyModeNone.IsChecked == true) {
+                _proxyMode = ProxyMode.None;
+                _proxyApplied = true;
+                TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
+                ProxyStatusText.Text = "Без прокси";
+                ProxyStatusText.Visibility = Visibility.Visible;
+                Log("PROXY: disabled by user");
+            } else if (ProxyModeAuto.IsChecked == true) {
+                _proxyMode = ProxyMode.Auto;
+                _proxyApplied = false; // сбрасываем чтобы FetchAndApply запустился
+                _proxyList.Clear();
+                _proxyIndex = 0;
+                var t = FetchAndApplyProxyAsync();
+            } else if (ProxyModeMtproto.IsChecked == true) {
+                _proxyMode = ProxyMode.Mtproto;
+                string host = MtpHost.Text.Trim();
+                string portStr = MtpPort.Text.Trim();
+                string secret = MtpSecret.Text.Trim();
+                if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr) || string.IsNullOrEmpty(secret)) {
+                    LoginStatus.Text = "Заполните все поля MTProto";
+                    return;
+                }
+                if (!int.TryParse(portStr, out int port)) {
+                    LoginStatus.Text = "Неверный порт";
+                    return;
+                }
+                _proxyApplied = true;
+                var t = ApplyProxyAsync(host, port, secret);
+            } else if (ProxyModeHttp.IsChecked == true) {
+                _proxyMode = ProxyMode.Http;
+                string host = HttpHost.Text.Trim();
+                string portStr = HttpPort.Text.Trim();
+                if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr)) {
+                    LoginStatus.Text = "Заполните все поля HTTP";
+                    return;
+                }
+                if (!int.TryParse(portStr, out int port)) {
+                    LoginStatus.Text = "Неверный порт";
+                    return;
+                }
+                _proxyApplied = true;
+                string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
+                             "\",\"port\":" + port + ",\"type\":{\"@type\":\"proxyTypeHttp\",\"username\":\"\",\"password\":\"\",\"http_only\":false}},\"enable\":true}";
+                Log("PROXY HTTP: " + req);
+                TdJson.SendUtf8(_client, req);
+                ProxyStatusText.Text = "[..] " + host + ":" + port;
+                ProxyStatusText.Visibility = Visibility.Visible;
+            } else if (ProxyModeSocks.IsChecked == true) {
+                _proxyMode = ProxyMode.Socks;
+                string host = SocksHost.Text.Trim();
+                string portStr = SocksPort.Text.Trim();
+                if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr)) {
+                    LoginStatus.Text = "Заполните все поля SOCKS5";
+                    return;
+                }
+                if (!int.TryParse(portStr, out int port)) {
+                    LoginStatus.Text = "Неверный порт";
+                    return;
+                }
+                _proxyApplied = true;
+                string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
+                             "\",\"port\":" + port + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"\",\"password\":\"\"}},\"enable\":true}";
+                Log("PROXY SOCKS5: " + req);
+                TdJson.SendUtf8(_client, req);
+                ProxyStatusText.Text = "[..] " + host + ":" + port;
+                ProxyStatusText.Visibility = Visibility.Visible;
+            }
         }
 
         private void LogoutButton_Click(object sender, RoutedEventArgs e) {

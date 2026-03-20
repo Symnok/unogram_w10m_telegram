@@ -174,10 +174,61 @@
                     HorizontalAlignment="Stretch" Margin="0,8,0,0"
                     Background="#AA222222" Foreground="#FF4444"
                     Visibility="Collapsed"/>
-            <TextBlock x:Name="ProxyStatusText" Grid.Row="3" Text="" Foreground="#555555"
-                       FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,4"
-                       TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,4">
+                <TextBlock x:Name="ProxyStatusText" Text="" Foreground="#555555"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"
+                           TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
+                <Button x:Name="ProxySettingsButton" Content="Прокси" Click="ProxySettingsButton_Click"
+                        FontSize="11" Padding="8,4" Background="#AA333333" Foreground="#AAAAAA"/>
+            </StackPanel>
         </Grid>
+
+        <!-- Popup настроек прокси -->
+        <Popup x:Name="ProxyPopup" IsLightDismissEnabled="True">
+            <Border Background="#1E1E1E" BorderBrush="#444" BorderThickness="1"
+                    Width="320" Padding="16" CornerRadius="8">
+                <StackPanel>
+                    <TextBlock Text="Настройки прокси" Foreground="White" FontSize="16"
+                               FontWeight="SemiBold" Margin="0,0,0,12"/>
+
+                    <!-- Режим -->
+                    <RadioButton x:Name="ProxyModeNone" Content="Без прокси (прямое подключение)"
+                                 GroupName="ProxyMode" Foreground="#CCCCCC" Checked="ProxyMode_Checked"/>
+                    <RadioButton x:Name="ProxyModeAuto" Content="Автовыбор прокси с сервера"
+                                 GroupName="ProxyMode" Foreground="#CCCCCC" Margin="0,4,0,0" Checked="ProxyMode_Checked"/>
+                    <RadioButton x:Name="ProxyModeMtproto" Content="MTProto"
+                                 GroupName="ProxyMode" Foreground="#CCCCCC" Margin="0,4,0,0" Checked="ProxyMode_Checked"/>
+                    <RadioButton x:Name="ProxyModeHttp" Content="HTTP"
+                                 GroupName="ProxyMode" Foreground="#CCCCCC" Margin="0,4,0,0" Checked="ProxyMode_Checked"/>
+                    <RadioButton x:Name="ProxyModeSocks" Content="SOCKS5"
+                                 GroupName="ProxyMode" Foreground="#CCCCCC" Margin="0,4,0,12" Checked="ProxyMode_Checked"/>
+
+                    <!-- MTProto поля -->
+                    <StackPanel x:Name="MtprotoFields" Visibility="Collapsed">
+                        <TextBox x:Name="MtpHost" Header="Хост / IP" PlaceholderText="example.com" Margin="0,0,0,6"/>
+                        <TextBox x:Name="MtpPort" Header="Порт" PlaceholderText="443" InputScope="Number" Margin="0,0,0,6"/>
+                        <TextBox x:Name="MtpSecret" Header="Секрет" PlaceholderText="dd..." Margin="0,0,0,12"/>
+                    </StackPanel>
+
+                    <!-- HTTP поля -->
+                    <StackPanel x:Name="HttpFields" Visibility="Collapsed">
+                        <TextBox x:Name="HttpHost" Header="Хост / IP" PlaceholderText="example.com" Margin="0,0,0,6"/>
+                        <TextBox x:Name="HttpPort" Header="Порт" PlaceholderText="8080" InputScope="Number" Margin="0,0,0,12"/>
+                    </StackPanel>
+
+                    <!-- SOCKS5 поля -->
+                    <StackPanel x:Name="SocksFields" Visibility="Collapsed">
+                        <TextBox x:Name="SocksHost" Header="Хост / IP" PlaceholderText="example.com" Margin="0,0,0,6"/>
+                        <TextBox x:Name="SocksPort" Header="Порт" PlaceholderText="1080" InputScope="Number" Margin="0,0,0,12"/>
+                    </StackPanel>
+
+                    <Button Content="Применить" Click="ProxyApply_Click"
+                            HorizontalAlignment="Stretch" Background="#0088cc" Foreground="White"/>
+                    <Button Content="Отмена" Click="ProxyCancel_Click"
+                            HorizontalAlignment="Stretch" Background="Transparent" Foreground="#888888" Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
+        </Popup>
 
         <Grid x:Name="MessagesPanel" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
             <Grid.RowDefinitions>
