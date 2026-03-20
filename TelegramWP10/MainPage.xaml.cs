@@ -84,6 +84,10 @@ namespace TelegramWP10
             _client = TdJson.td_json_client_create();
             ChatListView.ItemsSource = _chatListItems;
             MessagesListView.ItemsSource = _messageItems;
+            // Загружаем сохранённый режим прокси до старта TDLib
+            var ls = Windows.Storage.ApplicationData.Current.LocalSettings;
+            if (ls.Values.ContainsKey("proxy_mode"))
+                _proxyMode = (ProxyMode)(int)ls.Values["proxy_mode"];
             // Сбрасываем UI в начальное состояние (на случай restore после suspend)
             LoginPanel.Visibility = Visibility.Visible;
             ChatListView.Visibility = Visibility.Collapsed;
@@ -391,10 +395,9 @@ namespace TelegramWP10
                         LoginStatus.Text = "Введите номер телефона";
                         PhoneInput.IsEnabled = true;
                         PhoneButton.IsEnabled = true;
-                        // Загружаем сохранённые настройки и применяем прокси один раз
+                        // Применяем прокси согласно сохранённому режиму
                         if (!_proxyApplied) {
                             _proxyApplied = true;
-                            LoadProxySettings();
                             ApplySavedProxy();
                         }
                     }
@@ -2320,6 +2323,12 @@ namespace TelegramWP10
             var s = Windows.Storage.ApplicationData.Current.LocalSettings;
             if (s.Values.ContainsKey("proxy_mode"))
                 _proxyMode = (ProxyMode)(int)s.Values["proxy_mode"];
+            Log("PROXY: loaded mode=" + _proxyMode);
+        }
+
+        private void LoadProxySettingsToUI() {
+            // Вызывается только при открытии попапа — UI элементы гарантированно существуют
+            var s = Windows.Storage.ApplicationData.Current.LocalSettings;
             if (s.Values.ContainsKey("proxy_mtp_host"))   MtpHost.Text   = (string)s.Values["proxy_mtp_host"];
             if (s.Values.ContainsKey("proxy_mtp_port"))   MtpPort.Text   = (string)s.Values["proxy_mtp_port"];
             if (s.Values.ContainsKey("proxy_mtp_secret")) MtpSecret.Text = (string)s.Values["proxy_mtp_secret"];
@@ -2330,6 +2339,8 @@ namespace TelegramWP10
         }
 
         private void ProxySettingsButton_Click(object sender, RoutedEventArgs e) {
+            // Загружаем поля из LocalSettings
+            LoadProxySettingsToUI();
             // Выставляем текущий режим в UI
             ProxyModeNone.IsChecked     = _proxyMode == ProxyMode.None;
             ProxyModeAuto.IsChecked     = _proxyMode == ProxyMode.Auto;
