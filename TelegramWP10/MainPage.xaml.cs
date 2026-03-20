@@ -2255,6 +2255,7 @@ namespace TelegramWP10
         }
 
         private void ApplySavedProxy() {
+            var s = Windows.Storage.ApplicationData.Current.LocalSettings;
             switch (_proxyMode) {
                 case ProxyMode.None:
                     TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
@@ -2264,26 +2265,42 @@ namespace TelegramWP10
                     Log("PROXY: auto mode (saved setting)");
                     var t = FetchAndApplyProxyAsync();
                     break;
-                case ProxyMode.Mtproto:
-                    if (!string.IsNullOrEmpty(MtpHost.Text) && !string.IsNullOrEmpty(MtpPort.Text) && !string.IsNullOrEmpty(MtpSecret.Text))
-                        if (int.TryParse(MtpPort.Text, out int p))  { var t2 = ApplyProxyAsync(MtpHost.Text, p, MtpSecret.Text); }
+                case ProxyMode.Mtproto: {
+                    string host   = s.Values.ContainsKey("proxy_mtp_host")   ? (string)s.Values["proxy_mtp_host"]   : "";
+                    string port   = s.Values.ContainsKey("proxy_mtp_port")   ? (string)s.Values["proxy_mtp_port"]   : "";
+                    string secret = s.Values.ContainsKey("proxy_mtp_secret") ? (string)s.Values["proxy_mtp_secret"] : "";
+                    if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port) && !string.IsNullOrEmpty(secret) && int.TryParse(port, out int p)) {
+                        Log("PROXY: MTProto from saved settings " + host + ":" + p);
+                        var t2 = ApplyProxyAsync(host, p, secret);
+                    }
                     break;
-                case ProxyMode.Http:
-                    if (!string.IsNullOrEmpty(HttpHost.Text) && !string.IsNullOrEmpty(HttpPort.Text))
-                        if (int.TryParse(HttpPort.Text, out int p)) {
-                            string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + HttpHost.Text +
-                                         "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeHttp\",\"username\":\"\",\"password\":\"\",\"http_only\":false}},\"enable\":true}";
-                            TdJson.SendUtf8(_client, req);
-                        }
+                }
+                case ProxyMode.Http: {
+                    string host = s.Values.ContainsKey("proxy_http_host") ? (string)s.Values["proxy_http_host"] : "";
+                    string port = s.Values.ContainsKey("proxy_http_port") ? (string)s.Values["proxy_http_port"] : "";
+                    if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port) && int.TryParse(port, out int p)) {
+                        Log("PROXY: HTTP from saved settings " + host + ":" + p);
+                        string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
+                                     "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeHttp\",\"username\":\"\",\"password\":\"\",\"http_only\":false}},\"enable\":true}";
+                        TdJson.SendUtf8(_client, req);
+                        ProxyStatusText.Text = "[..] " + host + ":" + p;
+                        ProxyStatusText.Visibility = Visibility.Visible;
+                    }
                     break;
-                case ProxyMode.Socks:
-                    if (!string.IsNullOrEmpty(SocksHost.Text) && !string.IsNullOrEmpty(SocksPort.Text))
-                        if (int.TryParse(SocksPort.Text, out int p)) {
-                            string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + SocksHost.Text +
-                                         "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"\",\"password\":\"\"}},\"enable\":true}";
-                            TdJson.SendUtf8(_client, req);
-                        }
+                }
+                case ProxyMode.Socks: {
+                    string host = s.Values.ContainsKey("proxy_socks_host") ? (string)s.Values["proxy_socks_host"] : "";
+                    string port = s.Values.ContainsKey("proxy_socks_port") ? (string)s.Values["proxy_socks_port"] : "";
+                    if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port) && int.TryParse(port, out int p)) {
+                        Log("PROXY: SOCKS5 from saved settings " + host + ":" + p);
+                        string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + host +
+                                     "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"\",\"password\":\"\"}},\"enable\":true}";
+                        TdJson.SendUtf8(_client, req);
+                        ProxyStatusText.Text = "[..] " + host + ":" + p;
+                        ProxyStatusText.Visibility = Visibility.Visible;
+                    }
                     break;
+                }
             }
         }
 
