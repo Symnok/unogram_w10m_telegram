@@ -2381,22 +2381,26 @@ namespace TelegramWP10
 
         private void ProxyApply_Click(object sender, RoutedEventArgs e) {
             ProxyPopup.IsOpen = false;
+            // Сначала обновляем _proxyMode, потом сохраняем
+            if (ProxyModeNone.IsChecked == true)         _proxyMode = ProxyMode.None;
+            else if (ProxyModeAuto.IsChecked == true)    _proxyMode = ProxyMode.Auto;
+            else if (ProxyModeMtproto.IsChecked == true) _proxyMode = ProxyMode.Mtproto;
+            else if (ProxyModeHttp.IsChecked == true)    _proxyMode = ProxyMode.Http;
+            else if (ProxyModeSocks.IsChecked == true)   _proxyMode = ProxyMode.Socks;
             SaveProxySettings();
-            if (ProxyModeNone.IsChecked == true) {
-                _proxyMode = ProxyMode.None;
+
+            if (_proxyMode == ProxyMode.None) {
                 _proxyApplied = true;
                 TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
                 ProxyStatusText.Text = "Без прокси";
                 ProxyStatusText.Visibility = Visibility.Visible;
                 Log("PROXY: disabled by user");
-            } else if (ProxyModeAuto.IsChecked == true) {
-                _proxyMode = ProxyMode.Auto;
-                _proxyApplied = false; // сбрасываем чтобы FetchAndApply запустился
+            } else if (_proxyMode == ProxyMode.Auto) {
+                _proxyApplied = false;
                 _proxyList.Clear();
                 _proxyIndex = 0;
                 var t = FetchAndApplyProxyAsync();
-            } else if (ProxyModeMtproto.IsChecked == true) {
-                _proxyMode = ProxyMode.Mtproto;
+            } else if (_proxyMode == ProxyMode.Mtproto) {
                 string host = MtpHost.Text.Trim();
                 string portStr = MtpPort.Text.Trim();
                 string secret = MtpSecret.Text.Trim();
@@ -2410,8 +2414,7 @@ namespace TelegramWP10
                 }
                 _proxyApplied = true;
                 var t = ApplyProxyAsync(host, port, secret);
-            } else if (ProxyModeHttp.IsChecked == true) {
-                _proxyMode = ProxyMode.Http;
+            } else if (_proxyMode == ProxyMode.Http) {
                 string host = HttpHost.Text.Trim();
                 string portStr = HttpPort.Text.Trim();
                 if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr)) {
@@ -2429,8 +2432,7 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, req);
                 ProxyStatusText.Text = "[..] " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
-            } else if (ProxyModeSocks.IsChecked == true) {
-                _proxyMode = ProxyMode.Socks;
+            } else if (_proxyMode == ProxyMode.Socks) {
                 string host = SocksHost.Text.Trim();
                 string portStr = SocksPort.Text.Trim();
                 if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr)) {
