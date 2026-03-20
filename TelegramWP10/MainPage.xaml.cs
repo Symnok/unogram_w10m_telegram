@@ -719,17 +719,16 @@ namespace TelegramWP10
                     break;
 
                 case "addedProxy":
-                    // Ответ на addProxy — получаем proxy_id
                     long newProxyId = update["id"]?.ToObject<long>() ?? 0;
                     if (newProxyId != 0) {
                         _currentProxyId = (int)newProxyId;
                         Log("PROXY: id=" + _currentProxyId + " is_enabled=" + update["is_enabled"]);
-                        // Обновляем индикатор
                         var proxyObj = update["proxy"];
                         string ph = proxyObj?["server"]?.ToString() ?? "";
                         int pp = proxyObj?["port"]?.ToObject<int>() ?? 0;
+                        string status = _connectionReady ? "[ok] " : "[..] ";
                         var ignored2 = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                            ProxyStatusText.Text = "[..] " + ph + ":" + pp;
+                            ProxyStatusText.Text = status + ph + ":" + pp;
                             ProxyStatusText.Visibility = Visibility.Visible;
                         });
                     }
