@@ -434,6 +434,10 @@ namespace TelegramWP10
                         ChatListView.Visibility = Visibility.Visible;
                         LogoutButton.Visibility = Visibility.Visible;
                         Log("PROXY: authReady _proxyApplied=" + _proxyApplied);
+                        if (!_proxyApplied) {
+                            _proxyApplied = true;
+                            ApplySavedProxy();
+                        }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
                         _loadingArchiveIds = true;
                         Log("getChats archive (pre-fetch ids) sent from authReady");
