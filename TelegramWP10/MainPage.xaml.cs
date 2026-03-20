@@ -391,6 +391,12 @@ namespace TelegramWP10
                         LoginStatus.Text = "Введите номер телефона";
                         PhoneInput.IsEnabled = true;
                         PhoneButton.IsEnabled = true;
+                        // Загружаем сохранённые настройки и применяем прокси один раз
+                        if (!_proxyApplied) {
+                            _proxyApplied = true;
+                            LoadProxySettings();
+                            ApplySavedProxy();
+                        }
                     }
                     if (s == "authorizationStateWaitCode") {
                         LoginStatus.Text = "Код отправлен. Проверьте Telegram или SMS.";
@@ -2248,6 +2254,64 @@ namespace TelegramWP10
             await dialog.ShowAsync();
         }
 
+        private void ApplySavedProxy() {
+            switch (_proxyMode) {
+                case ProxyMode.None:
+                    TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
+                    Log("PROXY: direct connection (saved setting)");
+                    break;
+                case ProxyMode.Auto:
+                    Log("PROXY: auto mode (saved setting)");
+                    var t = FetchAndApplyProxyAsync();
+                    break;
+                case ProxyMode.Mtproto:
+                    if (!string.IsNullOrEmpty(MtpHost.Text) && !string.IsNullOrEmpty(MtpPort.Text) && !string.IsNullOrEmpty(MtpSecret.Text))
+                        if (int.TryParse(MtpPort.Text, out int p))  { var t2 = ApplyProxyAsync(MtpHost.Text, p, MtpSecret.Text); }
+                    break;
+                case ProxyMode.Http:
+                    if (!string.IsNullOrEmpty(HttpHost.Text) && !string.IsNullOrEmpty(HttpPort.Text))
+                        if (int.TryParse(HttpPort.Text, out int p)) {
+                            string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + HttpHost.Text +
+                                         "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeHttp\",\"username\":\"\",\"password\":\"\",\"http_only\":false}},\"enable\":true}";
+                            TdJson.SendUtf8(_client, req);
+                        }
+                    break;
+                case ProxyMode.Socks:
+                    if (!string.IsNullOrEmpty(SocksHost.Text) && !string.IsNullOrEmpty(SocksPort.Text))
+                        if (int.TryParse(SocksPort.Text, out int p)) {
+                            string req = "{\"@type\":\"addProxy\",\"proxy\":{\"@type\":\"proxy\",\"server\":\"" + SocksHost.Text +
+                                         "\",\"port\":" + p + ",\"type\":{\"@type\":\"proxyTypeSocks5\",\"username\":\"\",\"password\":\"\"}},\"enable\":true}";
+                            TdJson.SendUtf8(_client, req);
+                        }
+                    break;
+            }
+        }
+
+        private void SaveProxySettings() {
+            var s = Windows.Storage.ApplicationData.Current.LocalSettings;
+            s.Values["proxy_mode"] = (int)_proxyMode;
+            s.Values["proxy_mtp_host"]   = MtpHost.Text.Trim();
+            s.Values["proxy_mtp_port"]   = MtpPort.Text.Trim();
+            s.Values["proxy_mtp_secret"] = MtpSecret.Text.Trim();
+            s.Values["proxy_http_host"]  = HttpHost.Text.Trim();
+            s.Values["proxy_http_port"]  = HttpPort.Text.Trim();
+            s.Values["proxy_socks_host"] = SocksHost.Text.Trim();
+            s.Values["proxy_socks_port"] = SocksPort.Text.Trim();
+        }
+
+        private void LoadProxySettings() {
+            var s = Windows.Storage.ApplicationData.Current.LocalSettings;
+            if (s.Values.ContainsKey("proxy_mode"))
+                _proxyMode = (ProxyMode)(int)s.Values["proxy_mode"];
+            if (s.Values.ContainsKey("proxy_mtp_host"))   MtpHost.Text   = (string)s.Values["proxy_mtp_host"];
+            if (s.Values.ContainsKey("proxy_mtp_port"))   MtpPort.Text   = (string)s.Values["proxy_mtp_port"];
+            if (s.Values.ContainsKey("proxy_mtp_secret")) MtpSecret.Text = (string)s.Values["proxy_mtp_secret"];
+            if (s.Values.ContainsKey("proxy_http_host"))  HttpHost.Text  = (string)s.Values["proxy_http_host"];
+            if (s.Values.ContainsKey("proxy_http_port"))  HttpPort.Text  = (string)s.Values["proxy_http_port"];
+            if (s.Values.ContainsKey("proxy_socks_host")) SocksHost.Text = (string)s.Values["proxy_socks_host"];
+            if (s.Values.ContainsKey("proxy_socks_port")) SocksPort.Text = (string)s.Values["proxy_socks_port"];
+        }
+
         private void ProxySettingsButton_Click(object sender, RoutedEventArgs e) {
             // Выставляем текущий режим в UI
             ProxyModeNone.IsChecked     = _proxyMode == ProxyMode.None;
@@ -2279,6 +2343,7 @@ namespace TelegramWP10
 
         private void ProxyApply_Click(object sender, RoutedEventArgs e) {
             ProxyPopup.IsOpen = false;
+            SaveProxySettings();
             if (ProxyModeNone.IsChecked == true) {
                 _proxyMode = ProxyMode.None;
                 _proxyApplied = true;
