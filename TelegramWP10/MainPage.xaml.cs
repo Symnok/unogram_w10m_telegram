@@ -835,12 +835,12 @@ namespace TelegramWP10
                 case "updateChatReadOutbox":
                     long ucrId = update["chat_id"]?.ToObject<long>() ?? 0;
                     long ucrMsgId = update["last_read_outbox_message_id"]?.ToObject<long>() ?? 0;
-                    if (ucrId != 0 && _chatsDict.ContainsKey(ucrId)) {
+                    if (ucrId != 0 && ucrMsgId > 0 && _chatsDict.ContainsKey(ucrId)) {
                         _chatsDict[ucrId].IsRead = true;
                         _chatsDict[ucrId].OutboxReadId = ucrMsgId;
                     }
                     // Обновляем галочки в открытом чате
-                    if (ucrId == _currentChatId) {
+                    if (ucrId == _currentChatId && ucrMsgId > 0) {
                         _currentChatOutboxReadId = ucrMsgId;
                         foreach (var m in _messageItems)
                             if (m.IsOutgoing && m.Id <= ucrMsgId)
@@ -1131,11 +1131,11 @@ namespace TelegramWP10
                 list.Insert(0, item);
                 return;
             }
-            // Находим первый незакреплённый элемент
+            // Вставляем сразу после последнего закреплённого
             int insertAt = 0;
             for (int i = 0; i < list.Count; i++) {
                 if (list[i].IsPinned) insertAt = i + 1;
-                else break;
+                // Не делаем break — перебираем все элементы чтобы найти последний закреплённый
             }
             list.Insert(insertAt, item);
         }
