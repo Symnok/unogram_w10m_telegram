@@ -52,6 +52,7 @@ namespace TelegramWP10
         private int _proxyIndex = 0;
         private int _currentProxyId = 0;
         private Windows.UI.Xaml.DispatcherTimer _proxyTimer;
+        private Windows.UI.Xaml.DispatcherTimer _connectingTimer; // таймер 10с на подключение
         private bool _proxyConnected = false;
         private bool _proxyApplied = false; // чтобы не применять дважды
 
@@ -704,6 +705,7 @@ namespace TelegramWP10
                         _connectionReady = true;
                         _proxyConnected = true;
                         _proxyTimer?.Stop();
+                        _connectingTimer?.Stop();
                         ConnectionStatusText.Text = "";
                         if (_currentProxyId != 0) {
                             ProxyStatusText.Text = ProxyStatusText.Text.Replace("[..] ", "[ok] ");
@@ -711,11 +713,32 @@ namespace TelegramWP10
                         }
                     } else {
                         _connectionReady = false;
-                        string connText = connState == "connectionStateConnecting" ? "· подключение..."
-                            : connState == "connectionStateUpdating" ? "· обновление..."
-                            : connState == "connectionStateWaitingForNetwork" ? "· нет сети"
+                        string connText = connState == "connectionStateConnecting"     ? "· подключение..."
+                            : connState == "connectionStateConnectingToProxy"          ? "· подключение к прокси..."
+                            : connState == "connectionStateUpdating"                   ? "· обновление..."
+                            : connState == "connectionStateWaitingForNetwork"          ? "· нет сети"
                             : "...";
                         ConnectionStatusText.Text = connText;
+                        // Если подключение через прокси зависло — через 10с пробуем следующий
+                        if ((connState == "connectionStateConnecting" ||
+                             connState == "connectionStateConnectingToProxy") &&
+                            _proxyList.Count > 0) {
+                            _connectingTimer?.Stop();
+                            _connectingTimer = new Windows.UI.Xaml.DispatcherTimer();
+                            _connectingTimer.Interval = TimeSpan.FromSeconds(10);
+                            _connectingTimer.Tick += async (s2, e2) => {
+                                _connectingTimer.Stop();
+                                if (!_connectionReady && _proxyList.Count > 0) {
+                                    Log("PROXY: connecting timeout 10s, trying next");
+                                    _proxyTimer?.Stop();
+                                    _proxyIndex++;
+                                    await TryNextProxyAsync();
+                                }
+                            };
+                            _connectingTimer.Start();
+                        } else {
+                            _connectingTimer?.Stop();
+                        }
                     }
                     break;
 
