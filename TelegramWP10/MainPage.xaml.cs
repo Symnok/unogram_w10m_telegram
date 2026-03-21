@@ -365,7 +365,7 @@ namespace TelegramWP10
                 ["system_version"] = "10",
                 ["application_version"] = "1.2"
             };
-            TdJson.SendUtf8(_client, p.ToString());
+            TdJson.SendUtf8(_client, p.ToString(Newtonsoft.Json.Formatting.None));
             Log("SendParameters sent");
         }
 
@@ -543,7 +543,8 @@ namespace TelegramWP10
                     if (!_chatsDict.ContainsKey(chatId)) {
                         bool isChannel = c["type"]?["@type"]?.ToString() == "chatTypeSupergroup"
                             && (c["type"]?["is_channel"]?.ToObject<bool>() ?? false);
-                        _chatsDict[chatId] = new ChatItem { Id = chatId, Title = c["title"]?.ToString(), OutboxReadId = c["last_read_outbox_message_id"]?.ToObject<long>() ?? 0, IsChannel = isChannel };
+                        long initOutboxRead = c["last_read_outbox_message_id"]?.ToObject<long>() ?? 0;
+                        _chatsDict[chatId] = new ChatItem { Id = chatId, Title = c["title"]?.ToString(), OutboxReadId = initOutboxRead > 0 ? initOutboxRead : 0, IsChannel = isChannel };
                     }
                     var chatItem = _chatsDict[chatId];
                     // Заполняем последнее сообщение
@@ -1276,12 +1277,11 @@ namespace TelegramWP10
                 if (date > 0)
                     item.LastMessageTime = DateTimeOffset.FromUnixTimeSeconds(date).LocalDateTime.ToString("HH:mm");
                 item.IsOutgoing = msg["is_outgoing"]?.ToObject<bool>() ?? false;
-                // Статус: прочитано если OutboxReadId >= id сообщения
                 long msgId = msg["id"]?.ToObject<long>() ?? 0;
-                // last_read_outbox_message_id есть только в начальном chat объекте, не в updateChatLastMessage
                 long readOutbox = chatOrUpdate["last_read_outbox_message_id"]?.ToObject<long>() ?? -1;
-                if (readOutbox >= 0) item.OutboxReadId = readOutbox;
-                item.IsRead = item.IsOutgoing && item.OutboxReadId >= msgId;
+                if (readOutbox > 0) item.OutboxReadId = readOutbox;
+                // IsRead только если OutboxReadId > 0 и >= msgId (защита от непрогретой базы)
+                item.IsRead = item.IsOutgoing && item.OutboxReadId > 0 && item.OutboxReadId >= msgId;
             } catch { }
         }
 
@@ -1758,7 +1758,7 @@ namespace TelegramWP10
                 ["send_copy"] = false,
                 ["remove_caption"] = false
             };
-            TdJson.SendUtf8(_client, req.ToString());
+            TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
             Log("FORWARD msgId=" + msgId + " from=" + fromChatId + " to=" + targetChat.Id);
         }
 
@@ -1800,7 +1800,7 @@ namespace TelegramWP10
                         ["text"] = new JObject { ["@type"] = "formattedText", ["text"] = text }
                     }
                 };
-                TdJson.SendUtf8(_client, req.ToString());
+                TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
                 // Обновляем UI сразу — не ждём updateMessageEdited (он не содержит нового текста)
                 if (_messagesDict.ContainsKey(editId))
                     _messagesDict[editId].Text = text;
@@ -1824,7 +1824,7 @@ namespace TelegramWP10
                 ReplyPreviewPanel.Visibility = Visibility.Collapsed;
                 ReplyPreviewText.Text = "";
             }
-            TdJson.SendUtf8(_client, sendReq.ToString());
+            TdJson.SendUtf8(_client, sendReq.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         private void SubscribeRichText(Windows.UI.Xaml.Controls.RichTextBlock rtb, MessageItem item) {
@@ -2265,7 +2265,7 @@ namespace TelegramWP10
                 ["chat_id"] = chatId,
                 ["is_pinned"] = newPinned
             };
-            TdJson.SendUtf8(_client, req.ToString());
+            TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         private void ArchiveChat_Click(object sender, RoutedEventArgs e) {
