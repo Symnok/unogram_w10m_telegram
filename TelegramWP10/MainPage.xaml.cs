@@ -58,7 +58,8 @@ namespace TelegramWP10
 
         // Режим прокси
         private enum ProxyMode { None, Auto, Mtproto, Http, Socks }
-        private ProxyMode _proxyMode = ProxyMode.None; // по умолчанию — прямое подключение
+        private ProxyMode _proxyMode = ProxyMode.None;
+        private bool _isLightTheme = false; // по умолчанию — прямое подключение
         private bool _isRecording = false;
         private Windows.Media.Capture.MediaCapture _mediaCapture = null;
         private Windows.Storage.StorageFile _recordingFile = null;
@@ -89,6 +90,11 @@ namespace TelegramWP10
             var ls = Windows.Storage.ApplicationData.Current.LocalSettings;
             if (ls.Values.ContainsKey("proxy_mode"))
                 _proxyMode = (ProxyMode)(int)ls.Values["proxy_mode"];
+            // Загружаем тему
+            if (ls.Values.ContainsKey("light_theme"))
+                _isLightTheme = (bool)ls.Values["light_theme"];
+            // ApplyTheme вызывается в Loaded когда все элементы готовы
+            this.Loaded += (s, e) => ApplyTheme();
             // Сбрасываем UI в начальное состояние (на случай restore после suspend)
             LoginPanel.Visibility = Visibility.Visible;
             ChatListView.Visibility = Visibility.Collapsed;
@@ -1718,7 +1724,7 @@ namespace TelegramWP10
             } else
                 CurrentChatStatus.Text = "";
             // Скрываем поле ввода для каналов
-            InputGrid.Visibility = chat.IsChannel ? Visibility.Collapsed : Visibility.Visible;
+            InputBorder.Visibility = chat.IsChannel ? Visibility.Collapsed : Visibility.Visible;
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
             MessagesListView.Visibility = Visibility.Collapsed;
@@ -2513,6 +2519,75 @@ namespace TelegramWP10
                 ProxyStatusText.Text = "[..] " + host + ":" + port;
                 ProxyStatusText.Visibility = Visibility.Visible;
             }
+        }
+
+        private void ThemeToggle_Click(object sender, RoutedEventArgs e) {
+            _isLightTheme = !_isLightTheme;
+            Windows.Storage.ApplicationData.Current.LocalSettings.Values["light_theme"] = _isLightTheme;
+            ApplyTheme();
+        }
+
+        private void ApplyTheme() {
+            if (_isLightTheme) ApplyLightTheme();
+            else ApplyDarkTheme();
+        }
+
+        private static Windows.UI.Xaml.Media.SolidColorBrush CB(string hex) {
+            hex = hex.TrimStart('#');
+            byte a = 255, r, g, b;
+            if (hex.Length == 8) { a = Convert.ToByte(hex.Substring(0,2),16); hex = hex.Substring(2); }
+            r = Convert.ToByte(hex.Substring(0,2),16);
+            g = Convert.ToByte(hex.Substring(2,2),16);
+            b = Convert.ToByte(hex.Substring(4,2),16);
+            return new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(a,r,g,b));
+        }
+
+        private void ApplyDarkTheme() {
+            ThemeToggleButton.Content = "☀";
+            // Фоны
+            StartPanel.Background         = CB("#111111");
+            MessagesPanel.Background      = CB("#111111");
+            ChatHeader.Background         = CB("#1F3A52");
+            InputPanel.Background         = CB("#1A1A1A");
+            InputBorder.Background        = CB("#222222");
+            // Шапка чатлиста
+            var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
+            if (hdr != null) hdr.Background = CB("#1A1A1A");
+            ArchiveRow.Background         = CB("#222222");
+            // Тексты
+            UnogramTitle.Foreground       = CB("#FFFFFF");
+            ChatCountText.Foreground      = CB("#888888");
+            ArchiveChatCountText.Foreground = CB("#888888");
+            ThemeToggleButton.Foreground  = CB("#888888");
+            ProxyStatusText.Foreground    = CB("#555555");
+            ProxySettingsButton.Background = CB("#AA333333");
+            ProxySettingsButton.Foreground = CB("#AAAAAA");
+            LogoutButton.Background       = CB("#AA222222");
+            LogoutButton.Foreground       = CB("#FF4444");
+        }
+
+        private void ApplyLightTheme() {
+            ThemeToggleButton.Content = "🌙";
+            // Фоны — Telegram Desktop light
+            StartPanel.Background         = CB("#EFEFF3");
+            MessagesPanel.Background      = CB("#EFEFF3");
+            ChatHeader.Background         = CB("#2AABEE");
+            InputPanel.Background         = CB("#FFFFFF");
+            InputBorder.Background        = CB("#F0F0F0");
+            // Шапка чатлиста
+            var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
+            if (hdr != null) hdr.Background = CB("#FFFFFF");
+            ArchiveRow.Background         = CB("#F0F0F0");
+            // Тексты
+            UnogramTitle.Foreground       = CB("#000000");
+            ChatCountText.Foreground      = CB("#707070");
+            ArchiveChatCountText.Foreground = CB("#707070");
+            ThemeToggleButton.Foreground  = CB("#707070");
+            ProxyStatusText.Foreground    = CB("#707070");
+            ProxySettingsButton.Background = CB("#E5E5E5");
+            ProxySettingsButton.Foreground = CB("#555555");
+            LogoutButton.Background       = CB("#FFE5E5");
+            LogoutButton.Foreground       = CB("#CC0000");
         }
 
         private async void LogoutButton_Click(object sender, RoutedEventArgs e) {

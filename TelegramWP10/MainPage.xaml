@@ -34,7 +34,13 @@
                     <StackPanel Background="#1A1A1A">
                         <!-- Шапка главного списка -->
                         <StackPanel x:Name="MainListHeader">
-                            <TextBlock Text="Unogram" Foreground="White" FontSize="28" FontWeight="Bold" Margin="15,15,15,2"/>
+                            <Grid Margin="15,15,15,2">
+                                <TextBlock x:Name="UnogramTitle" Text="Unogram" Foreground="White" FontSize="28" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <Button x:Name="ThemeToggleButton" Content="☀" Click="ThemeToggle_Click"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Background="Transparent" Foreground="#888888"
+                                        FontSize="18" Padding="8,4" BorderThickness="0"/>
+                            </Grid>
                             <StackPanel Orientation="Horizontal" Margin="15,0,15,10">
                                 <TextBlock Text="Чатов: " Foreground="#888888" FontSize="13"/>
                                 <TextBlock x:Name="ChatCountText" Text="0" Foreground="#888888" FontSize="13"/>
@@ -241,7 +247,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Orientation="Horizontal" Background="#0088cc" Padding="10">
+            <StackPanel x:Name="ChatHeader" Orientation="Horizontal" Background="#0088cc" Padding="10">
                 <Button Content="←" Click="BackButton_Click" Foreground="White" Background="Transparent" FontSize="20"/>
                 <StackPanel VerticalAlignment="Center" Margin="10,0">
                     <TextBlock x:Name="CurrentChatTitle" Text="Чат" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
@@ -444,7 +450,7 @@
                 <TextBlock Text="Загрузка..." Foreground="#888888" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,80,0,0"/>
             </Grid>
 
-            <StackPanel Grid.Row="2">
+            <StackPanel x:Name="InputPanel" Grid.Row="2">
                 <!-- Панель предпросмотра цитаты -->
                 <Grid x:Name="ReplyPreviewPanel" Visibility="Collapsed" Background="#1A1A1A" Padding="10,6">
                     <Grid.ColumnDefinitions>
@@ -461,7 +467,7 @@
                             Width="36" Height="36" Padding="0"/>
                 </Grid>
 
-                <Grid x:Name="InputGrid" Padding="10" Background="#222222">
+                <Grid x:Name="InputBorder" Padding="10" Background="#222222">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
