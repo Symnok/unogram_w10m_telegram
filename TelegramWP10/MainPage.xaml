@@ -307,7 +307,7 @@
                                 </StackPanel>
 
                                 <!-- Цитата -->
-                                <Border Background="#44000000" BorderBrush="#88FFFFFF" BorderThickness="2,0,0,0" Margin="0,0,0,5" Padding="5,2" Visibility="{Binding ReplyVisibility}">
+                                <Border Background="{Binding ReplyBackground}" BorderBrush="{Binding ReplyBorderBrush}" BorderThickness="2,0,0,0" Margin="0,0,0,5" Padding="5,2" Visibility="{Binding ReplyVisibility}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding ReplyAuthor}" FontSize="11" FontWeight="Bold"
                                                    Foreground="#7EC8E3" Visibility="{Binding ReplyAuthorVisibility}"/>
