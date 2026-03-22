@@ -30,5 +30,6 @@
     <Capability Name="internetClient" />
     <uap3:Capability Name="backgroundMediaPlayback" />
     <DeviceCapability Name="microphone" />
+    <uap:Capability Name="musicLibrary" />
   </Capabilities>
 </Package>

@@ -243,8 +243,8 @@ namespace TelegramWP10
 
         private async void InitAsync() {
             try {
-                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
-                var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
+                var localFolder = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Music);
+                var appFolder = await localFolder.SaveFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
@@ -1096,19 +1096,19 @@ namespace TelegramWP10
                 case "userStatusOffline":
                     long wasOnline = status["was_online"]?.ToObject<long>() ?? 0;
                     text = wasOnline > 0 ? "был(а) " + FormatLastSeen(wasOnline) : "не в сети";
-                    CurrentChatStatus.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 204, 232, 255));
+                    CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
                     break;
                 case "userStatusRecently":
                     text = "был(а) недавно";
-                    CurrentChatStatus.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 204, 232, 255));
+                    CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
                     break;
                 case "userStatusLastWeek":
                     text = "был(а) на этой неделе";
-                    CurrentChatStatus.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 204, 232, 255));
+                    CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
                     break;
                 case "userStatusLastMonth":
                     text = "был(а) в этом месяце";
-                    CurrentChatStatus.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 204, 232, 255));
+                    CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
                     break;
             }
             CurrentChatStatus.Text = text;
@@ -1723,7 +1723,7 @@ namespace TelegramWP10
                 UpdateChatStatus(_usersDict[_currentChatId]["status"]);
             else if (chat.IsChannel) {
                 CurrentChatStatus.Text = "Канал";
-                CurrentChatStatus.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 204, 232, 255));
+                CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
             } else
                 CurrentChatStatus.Text = "";
             // Скрываем поле ввода для каналов
@@ -2533,6 +2533,15 @@ namespace TelegramWP10
         private void ApplyTheme() {
             if (_isLightTheme) ApplyLightTheme();
             else ApplyDarkTheme();
+            // ListView.Header рендерится асинхронно — применяем ещё раз через 200мс
+            var t = new Windows.UI.Xaml.DispatcherTimer();
+            t.Interval = TimeSpan.FromMilliseconds(200);
+            t.Tick += (s2, e2) => {
+                t.Stop();
+                if (_isLightTheme) ApplyLightTheme();
+                else ApplyDarkTheme();
+            };
+            t.Start();
         }
 
         private static Windows.UI.Xaml.Media.SolidColorBrush CB(string hex) {
@@ -2558,8 +2567,10 @@ namespace TelegramWP10
             BackButton.Foreground          = CB("#FFFFFF");
             CurrentChatTitle.Foreground    = CB("#FFFFFF");
             CurrentChatStatus.Foreground   = CB("#CCE8FF");
-            ArchiveBackButton.Foreground   = CB("#FFFFFF");
-            ArchiveTitleText.Foreground    = CB("#FFFFFF");
+            if (ArchiveBackButton != null) ArchiveBackButton.Foreground = CB("#FFFFFF");
+            if (ArchiveTitleText  != null) ArchiveTitleText.Foreground  = CB("#FFFFFF");
+            if (ArchiveRowTitle   != null) ArchiveRowTitle.Foreground   = CB("#FFFFFF");
+            ArchiveSubtitleText.Foreground = CB("#888888");
             InputPanel.Background          = CB("#1A1A1A");
             InputBorder.Background         = CB("#222222");
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
@@ -2593,10 +2604,12 @@ namespace TelegramWP10
             ChatHeader.Background          = CB("#FFFFFF");
             BackButton.Foreground          = CB("#2AABEE");  // синяя стрелка назад
             CurrentChatTitle.Foreground    = CB("#000000");  // чёрный ник
-            CurrentChatStatus.Foreground   = CB("#555555");  // тёмно-серый статус
+            CurrentChatStatus.Foreground   = CB("#000000");  // тёмно-серый статус
             // Архив
-            ArchiveBackButton.Foreground   = CB("#2AABEE");  // синяя стрелка
-            ArchiveTitleText.Foreground    = CB("#000000");  // чёрный заголовок
+            if (ArchiveBackButton != null) ArchiveBackButton.Foreground = CB("#2AABEE");
+            if (ArchiveTitleText  != null) ArchiveTitleText.Foreground  = CB("#000000");
+            if (ArchiveRowTitle   != null) ArchiveRowTitle.Foreground   = CB("#000000");
+            ArchiveSubtitleText.Foreground = CB("#707070");
             // Панель ввода — светло-серая
             InputPanel.Background          = CB("#F4F4F5");
             InputBorder.Background         = CB("#FFFFFF");
