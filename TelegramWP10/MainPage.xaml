@@ -392,7 +392,7 @@
                                     </Grid>
                                 </Border>
 
-                                <RichTextBlock x:Name="MsgTextBlock" TextWrapping="Wrap" Foreground="White" FontSize="16"
+                                <RichTextBlock x:Name="MsgTextBlock" TextWrapping="Wrap" Foreground="{Binding TextColor}" FontSize="16"
                                                Tag="{Binding Id}" Loaded="MsgRichText_Loaded" DataContextChanged="MsgRichText_DataContextChanged"/>
                                 <!-- Дата + галочки -->
                                 <Grid HorizontalAlignment="Right" Margin="0,2,0,0">
@@ -400,9 +400,9 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Date}" FontSize="10" Foreground="#CCFFFFFF" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Date}" FontSize="10" Foreground="{Binding TimeColor}" VerticalAlignment="Center"/>
                                     <TextBlock Grid.Column="1" Text="{Binding ReadStatusText}" FontSize="10" Margin="4,0,0,0"
-                                               Foreground="#BBFFFFFF" VerticalAlignment="Center"
+                                               Foreground="{Binding TimeColor}" VerticalAlignment="Center"
                                                Visibility="{Binding ReadStatusVisibility}"/>
                                 </Grid>
                                 <!-- Реакции -->

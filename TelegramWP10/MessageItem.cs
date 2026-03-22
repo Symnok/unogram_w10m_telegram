@@ -32,7 +32,14 @@ namespace TelegramWP10
         public string Text { get => _text; set { _text = value; OnPropertyChanged("Text"); } }
         public string Date { get; set; }
         public HorizontalAlignment Alignment { get; set; }
-        public string Background { get; set; }
+        private string _background = "#333333";
+        public string Background {
+            get => _background;
+            set { _background = value; OnPropertyChanged("Background"); OnPropertyChanged("TextColor"); OnPropertyChanged("TimeColor"); }
+        }
+        // Цвет текста — тёмный для светлых пузырей
+        public string TextColor => (_background == "#FFFFFF" || _background == "#EFFDDE") ? "#000000" : "#FFFFFF";
+        public string TimeColor => (_background == "#FFFFFF" || _background == "#EFFDDE") ? "#70B15C" : "#CCFFFFFF";
         public string FilePath { get; set; } // путь к файлу видео для открытия
 
         private string _replyToText;

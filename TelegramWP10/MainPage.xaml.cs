@@ -59,7 +59,10 @@ namespace TelegramWP10
         // Режим прокси
         private enum ProxyMode { None, Auto, Mtproto, Http, Socks }
         private ProxyMode _proxyMode = ProxyMode.None;
-        private bool _isLightTheme = false; // по умолчанию — прямое подключение
+        private bool _isLightTheme = false;
+        // Цвета пузырей — обновляются при смене темы
+        internal static string BubbleColorOut = "#0088cc";
+        internal static string BubbleColorIn  = "#333333"; // по умолчанию — прямое подключение
         private bool _isRecording = false;
         private Windows.Media.Capture.MediaCapture _mediaCapture = null;
         private Windows.Storage.StorageFile _recordingFile = null;
@@ -1362,7 +1365,7 @@ namespace TelegramWP10
                     RawDate = msgDate,
                     Date = msgDate.ToString("HH:mm"),
                     Alignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                    Background = outgoing ? "#0088cc" : "#333333",
+                    Background = outgoing ? BubbleColorOut : BubbleColorIn,
                     IsOutgoing = outgoing,
                     IsRead = outgoing && (msg["id"]?.ToObject<long>() ?? 0) <= _currentChatOutboxReadId,
                     SenderName = outgoing ? "" : (_currentChatIsGroup ? GetSenderName(senderId) : ""),
@@ -2544,10 +2547,14 @@ namespace TelegramWP10
 
         private void ApplyDarkTheme() {
             ThemeToggleButton.Content = "☀";
+            BubbleColorOut = "#2B5278";
+            BubbleColorIn  = "#182533";
             // Фоны
             StartPanel.Background         = CB("#111111");
             MessagesPanel.Background      = CB("#111111");
             ChatHeader.Background         = CB("#1F3A52");
+            CurrentChatTitle.Foreground   = CB("#FFFFFF");
+            CurrentChatStatus.Foreground  = CB("#CCE8FF");
             InputPanel.Background         = CB("#1A1A1A");
             InputBorder.Background        = CB("#222222");
             // Шапка чатлиста
@@ -2564,21 +2571,25 @@ namespace TelegramWP10
             ProxySettingsButton.Foreground = CB("#AAAAAA");
             LogoutButton.Background       = CB("#AA222222");
             LogoutButton.Foreground       = CB("#FF4444");
+            UpdateBubbleColors();
         }
 
         private void ApplyLightTheme() {
             ThemeToggleButton.Content = "🌙";
-            // Фоны — Telegram Desktop light
+            // Пузыри: исходящие — светло-зелёные, входящие — белые
+            BubbleColorOut = "#EFFDDE";
+            BubbleColorIn  = "#FFFFFF";
+            // Фон чата — зеленоватый как в Telegram
             StartPanel.Background         = CB("#EFEFF3");
-            MessagesPanel.Background      = CB("#EFEFF3");
-            ChatHeader.Background         = CB("#2AABEE");
-            InputPanel.Background         = CB("#FFFFFF");
-            InputBorder.Background        = CB("#F0F0F0");
-            // Шапка чатлиста
+            MessagesPanel.Background      = CB("#B2CDB0");
+            ChatHeader.Background         = CB("#FFFFFF");
+            CurrentChatTitle.Foreground   = CB("#000000");
+            CurrentChatStatus.Foreground  = CB("#707070");
+            InputPanel.Background         = CB("#F4F4F5");
+            InputBorder.Background        = CB("#FFFFFF");
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
             if (hdr != null) hdr.Background = CB("#FFFFFF");
             ArchiveRow.Background         = CB("#F0F0F0");
-            // Тексты
             UnogramTitle.Foreground       = CB("#000000");
             ChatCountText.Foreground      = CB("#707070");
             ArchiveChatCountText.Foreground = CB("#707070");
@@ -2588,6 +2599,14 @@ namespace TelegramWP10
             ProxySettingsButton.Foreground = CB("#555555");
             LogoutButton.Background       = CB("#FFE5E5");
             LogoutButton.Foreground       = CB("#CC0000");
+            UpdateBubbleColors();
+        }
+
+        private void UpdateBubbleColors() {
+            // Перекрашиваем уже загруженные сообщения
+            foreach (var m in _messageItems)
+                if (!m.IsSeparator)
+                    m.Background = m.IsOutgoing ? BubbleColorOut : BubbleColorIn;
         }
 
         private async void LogoutButton_Click(object sender, RoutedEventArgs e) {
