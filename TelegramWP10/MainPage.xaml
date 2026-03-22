@@ -57,7 +57,7 @@
                                 <Button x:Name="ArchiveBackButton" Content="←" Click="ArchiveBack_Click"
                                         Background="Transparent" Foreground="White" FontSize="22"
                                         Padding="10,4,8,4" VerticalAlignment="Center" BorderThickness="0"/>
-                                <TextBlock Grid.Column="1" Text="Архив" Foreground="White"
+                                <TextBlock x:Name="ArchiveTitleText" Grid.Column="1" Text="Архив" Foreground="White"
                                            FontSize="26" FontWeight="Bold"
                                            VerticalAlignment="Center" Margin="0,0,0,4"/>
                             </Grid>

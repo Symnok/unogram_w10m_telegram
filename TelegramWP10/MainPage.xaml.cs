@@ -2558,6 +2558,8 @@ namespace TelegramWP10
             BackButton.Foreground          = CB("#FFFFFF");
             CurrentChatTitle.Foreground    = CB("#FFFFFF");
             CurrentChatStatus.Foreground   = CB("#CCE8FF");
+            ArchiveBackButton.Foreground   = CB("#FFFFFF");
+            ArchiveTitleText.Foreground    = CB("#FFFFFF");
             InputPanel.Background          = CB("#1A1A1A");
             InputBorder.Background         = CB("#222222");
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
@@ -2591,7 +2593,10 @@ namespace TelegramWP10
             ChatHeader.Background          = CB("#FFFFFF");
             BackButton.Foreground          = CB("#2AABEE");  // синяя стрелка назад
             CurrentChatTitle.Foreground    = CB("#000000");  // чёрный ник
-            CurrentChatStatus.Foreground   = CB("#707070");  // серый статус
+            CurrentChatStatus.Foreground   = CB("#555555");  // тёмно-серый статус
+            // Архив
+            ArchiveBackButton.Foreground   = CB("#2AABEE");  // синяя стрелка
+            ArchiveTitleText.Foreground    = CB("#000000");  // чёрный заголовок
             // Панель ввода — светло-серая
             InputPanel.Background          = CB("#F4F4F5");
             InputBorder.Background         = CB("#FFFFFF");
