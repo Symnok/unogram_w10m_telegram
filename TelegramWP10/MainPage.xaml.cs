@@ -2549,57 +2549,71 @@ namespace TelegramWP10
             ThemeToggleButton.Content = "☀";
             BubbleColorOut = "#2B5278";
             BubbleColorIn  = "#182533";
-            // Фоны
-            StartPanel.Background         = CB("#111111");
-            MessagesPanel.Background      = CB("#111111");
-            ChatHeader.Background         = CB("#1F3A52");
-            CurrentChatTitle.Foreground   = CB("#FFFFFF");
-            CurrentChatStatus.Foreground  = CB("#CCE8FF");
-            InputPanel.Background         = CB("#1A1A1A");
-            InputBorder.Background        = CB("#222222");
-            // Шапка чатлиста
+            ChatItem.ThemeTitleColor    = "#FFFFFF";
+            ChatItem.ThemeSubtitleColor = "#888888";
+            ChatItem.ThemeTimeColor     = "#888888";
+            StartPanel.Background          = CB("#111111");
+            MessagesPanel.Background       = CB("#111111");
+            ChatHeader.Background          = CB("#1F3A52");
+            BackButton.Foreground          = CB("#FFFFFF");
+            CurrentChatTitle.Foreground    = CB("#FFFFFF");
+            CurrentChatStatus.Foreground   = CB("#CCE8FF");
+            InputPanel.Background          = CB("#1A1A1A");
+            InputBorder.Background         = CB("#222222");
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
             if (hdr != null) hdr.Background = CB("#1A1A1A");
-            ArchiveRow.Background         = CB("#222222");
-            // Тексты
-            UnogramTitle.Foreground       = CB("#FFFFFF");
-            ChatCountText.Foreground      = CB("#888888");
+            ArchiveRow.Background          = CB("#222222");
+            UnogramTitle.Foreground        = CB("#FFFFFF");
+            ChatCountText.Foreground       = CB("#888888");
             ArchiveChatCountText.Foreground = CB("#888888");
-            ThemeToggleButton.Foreground  = CB("#888888");
-            ProxyStatusText.Foreground    = CB("#555555");
-            ProxySettingsButton.Background = CB("#AA333333");
-            ProxySettingsButton.Foreground = CB("#AAAAAA");
-            LogoutButton.Background       = CB("#AA222222");
-            LogoutButton.Foreground       = CB("#FF4444");
+            ThemeToggleButton.Foreground   = CB("#888888");
+            ProxyStatusText.Foreground     = CB("#555555");
+            ProxySettingsButton.Background  = CB("#AA333333");
+            ProxySettingsButton.Foreground  = CB("#AAAAAA");
+            LogoutButton.Background        = CB("#AA222222");
+            LogoutButton.Foreground        = CB("#FF4444");
+            NotifyAllChatTheme();
             UpdateBubbleColors();
         }
 
         private void ApplyLightTheme() {
             ThemeToggleButton.Content = "🌙";
-            // Пузыри: исходящие — светло-зелёные, входящие — белые
             BubbleColorOut = "#EFFDDE";
             BubbleColorIn  = "#FFFFFF";
-            // Фон чата — зеленоватый как в Telegram
-            StartPanel.Background         = CB("#EFEFF3");
-            MessagesPanel.Background      = CB("#B2CDB0");
-            ChatHeader.Background         = CB("#FFFFFF");
-            CurrentChatTitle.Foreground   = CB("#000000");
-            CurrentChatStatus.Foreground  = CB("#707070");
-            InputPanel.Background         = CB("#F4F4F5");
-            InputBorder.Background        = CB("#FFFFFF");
+            // Статические цвета для DataTemplate чатов
+            ChatItem.ThemeTitleColor    = "#000000";
+            ChatItem.ThemeSubtitleColor = "#707070";
+            ChatItem.ThemeTimeColor     = "#707070";
+            // Фон
+            StartPanel.Background          = CB("#EFEFF3");
+            MessagesPanel.Background       = CB("#B2CDB0");
+            // Шапка чата — белая
+            ChatHeader.Background          = CB("#FFFFFF");
+            BackButton.Foreground          = CB("#2AABEE");  // синяя стрелка назад
+            CurrentChatTitle.Foreground    = CB("#000000");  // чёрный ник
+            CurrentChatStatus.Foreground   = CB("#707070");  // серый статус
+            // Панель ввода — светло-серая
+            InputPanel.Background          = CB("#F4F4F5");
+            InputBorder.Background         = CB("#FFFFFF");
+            // Шапка чатлиста
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
             if (hdr != null) hdr.Background = CB("#FFFFFF");
-            ArchiveRow.Background         = CB("#F0F0F0");
-            UnogramTitle.Foreground       = CB("#000000");
-            ChatCountText.Foreground      = CB("#707070");
+            ArchiveRow.Background          = CB("#F0F0F0");
+            UnogramTitle.Foreground        = CB("#000000");
+            ChatCountText.Foreground       = CB("#707070");
             ArchiveChatCountText.Foreground = CB("#707070");
-            ThemeToggleButton.Foreground  = CB("#707070");
-            ProxyStatusText.Foreground    = CB("#707070");
-            ProxySettingsButton.Background = CB("#E5E5E5");
-            ProxySettingsButton.Foreground = CB("#555555");
-            LogoutButton.Background       = CB("#FFE5E5");
-            LogoutButton.Foreground       = CB("#CC0000");
+            ThemeToggleButton.Foreground   = CB("#707070");
+            ProxyStatusText.Foreground     = CB("#707070");
+            ProxySettingsButton.Background  = CB("#E5E5E5");
+            ProxySettingsButton.Foreground  = CB("#555555");
+            LogoutButton.Background        = CB("#FFE5E5");
+            LogoutButton.Foreground        = CB("#CC0000");
+            NotifyAllChatTheme();
             UpdateBubbleColors();
+        }
+
+        private void NotifyAllChatTheme() {
+            foreach (var c in _chatsDict.Values) c.NotifyThemeChanged();
         }
 
         private void UpdateBubbleColors() {

@@ -10,6 +10,20 @@ namespace TelegramWP10
         public long OutboxReadId { get; set; }
         public bool IsChannel { get; set; }
         public string Title { get; set; }
+        // Статические цвета темы — обновляются из MainPage при смене темы
+        internal static string ThemeTitleColor    = "#FFFFFF";
+        internal static string ThemeSubtitleColor = "#888888";
+        internal static string ThemeTimeColor     = "#888888";
+
+        public string TitleColor    => ThemeTitleColor;
+        public string SubtitleColor => ThemeSubtitleColor;
+        public string TimeColor     => ThemeTimeColor;
+
+        public void NotifyThemeChanged() {
+            OnPropertyChanged("TitleColor");
+            OnPropertyChanged("SubtitleColor");
+            OnPropertyChanged("TimeColor");
+        }
 
         private BitmapImage _photo = new BitmapImage(new Uri("ms-appx:///Assets/StoreLogo.png"));
         public BitmapImage Photo

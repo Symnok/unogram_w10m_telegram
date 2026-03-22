@@ -143,10 +143,10 @@
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="📌 " FontSize="12" Foreground="#888888"
                                                    Visibility="{Binding PinVisibility}" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Title}" Foreground="White" FontSize="16" FontWeight="SemiBold"
+                                        <TextBlock Text="{Binding Title}" Foreground="{Binding TitleColor}" FontSize="16" FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                                     </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="{Binding LastMessageTime}" Foreground="#888888" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding LastMessageTime}" Foreground="{Binding TimeColor}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0"/>
                                 </Grid>
                                 <!-- Строка 2: последнее сообщение + бейдж непрочитанных -->
                                 <Grid Grid.Row="1" Margin="0,2,0,0">
@@ -154,7 +154,7 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding LastMessage}" Foreground="#888888" FontSize="13" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="NoWrap"/>
+                                    <TextBlock Grid.Column="0" Text="{Binding LastMessage}" Foreground="{Binding SubtitleColor}" FontSize="13" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="NoWrap"/>
                                     <!-- Правая колонка: галочки ИЛИ бейдж ИЛИ кружок — всегда только одно из трёх -->
                                     <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="#0088cc" FontSize="13"
                                                VerticalAlignment="Center" Margin="6,0,0,0"
@@ -248,7 +248,7 @@
             </Grid.RowDefinitions>
 
             <StackPanel x:Name="ChatHeader" Orientation="Horizontal" Background="#0088cc" Padding="10">
-                <Button Content="←" Click="BackButton_Click" Foreground="White" Background="Transparent" FontSize="20"/>
+                <Button x:Name="BackButton" Content="←" Click="BackButton_Click" Foreground="White" Background="Transparent" FontSize="20"/>
                 <StackPanel VerticalAlignment="Center" Margin="10,0">
                     <TextBlock x:Name="CurrentChatTitle" Text="Чат" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock x:Name="CurrentChatStatus" Text="" Foreground="#CCE8FF" FontSize="13"/>
