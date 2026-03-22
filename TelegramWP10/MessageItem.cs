@@ -43,6 +43,8 @@ namespace TelegramWP10
         // Цитата: светло-розовый в светлой теме, полупрозрачный тёмный в тёмной
         public string ReplyBackground   => (_background == "#FFFFFF" || _background == "#EFFDDE") ? "#FADADD" : "#44000000";
         public string ReplyBorderBrush  => (_background == "#FFFFFF" || _background == "#EFFDDE") ? "#E07090" : "#88FFFFFF";
+        public string ReplyAuthorColor  => (_background == "#FFFFFF" || _background == "#EFFDDE") ? "#C0306A" : "#7EC8E3";
+        public string ReplyTextColor    => (_background == "#FFFFFF" || _background == "#EFFDDE") ? "#000000" : "#CCCCCC";
         public string FilePath { get; set; } // путь к файлу видео для открытия
 
         private string _replyToText;
