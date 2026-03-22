@@ -249,6 +249,11 @@
 
             <StackPanel x:Name="ChatHeader" Orientation="Horizontal" Background="#0088cc" Padding="10">
                 <Button x:Name="BackButton" Content="←" Click="BackButton_Click" Foreground="White" Background="Transparent" FontSize="20"/>
+                <!-- Аватарка собеседника -->
+                <Border Width="36" Height="36" CornerRadius="18" Background="#555555"
+                        VerticalAlignment="Center" Margin="6,0,0,0" x:Name="ChatHeaderAvatarBorder">
+                    <Image x:Name="ChatHeaderAvatar" Stretch="UniformToFill" Width="36" Height="36"/>
+                </Border>
                 <StackPanel VerticalAlignment="Center" Margin="10,0">
                     <TextBlock x:Name="CurrentChatTitle" Text="Чат" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock x:Name="CurrentChatStatus" Text="" Foreground="#CCE8FF" FontSize="13"/>

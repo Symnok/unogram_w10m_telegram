@@ -1668,6 +1668,11 @@ namespace TelegramWP10
                     _chatsDict[chatId].Photo = bitmap;
                     Log("UpdateAvatar OK chat=" + chatId);
                 }
+                // Если этот чат открыт — обновляем аватарку в шапке
+                if (chatId == _currentChatId) {
+                    ChatHeaderAvatar.Source = bitmap;
+                    ChatHeaderAvatarBorder.Background = CB("#00000000");
+                }
             } catch (Exception ex) { Log("UpdateAvatar ERR chat=" + chatId + " | " + ex.Message); }
         }
 
@@ -1718,6 +1723,12 @@ namespace TelegramWP10
             StartPanel.Visibility = Visibility.Collapsed;
             MessagesPanel.Visibility = Visibility.Visible;
             CurrentChatTitle.Text = chat.Title;
+            // Аватарка в шапке
+            if (chat.Photo != null)
+                ChatHeaderAvatar.Source = chat.Photo;
+            else
+                ChatHeaderAvatar.Source = null;
+            ChatHeaderAvatarBorder.Background = CB(chat.Photo != null ? "#00000000" : "#555555");
             // Показываем статус если это личный чат
             if (_usersDict.ContainsKey(_currentChatId))
                 UpdateChatStatus(_usersDict[_currentChatId]["status"]);
