@@ -1876,10 +1876,16 @@ namespace TelegramWP10
             rtb.Blocks.Clear();
             var para = new Windows.UI.Xaml.Documents.Paragraph();
             string text = item.Text ?? "";
-            // Исходящие — светло-жёлтый (на синем #0088cc), входящие — голубой (на сером #333333)
-            var linkColor = item.IsOutgoing
-                ? Windows.UI.Color.FromArgb(255, 255, 229, 127)  // #FFE57F
-                : Windows.UI.Color.FromArgb(255, 100, 200, 255); // #64C8FF
+            Windows.UI.Color linkColor;
+            if (_isLightTheme) {
+                // Светлая тема: синий на зелёном и белом фоне
+                linkColor = Windows.UI.Color.FromArgb(255, 33, 150, 243); // #2196F3
+            } else {
+                // Тёмная тема: исходящие — светло-жёлтый, входящие — голубой
+                linkColor = item.IsOutgoing
+                    ? Windows.UI.Color.FromArgb(255, 255, 229, 127)  // #FFE57F
+                    : Windows.UI.Color.FromArgb(255, 100, 200, 255); // #64C8FF
+            }
 
             if (item.Entities == null || item.Entities.Count == 0) {
                 para.Inlines.Add(new Windows.UI.Xaml.Documents.Run { Text = text });
