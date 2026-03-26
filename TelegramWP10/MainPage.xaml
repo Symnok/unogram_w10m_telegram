@@ -515,6 +515,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Button Content="📎" Click="AttachFile_Click" Width="44" Height="40"
                         Background="Transparent" Foreground="White" FontSize="18" Padding="0"/>
@@ -537,8 +538,45 @@
                     </FlyoutBase.AttachedFlyout>
                 </TextBox>
                 </Border>
-                <Button x:Name="SendButton" Grid.Column="3" Content="➤" Click="SendMessage_Click" Width="50" Height="40" Background="#0088cc" Foreground="White"/>
+                <!-- Кнопка стикеров -->
+                <Button x:Name="StickerButton" Grid.Column="3" Content="😊" Click="StickerButton_Click"
+                        Width="44" Height="40" Background="Transparent" Foreground="White" FontSize="20" Padding="0"/>
+                <Button x:Name="SendButton" Grid.Column="4" Content="➤" Click="SendMessage_Click" Width="50" Height="40" Background="#0088cc" Foreground="White"/>
             </Grid>
+
+            <!-- Панель выбора стикеров — поверх сообщений снизу -->
+            <Grid x:Name="StickerPanel" Visibility="Collapsed"
+                  Grid.Row="1" VerticalAlignment="Bottom" Background="#1A1A1A" Height="280">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <!-- Вкладки стикерпаков -->
+                <ScrollViewer HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
+                              HorizontalScrollBarVisibility="Hidden" Height="48" Background="#222222">
+                    <StackPanel x:Name="StickerPackTabs" Orientation="Horizontal" Padding="4"/>
+                </ScrollViewer>
+                <!-- Сетка стикеров -->
+                <ScrollViewer Grid.Row="1" VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Hidden">
+                    <GridView x:Name="StickerGrid" SelectionMode="None" IsItemClickEnabled="True"
+                              ItemClick="StickerGrid_ItemClick" Padding="4">
+                        <GridView.ItemContainerStyle>
+                            <Style TargetType="GridViewItem">
+                                <Setter Property="Padding" Value="2"/>
+                                <Setter Property="Margin" Value="0"/>
+                            </Style>
+                        </GridView.ItemContainerStyle>
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="80" Height="80" Background="Transparent">
+                                    <Image Source="{Binding Thumb}" Stretch="Uniform" Width="72" Height="72"/>
+                                </Border>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+                </ScrollViewer>
+            </Grid>
+
             </StackPanel>
         </Grid>
 
