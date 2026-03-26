@@ -1701,7 +1701,6 @@ namespace TelegramWP10
 
                 if (bitmap != null && _messagesDict.ContainsKey(msgId)) {
                     _messagesDict[msgId].AttachedPhoto = bitmap;
-                    _messagesDict[msgId].PhotoVisibility = "Visible";
                     Log("UpdateMsgPhoto OK msg=" + msgId);
                 } else {
                     Log("UpdateMsgPhoto NOT IN DICT msg=" + msgId);

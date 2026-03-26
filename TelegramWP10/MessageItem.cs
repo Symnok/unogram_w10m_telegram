@@ -51,8 +51,8 @@ namespace TelegramWP10
         public string ReplyToText { get => _replyToText; set { _replyToText = value; OnPropertyChanged("ReplyToText"); OnPropertyChanged("ReplyVisibility"); } }
         public Visibility ReplyVisibility => !string.IsNullOrEmpty(ReplyToText) ? Visibility.Visible : Visibility.Collapsed;
 
-        private BitmapImage _attachedPhoto;
-        public BitmapImage AttachedPhoto { get => _attachedPhoto; set { _attachedPhoto = value; OnPropertyChanged("AttachedPhoto"); OnPropertyChanged("PhotoVisibility"); } }
+        private Windows.UI.Xaml.Media.ImageSource _attachedPhoto;
+        public Windows.UI.Xaml.Media.ImageSource AttachedPhoto { get => _attachedPhoto; set { _attachedPhoto = value; OnPropertyChanged("AttachedPhoto"); OnPropertyChanged("PhotoVisibility"); } }
         // PhotoVisibility: показываем если есть превью ИЛИ это обычное видео (не GIF)
         public Visibility PhotoVisibility => (AttachedPhoto != null || (IsVideo && !IsGif)) ? Visibility.Visible : Visibility.Collapsed;
 
