@@ -1562,24 +1562,28 @@ namespace TelegramWP10
                     item.Text = "";
                     _messagesDict[msgId] = item;
 
-                    if (!isAnimated && !isVideo) {
+                    var stickerFile = sticker?["sticker"] as JObject;
+                    string stickerPath = stickerFile?["local"]?["path"]?.ToString() ?? "";
+                    // Определяем тип по расширению — .tgs это gzip+lottie (анимированный)
+                    bool isTgs = stickerPath.EndsWith(".tgs", StringComparison.OrdinalIgnoreCase);
+                    bool isStaticWebp = stickerPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+
+                    if ((!isAnimated && !isVideo && !isTgs) || isStaticWebp) {
                         // Статичный WebP стикер — декодируем через libwebp
-                        var stickerFile = sticker?["sticker"] as JObject;
                         if (stickerFile != null) {
                             long sfid = (long)stickerFile["id"];
                             _fileToMsgId[sfid] = msgId;
                             string remoteUid = stickerFile["remote"]?["unique_id"]?.ToString();
                             if (!string.IsNullOrEmpty(remoteUid))
                                 _remoteUniqueIdToMsgId[remoteUid] = msgId;
-                            string sPath = stickerFile["local"]?["path"]?.ToString();
-                            Log("STICKER static msg=" + msgId + " file_id=" + sfid + " path=" + sPath);
-                            if (!string.IsNullOrEmpty(sPath))
-                                { var t = UpdateMessagePhoto(msgId, sPath); }
+                            Log("STICKER static msg=" + msgId + " file_id=" + sfid + " path=" + stickerPath);
+                            if (!string.IsNullOrEmpty(stickerPath))
+                                { var t = UpdateMessagePhoto(msgId, stickerPath); }
                             else
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + sfid + ",\"priority\":10,\"synchronous\":false}");
                         }
                     } else {
-                        // Анимированный/видео стикер — показываем thumbnail (WebP превью первого кадра)
+                        // Анимированный (.tgs) или видео стикер — берём thumbnail
                         var thumb = sticker?["thumbnail"];
                         var thumbFile = thumb?["file"] as JObject;
                         if (thumbFile != null) {
@@ -1594,6 +1598,10 @@ namespace TelegramWP10
                                 { var t = UpdateMessagePhoto(msgId, tPath); }
                             else
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + tfid + ",\"priority\":10,\"synchronous\":false}");
+                        } else if (stickerFile != null) {
+                            // Thumbnail нет — пробуем скачать сам файл и смотрим что придёт
+                            long sfid = (long)stickerFile["id"];
+                            Log("STICKER no thumbnail, skip animated msg=" + msgId + " file_id=" + sfid);
                         }
                     }
                 } else if (type == "messageDocument") {
@@ -1695,6 +1703,11 @@ namespace TelegramWP10
 
         private async Task UpdateMessagePhoto(long msgId, string path) {
             try {
+                // .tgs это gzip+lottie — не можем отобразить, пропускаем
+                if (path.EndsWith(".tgs", StringComparison.OrdinalIgnoreCase)) {
+                    Log("UpdateMsgPhoto skip .tgs msg=" + msgId);
+                    return;
+                }
                 var file = await StorageFile.GetFileFromPathAsync(path);
                 Windows.UI.Xaml.Media.ImageSource bitmap;
 
