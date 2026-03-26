@@ -502,7 +502,9 @@
                         PointerExited="MicButton_PointerReleased">
                     <TextBlock Text="🎤" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
-                <TextBox x:Name="MessageInput" Grid.Column="2" PlaceholderText="Сообщение..." AcceptsReturn="True" MaxHeight="100" Margin="8,0"
+                <Border x:Name="MessageInputBorder" Grid.Column="2" Margin="8,0"
+                        Background="#F0F2F5" BorderBrush="#D8DCE0" BorderThickness="1" CornerRadius="20" Padding="4,0">
+                <TextBox x:Name="MessageInput" PlaceholderText="Сообщение..." AcceptsReturn="True" MaxHeight="100"
                          Background="Transparent" BorderThickness="0"
                          Holding="MessageInput_Holding">
                     <FlyoutBase.AttachedFlyout>
@@ -511,6 +513,7 @@
                         </MenuFlyout>
                     </FlyoutBase.AttachedFlyout>
                 </TextBox>
+                </Border>
                 <Button x:Name="SendButton" Grid.Column="3" Content="➤" Click="SendMessage_Click" Width="50" Height="40" Background="#0088cc" Foreground="White"/>
             </Grid>
             </StackPanel>

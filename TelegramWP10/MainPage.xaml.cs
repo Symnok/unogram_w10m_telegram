@@ -2637,6 +2637,11 @@ namespace TelegramWP10
             ArchiveSubtitleText.Foreground = CB("#888888");
             InputPanel.Background          = CB("#1A1A1A");
             InputBorder.Background         = CB("#222222");
+            if (MessageInputBorder != null) {
+                MessageInputBorder.Background    = CB("#2A2A2A");
+                MessageInputBorder.BorderBrush   = CB("#444444");
+                MessageInputBorder.BorderThickness = new Windows.UI.Xaml.Thickness(1);
+            }
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
             if (hdr != null) hdr.Background = CB("#1A1A1A");
             ArchiveRow.Background          = CB("#222222");
@@ -2676,7 +2681,12 @@ namespace TelegramWP10
             ArchiveSubtitleText.Foreground = CB("#707070");
             // Панель ввода — светло-серая
             InputPanel.Background          = CB("#F4F4F5");
-            InputBorder.Background         = CB("#FFFFFF");
+            InputBorder.Background         = CB("#F4F4F5");
+            if (MessageInputBorder != null) {
+                MessageInputBorder.Background    = CB("#F0F2F5");
+                MessageInputBorder.BorderBrush   = CB("#D8DCE0");
+                MessageInputBorder.BorderThickness = new Windows.UI.Xaml.Thickness(1);
+            }
             // Шапка чатлиста
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
             if (hdr != null) hdr.Background = CB("#FFFFFF");
