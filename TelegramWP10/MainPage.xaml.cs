@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Controls.Primitives;
@@ -2859,20 +2860,21 @@ namespace TelegramWP10
                         reader.ReadBytes(data);
                     }
                     var wb = await WebPDecoder.DecodeAsync(data);
-                    // Конвертируем WriteableBitmap → BitmapImage через stream
+                    // Конвертируем WriteableBitmap → BitmapImage через InMemoryRandomAccessStream
                     var bmp = new BitmapImage();
-                    using (var ms = new System.IO.MemoryStream()) {
+                    using (var ras = new Windows.Storage.Streams.InMemoryRandomAccessStream()) {
                         var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
-                            Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId,
-                            ms.AsRandomAccessStream());
-                        var px = new byte[wb.PixelBuffer.Length];
-                        wb.PixelBuffer.CopyTo(px);
+                            Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, ras);
+                        // Читаем пиксели из PixelBuffer через Stream
+                        byte[] px = new byte[wb.PixelBuffer.Capacity];
+                        using (var pixStream = wb.PixelBuffer.AsStream())
+                            await pixStream.ReadAsync(px, 0, px.Length);
                         encoder.SetPixelData(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
                             Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied,
                             (uint)wb.PixelWidth, (uint)wb.PixelHeight, 96, 96, px);
                         await encoder.FlushAsync();
-                        ms.Position = 0;
-                        await bmp.SetSourceAsync(ms.AsRandomAccessStream());
+                        ras.Seek(0);
+                        await bmp.SetSourceAsync(ras);
                     }
                     return bmp;
                 } else {
