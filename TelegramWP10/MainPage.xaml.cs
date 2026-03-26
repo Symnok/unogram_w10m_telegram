@@ -611,13 +611,13 @@ namespace TelegramWP10
                                 { var t = UpdateAvatar(_fileToChatId[fid], fpath); }
 
                             // Фолбэк для стикеров: TDLib может вернуть новый file_id при скачивании.
-                            // Если file_id не найден — ищем по remote.unique_id
                             if (!_fileToMsgId.ContainsKey(fid) && isCompleted && !string.IsNullOrEmpty(fpath)
-                                && fpath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)) {
+                                && (fpath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
+                                 || fpath.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))) {
                                 string remoteUid = fileObj["remote"]?["unique_id"]?.ToString();
                                 if (!string.IsNullOrEmpty(remoteUid) && _remoteUniqueIdToMsgId.ContainsKey(remoteUid)) {
                                     long mid2 = _remoteUniqueIdToMsgId[remoteUid];
-                                    _fileToMsgId[fid] = mid2; // регистрируем новый id
+                                    _fileToMsgId[fid] = mid2;
                                     Log("STICKER fallback remote_uid=" + remoteUid + " -> msg=" + mid2 + " new_fid=" + fid);
                                     var t2 = UpdateMessagePhoto(mid2, fpath);
                                 }
@@ -625,11 +625,11 @@ namespace TelegramWP10
 
                             if (_fileToMsgId.ContainsKey(fid)) {
                                 long mid = _fileToMsgId[fid];
-                                // Передаём в UpdateMessagePhoto только изображения, не .mp4
                                 bool isImg = !string.IsNullOrEmpty(fpath) &&
                                     (fpath.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
                                      fpath.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                                     fpath.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+                                     fpath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                                     fpath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase));
                                 if (isImg)
                                     { var t = UpdateMessagePhoto(mid, fpath); }
                                 // Если это полноразмерное фото для оверлея
@@ -1560,8 +1560,10 @@ namespace TelegramWP10
                     bool isVideo = sticker?["is_video"]?.ToObject<bool>() ?? false;
                     item.IsSticker = true;
                     item.Text = "";
-                    // Поддерживаем только статичные WebP стикеры
+                    _messagesDict[msgId] = item;
+
                     if (!isAnimated && !isVideo) {
+                        // Статичный WebP стикер — декодируем через libwebp
                         var stickerFile = sticker?["sticker"] as JObject;
                         if (stickerFile != null) {
                             long sfid = (long)stickerFile["id"];
@@ -1569,13 +1571,29 @@ namespace TelegramWP10
                             string remoteUid = stickerFile["remote"]?["unique_id"]?.ToString();
                             if (!string.IsNullOrEmpty(remoteUid))
                                 _remoteUniqueIdToMsgId[remoteUid] = msgId;
-                            _messagesDict[msgId] = item;
                             string sPath = stickerFile["local"]?["path"]?.ToString();
-                            Log("STICKER msg=" + msgId + " file_id=" + sfid + " path=" + sPath);
+                            Log("STICKER static msg=" + msgId + " file_id=" + sfid + " path=" + sPath);
                             if (!string.IsNullOrEmpty(sPath))
                                 { var t = UpdateMessagePhoto(msgId, sPath); }
                             else
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + sfid + ",\"priority\":10,\"synchronous\":false}");
+                        }
+                    } else {
+                        // Анимированный/видео стикер — показываем thumbnail (WebP превью первого кадра)
+                        var thumb = sticker?["thumbnail"];
+                        var thumbFile = thumb?["file"] as JObject;
+                        if (thumbFile != null) {
+                            long tfid = (long)thumbFile["id"];
+                            _fileToMsgId[tfid] = msgId;
+                            string remoteUid = thumbFile["remote"]?["unique_id"]?.ToString();
+                            if (!string.IsNullOrEmpty(remoteUid))
+                                _remoteUniqueIdToMsgId[remoteUid] = msgId;
+                            string tPath = thumbFile["local"]?["path"]?.ToString();
+                            Log("STICKER animated thumbnail msg=" + msgId + " file_id=" + tfid + " path=" + tPath);
+                            if (!string.IsNullOrEmpty(tPath))
+                                { var t = UpdateMessagePhoto(msgId, tPath); }
+                            else
+                                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + tfid + ",\"priority\":10,\"synchronous\":false}");
                         }
                     }
                 } else if (type == "messageDocument") {
