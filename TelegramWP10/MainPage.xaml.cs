@@ -1624,7 +1624,7 @@ namespace TelegramWP10
                         }
                     }
                 }
-                if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio") {
+                if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio" && type != "messageSticker") {
                     if (type == "messageCall") {
                         var callContent = content;
                         bool isVideo = callContent["is_video"]?.ToObject<bool>() ?? false;
