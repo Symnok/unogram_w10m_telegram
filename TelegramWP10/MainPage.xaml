@@ -332,7 +332,7 @@
 
                                 <!-- Фото / Видео (превью + иконка воспроизведения) -->
                                 <Grid Visibility="{Binding PhotoVisibility}" Margin="0,0,0,5">
-                                    <Image Source="{Binding AttachedPhoto}" Stretch="Uniform" MaxWidth="250"
+                                    <Image Source="{Binding AttachedPhoto}" Stretch="Uniform" MaxWidth="{Binding PhotoMaxWidth}" MaxHeight="{Binding PhotoMaxWidth}"
                                            Tapped="PhotoImage_Tapped"/>
                                     <TextBlock Text="▶" Foreground="White" FontSize="40" VerticalAlignment="Center" HorizontalAlignment="Center"
                                                Visibility="{Binding VideoIconVisibility}" Opacity="0.8" IsHitTestVisible="False"/>

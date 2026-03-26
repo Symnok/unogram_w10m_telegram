@@ -1275,7 +1275,7 @@ namespace TelegramWP10
                     : mtype == "messageVideo" && (content["video"]?["is_animation"]?.ToObject<bool>() ?? false) ? "🎞 GIF"
                     : mtype == "messageVideo" ? "🎥 Видео"
                     : mtype == "messageVoiceNote" ? "🎤 Голосовое"
-                    : mtype == "messageSticker" ? "😊 Стикер"
+                    : mtype == "messageSticker" ? "Стикер"
                     : mtype == "messageDocument" ? "📄 Документ"
                     : mtype == "messageAnimation" ? "🎞 GIF"
                     : mtype == "messageCall" ? ((content["is_video"]?.ToObject<bool>() ?? false) ? "📹" : "📞") + " Звонок"
@@ -1558,14 +1558,14 @@ namespace TelegramWP10
                     var sticker = content["sticker"];
                     bool isAnimated = sticker?["is_animated"]?.ToObject<bool>() ?? false;
                     bool isVideo = sticker?["is_video"]?.ToObject<bool>() ?? false;
+                    item.IsSticker = true;
+                    item.Text = "";
                     // Поддерживаем только статичные WebP стикеры
                     if (!isAnimated && !isVideo) {
-                        item.Text = "";
                         var stickerFile = sticker?["sticker"] as JObject;
                         if (stickerFile != null) {
                             long sfid = (long)stickerFile["id"];
                             _fileToMsgId[sfid] = msgId;
-                            // TDLib может сменить file_id при скачивании — регистрируем remote.unique_id
                             string remoteUid = stickerFile["remote"]?["unique_id"]?.ToString();
                             if (!string.IsNullOrEmpty(remoteUid))
                                 _remoteUniqueIdToMsgId[remoteUid] = msgId;
@@ -1578,7 +1578,6 @@ namespace TelegramWP10
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + sfid + ",\"priority\":10,\"synchronous\":false}");
                         }
                     }
-                    // Анимированные/видео стикеры — пока заглушка (оставляем "😊 Стикер" из txt)
                 } else if (type == "messageDocument") {
                     var doc = content["document"];
                     var docFile = doc?["document"] as JObject;
