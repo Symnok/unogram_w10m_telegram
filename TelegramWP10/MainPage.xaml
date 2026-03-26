@@ -506,6 +506,7 @@
                         Background="#F0F2F5" BorderBrush="#D8DCE0" BorderThickness="1" CornerRadius="20" Padding="4,0">
                 <TextBox x:Name="MessageInput" PlaceholderText="Сообщение..." AcceptsReturn="True" MaxHeight="100"
                          Background="Transparent" BorderThickness="0"
+                         Foreground="#222222" PlaceholderForeground="#AAAAAA"
                          Holding="MessageInput_Holding">
                     <FlyoutBase.AttachedFlyout>
                         <MenuFlyout>
