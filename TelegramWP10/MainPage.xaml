@@ -9,7 +9,7 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Page.Resources>
-        <Style x:Key="ChatInputStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Style x:Key="ChatInputStyle" TargetType="TextBox">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
