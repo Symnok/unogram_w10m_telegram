@@ -1679,11 +1679,29 @@ namespace TelegramWP10
         private async Task UpdateMessagePhoto(long msgId, string path) {
             try {
                 var file = await StorageFile.GetFileFromPathAsync(path);
-                var bitmap = new BitmapImage();
-                using (var stream = await file.OpenReadAsync())
-                    await bitmap.SetSourceAsync(stream);
+                Windows.UI.Xaml.Media.ImageSource bitmap;
+
+                if (path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)) {
+                    // WebP — декодируем через libwebp
+                    byte[] data;
+                    using (var stream = await file.OpenReadAsync())
+                    using (var reader = new Windows.Storage.Streams.DataReader(stream)) {
+                        await reader.LoadAsync((uint)stream.Size);
+                        data = new byte[stream.Size];
+                        reader.ReadBytes(data);
+                    }
+                    bitmap = await WebPDecoder.DecodeAsync(data);
+                } else {
+                    // Обычное изображение
+                    var bmp = new BitmapImage();
+                    using (var stream = await file.OpenReadAsync())
+                        await bmp.SetSourceAsync(stream);
+                    bitmap = bmp;
+                }
+
                 if (bitmap != null && _messagesDict.ContainsKey(msgId)) {
                     _messagesDict[msgId].AttachedPhoto = bitmap;
+                    _messagesDict[msgId].PhotoVisibility = "Visible";
                     Log("UpdateMsgPhoto OK msg=" + msgId);
                 } else {
                     Log("UpdateMsgPhoto NOT IN DICT msg=" + msgId);
