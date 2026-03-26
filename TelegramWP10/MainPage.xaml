@@ -129,7 +129,6 @@
                                                 <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
                                             </Ellipse.Fill>
                                         </Ellipse>
-                                        <!-- Заглушка если фото нет -->
                                         <Ellipse Width="50" Height="50" HorizontalAlignment="Left"
                                                  Fill="#555555" Visibility="{Binding NoPhotoVisibility}"/>
                                         <Ellipse Width="14" Height="14" Fill="#22C55E"
@@ -137,48 +136,49 @@
                                                  Margin="0,0,2,0"
                                                  Visibility="{Binding OnlineVisibility}"/>
                                     </Grid>
-                            <Grid Grid.Column="1" Margin="5,0,0,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <!-- Строка 1: название + время -->
-                                <Grid Grid.Row="0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="📌 " FontSize="12" Foreground="#888888"
-                                                   Visibility="{Binding PinVisibility}" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Title}" Foreground="{Binding TitleColor}" FontSize="16" FontWeight="SemiBold"
-                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="{Binding LastMessageTime}" Foreground="{Binding TimeColor}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                    <!-- Текстовый блок -->
+                                    <Grid Grid.Column="1" Margin="5,0,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <!-- Строка 1: название + время -->
+                                        <Grid Grid.Row="0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="📌 " FontSize="12" Foreground="#888888"
+                                                           Visibility="{Binding PinVisibility}" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Title}" Foreground="{Binding TitleColor}" FontSize="16" FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding LastMessageTime}" Foreground="{Binding TimeColor}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                        </Grid>
+                                        <!-- Строка 2: последнее сообщение + бейдж -->
+                                        <Grid Grid.Row="1" Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding LastMessage}" Foreground="{Binding SubtitleColor}" FontSize="13" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="NoWrap"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="#0088cc" FontSize="13"
+                                                       VerticalAlignment="Center" Margin="6,0,0,0"
+                                                       Visibility="{Binding StatusVisibility}"/>
+                                            <Border Grid.Column="1" Background="#0088cc" CornerRadius="10" MinWidth="20" Height="20"
+                                                    VerticalAlignment="Center" Margin="6,0,0,0"
+                                                    Visibility="{Binding UnreadVisibility}" Padding="4,0">
+                                                <TextBlock Text="{Binding UnreadText}" Foreground="White" FontSize="11"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <Border Grid.Column="1" Background="Transparent" BorderBrush="#0088cc" BorderThickness="2"
+                                                    CornerRadius="7" Width="14" Height="14"
+                                                    VerticalAlignment="Center" Margin="6,0,0,0"
+                                                    Visibility="{Binding MarkedUnreadVisibility}"/>
+                                        </Grid>
+                                    </Grid>
                                 </Grid>
-                                <!-- Строка 2: последнее сообщение + бейдж непрочитанных -->
-                                <Grid Grid.Row="1" Margin="0,2,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding LastMessage}" Foreground="{Binding SubtitleColor}" FontSize="13" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="NoWrap"/>
-                                    <!-- Правая колонка: галочки ИЛИ бейдж ИЛИ кружок — всегда только одно из трёх -->
-                                    <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="#0088cc" FontSize="13"
-                                               VerticalAlignment="Center" Margin="6,0,0,0"
-                                               Visibility="{Binding StatusVisibility}"/>
-                                    <Border Grid.Column="1" Background="#0088cc" CornerRadius="10" MinWidth="20" Height="20"
-                                            VerticalAlignment="Center" Margin="6,0,0,0"
-                                            Visibility="{Binding UnreadVisibility}" Padding="4,0">
-                                        <TextBlock Text="{Binding UnreadText}" Foreground="White" FontSize="11"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <Border Grid.Column="1" Background="Transparent" BorderBrush="#0088cc" BorderThickness="2"
-                                            CornerRadius="7" Width="14" Height="14"
-                                            VerticalAlignment="Center" Margin="6,0,0,0"
-                                            Visibility="{Binding MarkedUnreadVisibility}"/>
-                                </Grid>
-                            </Grid>
                                 <!-- Разделитель -->
                                 <Border Height="0.5" Background="#33888888" Margin="72,0,0,0"/>
                             </StackPanel>
