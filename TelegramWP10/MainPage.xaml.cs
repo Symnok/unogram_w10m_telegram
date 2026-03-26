@@ -1670,8 +1670,8 @@ namespace TelegramWP10
                 }
                 // Если этот чат открыт — обновляем аватарку в шапке
                 if (chatId == _currentChatId) {
-                    ChatHeaderAvatar.Source = bitmap;
-                    ChatHeaderAvatarBorder.Background = CB("#00000000");
+                    ChatHeaderAvatarBrush.ImageSource = bitmap;
+                    ChatHeaderAvatarEllipse.Visibility = Windows.UI.Xaml.Visibility.Visible;
                 }
             } catch (Exception ex) { Log("UpdateAvatar ERR chat=" + chatId + " | " + ex.Message); }
         }
@@ -1725,10 +1725,10 @@ namespace TelegramWP10
             CurrentChatTitle.Text = chat.Title;
             // Аватарка в шапке
             if (chat.Photo != null)
-                ChatHeaderAvatar.Source = chat.Photo;
+                ChatHeaderAvatarBrush.ImageSource = chat.Photo;
             else
-                ChatHeaderAvatar.Source = null;
-            ChatHeaderAvatarBorder.Background = CB(chat.Photo != null ? "#00000000" : "#555555");
+                ChatHeaderAvatarBrush.ImageSource = null;
+            ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Windows.UI.Xaml.Visibility.Visible : Windows.UI.Xaml.Visibility.Collapsed;
             // Показываем статус если это личный чат
             if (_usersDict.ContainsKey(_currentChatId))
                 UpdateChatStatus(_usersDict[_currentChatId]["status"]);
