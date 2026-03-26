@@ -60,6 +60,10 @@ namespace TelegramWP10
         public bool IsVideo { get => _isVideo; set { _isVideo = value; OnPropertyChanged("IsVideo"); OnPropertyChanged("VideoIconVisibility"); OnPropertyChanged("PhotoVisibility"); } }
         public bool IsSticker { get; set; } = false;
         public double PhotoMaxWidth => IsSticker ? 128 : 250;
+        // Стикеры — прозрачный пузырь без padding
+        public string BubbleBackground => IsSticker ? "Transparent" : _background;
+        public string BubblePadding    => IsSticker ? "0" : "8,5";
+        public string TimeVisibility   => IsSticker ? "Collapsed" : "Visible";
         // VideoIcon показываем только для обычного видео (не GIF), когда нет прогресса скачивания
         public Visibility VideoIconVisibility => (IsVideo && !IsGif) ? Visibility.Visible : Visibility.Collapsed;
 
