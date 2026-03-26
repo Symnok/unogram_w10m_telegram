@@ -2643,7 +2643,7 @@ namespace TelegramWP10
                 MessageInputBorder.BorderThickness = new Windows.UI.Xaml.Thickness(1);
             }
             MessageInput.Foreground            = CB("#FFFFFF");
-            MessageInput.PlaceholderForeground = CB("#777777");
+            
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
             if (hdr != null) hdr.Background = CB("#1A1A1A");
             ArchiveRow.Background          = CB("#222222");
@@ -2690,7 +2690,7 @@ namespace TelegramWP10
                 MessageInputBorder.BorderThickness = new Windows.UI.Xaml.Thickness(1);
             }
             MessageInput.Foreground            = CB("#000000");
-            MessageInput.PlaceholderForeground = CB("#AAAAAA");
+            
             // Шапка чатлиста
             var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
             if (hdr != null) hdr.Background = CB("#FFFFFF");
