@@ -8,6 +8,28 @@
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
+    <Page.Resources>
+        <Style x:Key="ChatInputStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Grid>
+                            <ScrollViewer x:Name="ContentElement" Margin="{TemplateBinding Padding}"
+                                          HorizontalScrollMode="Auto" VerticalScrollMode="Auto"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                            <TextBlock x:Name="PlaceholderTextContentPresenter"
+                                       Text="{TemplateBinding PlaceholderText}"
+                                       Foreground="#AAAAAA"
+                                       Margin="{TemplateBinding Padding}"
+                                       IsHitTestVisible="False"
+                                       TextWrapping="{TemplateBinding TextWrapping}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
+
     <Grid>
         <!-- Невидимый хост для воспроизведения аудио -->
         <StackPanel x:Name="AudioPlayerHost" Visibility="Collapsed" Width="0" Height="0"/>
@@ -506,7 +528,7 @@
                         Background="#F0F2F5" BorderBrush="#D8DCE0" BorderThickness="1" CornerRadius="20" Padding="4,0">
                 <TextBox x:Name="MessageInput" PlaceholderText="Сообщение..." AcceptsReturn="True" MaxHeight="100"
                          Background="Transparent" BorderThickness="0"
-                         Foreground="#222222"
+                         Foreground="#222222" Style="{StaticResource ChatInputStyle}"
                          Holding="MessageInput_Holding">
                     <FlyoutBase.AttachedFlyout>
                         <MenuFlyout>
