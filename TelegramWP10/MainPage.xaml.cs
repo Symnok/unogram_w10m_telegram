@@ -54,7 +54,12 @@ namespace TelegramWP10
         private Windows.UI.Xaml.DispatcherTimer _proxyTimer;
         private Windows.UI.Xaml.DispatcherTimer _connectingTimer; // таймер 10с на подключение
         private bool _proxyConnected = false;
-        private bool _proxyApplied = false; // чтобы не применять дважды
+        private bool _proxyApplied = false;
+        // Стикеры
+        private bool _stickerPanelOpen = false;
+        private List<StickerItem> _currentStickerItems = new List<StickerItem>();
+        private Dictionary<long, long> _stickerThumbToItem = new Dictionary<long, long>(); // thumbFileId → fileId
+        private List<long> _loadedStickerSetIds = new List<long>(); // чтобы не применять дважды
 
         // Режим прокси
         private enum ProxyMode { None, Auto, Mtproto, Http, Socks }
@@ -610,6 +615,10 @@ namespace TelegramWP10
                             if (_fileToChatId.ContainsKey(fid) && !string.IsNullOrEmpty(fpath))
                                 { var t = UpdateAvatar(_fileToChatId[fid], fpath); }
 
+                            // Thumbnail для панели стикеров
+                            if (isCompleted && !string.IsNullOrEmpty(fpath) && _stickerThumbToItem.ContainsKey(fid))
+                                HandleStickerThumbDownloaded(fid, fpath);
+
                             // Фолбэк для стикеров: TDLib может вернуть новый file_id при скачивании.
                             if (!_fileToMsgId.ContainsKey(fid) && isCompleted && !string.IsNullOrEmpty(fpath)
                                 && (fpath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
@@ -916,6 +925,14 @@ namespace TelegramWP10
                             if (m.IsOutgoing && m.Id <= ucrMsgId)
                                 m.IsRead = true;
                     }
+                    break;
+
+                case "stickerSets":
+                    HandleStickerSets(update);
+                    break;
+
+                case "stickerSet":
+                    HandleStickerSet(update["sticker_set"] ?? update);
                     break;
 
                 case "ok":
@@ -2717,6 +2734,166 @@ namespace TelegramWP10
             foreach (var m in _messageItems)
                 if (!m.IsSeparator)
                     m.Background = m.IsOutgoing ? BubbleColorOut : BubbleColorIn;
+        }
+
+        // ======= СТИКЕРЫ =======
+
+        private void StickerButton_Click(object sender, RoutedEventArgs e) {
+            if (_stickerPanelOpen) {
+                StickerPanel.Visibility = Visibility.Collapsed;
+                _stickerPanelOpen = false;
+                return;
+            }
+            StickerPanel.Visibility = Visibility.Visible;
+            _stickerPanelOpen = true;
+            // Загружаем список стикерпаков если ещё не загружали
+            if (_loadedStickerSetIds.Count == 0)
+                TdJson.SendUtf8(_client, "{\"@type\":\"getInstalledStickerSets\",\"sticker_type\":{\"@type\":\"stickerTypeRegular\"}}");
+        }
+
+        private void StickerGrid_ItemClick(object sender, Windows.UI.Xaml.Controls.ItemClickEventArgs e) {
+            var item = e.ClickedItem as StickerItem;
+            if (item == null) return;
+            StickerPanel.Visibility = Visibility.Collapsed;
+            _stickerPanelOpen = false;
+            // Отправляем стикер
+            string req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                         ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
+                         ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + item.FileId + "}}}";
+            Log("SEND STICKER file_id=" + item.FileId);
+            TdJson.SendUtf8(_client, req);
+        }
+
+        private void LoadStickerSet(long setId) {
+            if (_loadedStickerSetIds.Contains(setId)) return;
+            _loadedStickerSetIds.Add(setId);
+            TdJson.SendUtf8(_client, "{\"@type\":\"getStickerSet\",\"set_id\":" + setId + "}");
+        }
+
+        private void HandleStickerSets(Newtonsoft.Json.Linq.JToken update) {
+            var sets = update["sets"] as Newtonsoft.Json.Linq.JArray;
+            if (sets == null) return;
+            Log("STICKER: got " + sets.Count + " sets");
+            // Добавляем вкладки и загружаем первый пак
+            StickerPackTabs.Children.Clear();
+            bool first = true;
+            foreach (var s in sets) {
+                long sid = s["id"]?.ToObject<long>() ?? 0;
+                if (sid == 0) continue;
+                string name = s["title"]?.ToString() ?? "?";
+                var btn = new Windows.UI.Xaml.Controls.Button {
+                    Content = name.Length > 6 ? name.Substring(0, 6) : name,
+                    FontSize = 11,
+                    Padding = new Windows.UI.Xaml.Thickness(8, 4, 8, 4),
+                    Background = first ? CB("#0088cc") : CB("#333333"),
+                    Foreground = CB("#FFFFFF"),
+                    Tag = sid
+                };
+                long capturedSid = sid;
+                btn.Click += (s2, e2) => {
+                    foreach (var child in StickerPackTabs.Children)
+                        if (child is Windows.UI.Xaml.Controls.Button b)
+                            b.Background = CB("#333333");
+                    ((Windows.UI.Xaml.Controls.Button)s2).Background = CB("#0088cc");
+                    ShowStickerSet(capturedSid);
+                };
+                StickerPackTabs.Children.Add(btn);
+                if (first) { LoadStickerSet(sid); first = false; }
+            }
+        }
+
+        private void ShowStickerSet(long setId) {
+            LoadStickerSet(setId);
+            StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
+        }
+
+        private async void HandleStickerSet(Newtonsoft.Json.Linq.JToken update) {
+            long setId = update["id"]?.ToObject<long>() ?? 0;
+            var stickers = update["stickers"] as Newtonsoft.Json.Linq.JArray;
+            if (stickers == null || setId == 0) return;
+            Log("STICKER set id=" + setId + " count=" + stickers.Count);
+            var items = new List<StickerItem>();
+            foreach (var st in stickers) {
+                bool isAnimated = st["is_animated"]?.ToObject<bool>() ?? false;
+                bool isVideo    = st["is_video"]?.ToObject<bool>() ?? false;
+                var stickerFile = st["sticker"] as Newtonsoft.Json.Linq.JObject;
+                if (stickerFile == null) continue;
+                long fid = stickerFile["id"]?.ToObject<long>() ?? 0;
+                var item = new StickerItem { SetId = setId, FileId = fid };
+                // Берём thumbnail
+                var thumb = st["thumbnail"];
+                var thumbFile = thumb?["file"] as Newtonsoft.Json.Linq.JObject;
+                if (thumbFile != null) {
+                    long tfid = thumbFile["id"]?.ToObject<long>() ?? 0;
+                    item.ThumbFileId = tfid;
+                    string tPath = thumbFile["local"]?["path"]?.ToString();
+                    if (!string.IsNullOrEmpty(tPath) && (tPath.EndsWith(".webp") || tPath.EndsWith(".jpg"))) {
+                        var bmp = await LoadStickerThumbAsync(tPath);
+                        if (bmp != null) item.Thumb = bmp;
+                    } else if (tfid > 0) {
+                        _stickerThumbToItem[tfid] = fid;
+                        TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + tfid + ",\"priority\":3,\"synchronous\":false}");
+                    }
+                }
+                items.Add(item);
+            }
+            // Удаляем старые стикеры этого сета если были
+            _currentStickerItems.RemoveAll(s => s.SetId == setId);
+            _currentStickerItems.AddRange(items);
+            // Если сейчас открыт этот сет — обновляем
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                if (StickerPanel.Visibility == Visibility.Visible)
+                    StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
+            });
+        }
+
+        private async Task<BitmapImage> LoadStickerThumbAsync(string path) {
+            try {
+                if (path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)) {
+                    var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                    byte[] data;
+                    using (var stream = await file.OpenReadAsync())
+                    using (var reader = new Windows.Storage.Streams.DataReader(stream)) {
+                        await reader.LoadAsync((uint)stream.Size);
+                        data = new byte[stream.Size];
+                        reader.ReadBytes(data);
+                    }
+                    var wb = await WebPDecoder.DecodeAsync(data);
+                    // Конвертируем WriteableBitmap → BitmapImage через stream
+                    var bmp = new BitmapImage();
+                    using (var ms = new System.IO.MemoryStream()) {
+                        var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
+                            Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId,
+                            ms.AsRandomAccessStream());
+                        var px = new byte[wb.PixelBuffer.Length];
+                        wb.PixelBuffer.CopyTo(px);
+                        encoder.SetPixelData(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
+                            Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied,
+                            (uint)wb.PixelWidth, (uint)wb.PixelHeight, 96, 96, px);
+                        await encoder.FlushAsync();
+                        ms.Position = 0;
+                        await bmp.SetSourceAsync(ms.AsRandomAccessStream());
+                    }
+                    return bmp;
+                } else {
+                    var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                    var bmp = new BitmapImage();
+                    using (var stream = await file.OpenReadAsync())
+                        await bmp.SetSourceAsync(stream);
+                    return bmp;
+                }
+            } catch { return null; }
+        }
+
+        private async void HandleStickerThumbDownloaded(long fileId, string path) {
+            if (!_stickerThumbToItem.ContainsKey(fileId)) return;
+            long stickerFid = _stickerThumbToItem[fileId];
+            var bmp = await LoadStickerThumbAsync(path);
+            if (bmp == null) return;
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                var item = _currentStickerItems.FirstOrDefault(s => s.FileId == stickerFid);
+                if (item != null) item.Thumb = bmp;
+            });
         }
 
         private async void LogoutButton_Click(object sender, RoutedEventArgs e) {
