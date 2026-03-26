@@ -107,7 +107,7 @@
                 </ListView.Header>
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Margin="0,6" Holding="ChatItem_Holding">
+                        <Grid Holding="ChatItem_Holding">
                             <FlyoutBase.AttachedFlyout>
                                 <MenuFlyout>
                                     <MenuFlyoutItem x:Name="MenuPinChat" Text="📌 Закрепить" Click="PinChat_Click"/>
@@ -116,19 +116,27 @@
                                     <MenuFlyoutItem Text="🗑 Удалить переписку" Click="DeleteChat_Click"/>
                                 </MenuFlyout>
                             </FlyoutBase.AttachedFlyout>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="60"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid Width="60" VerticalAlignment="Top">
-                                <Border Width="50" Height="50" CornerRadius="25" Background="#555555" BorderThickness="0" HorizontalAlignment="Left">
-                                    <Image Source="{Binding Photo}" Stretch="UniformToFill" Width="50" Height="50"/>
-                                </Border>
-                                <Ellipse Width="14" Height="14" Fill="#22C55E"
-                                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                         Margin="0,0,2,0"
-                                         Visibility="{Binding OnlineVisibility}"/>
-                            </Grid>
+                            <StackPanel>
+                                <Grid Margin="12,8,12,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="60"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Круглая аватарка через Ellipse -->
+                                    <Grid Width="60" VerticalAlignment="Top">
+                                        <Ellipse Width="50" Height="50" HorizontalAlignment="Left">
+                                            <Ellipse.Fill>
+                                                <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
+                                            </Ellipse.Fill>
+                                        </Ellipse>
+                                        <!-- Заглушка если фото нет -->
+                                        <Ellipse Width="50" Height="50" HorizontalAlignment="Left"
+                                                 Fill="#555555" Visibility="{Binding NoPhotoVisibility}"/>
+                                        <Ellipse Width="14" Height="14" Fill="#22C55E"
+                                                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                 Margin="0,0,2,0"
+                                                 Visibility="{Binding OnlineVisibility}"/>
+                                    </Grid>
                             <Grid Grid.Column="1" Margin="5,0,0,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -171,6 +179,9 @@
                                             Visibility="{Binding MarkedUnreadVisibility}"/>
                                 </Grid>
                             </Grid>
+                                <!-- Разделитель -->
+                                <Border Height="0.5" Background="#33888888" Margin="72,0,0,0"/>
+                            </StackPanel>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>

@@ -25,12 +25,13 @@ namespace TelegramWP10
             OnPropertyChanged("TimeColor");
         }
 
-        private BitmapImage _photo = new BitmapImage(new Uri("ms-appx:///Assets/StoreLogo.png"));
+        private BitmapImage _photo = null;
         public BitmapImage Photo
         {
             get => _photo;
-            set { _photo = value; OnPropertyChanged("Photo"); }
+            set { _photo = value; OnPropertyChanged("Photo"); OnPropertyChanged("NoPhotoVisibility"); }
         }
+        public string NoPhotoVisibility => _photo == null ? "Visible" : "Collapsed";
 
         private string _lastMessage = "";
         public string LastMessage

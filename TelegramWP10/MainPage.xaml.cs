@@ -802,7 +802,7 @@ namespace TelegramWP10
                     string actionType = update["action"]?["@type"]?.ToString() ?? "";
                     if (actionChatId == _currentChatId && actionType == "chatActionTyping") {
                         CurrentChatStatus.Text = "печатает...";
-                        CurrentChatStatus.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.LightGreen);
+                        CurrentChatStatus.Foreground = CB("#2AABEE");
                         _typingTimer.Stop();
                         _typingTimer.Start();
                     }
@@ -1091,7 +1091,7 @@ namespace TelegramWP10
             switch (type) {
                 case "userStatusOnline":
                     text = "в сети";
-                    CurrentChatStatus.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.LightGreen);
+                    CurrentChatStatus.Foreground = CB("#2AABEE");
                     break;
                 case "userStatusOffline":
                     long wasOnline = status["was_online"]?.ToObject<long>() ?? 0;
