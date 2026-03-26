@@ -2747,9 +2747,17 @@ namespace TelegramWP10
             }
             StickerPanel.Visibility = Visibility.Visible;
             _stickerPanelOpen = true;
-            // Загружаем список стикерпаков если ещё не загружали
-            if (_loadedStickerSetIds.Count == 0)
+            if (_loadedStickerSetIds.Count == 0) {
+                // Показываем индикатор загрузки
+                StickerGrid.ItemsSource = null;
+                StickerPackTabs.Children.Clear();
+                StickerPackTabs.Children.Add(new TextBlock {
+                    Text = "Загрузка...", Foreground = CB("#888888"),
+                    FontSize = 13, Margin = new Thickness(12, 8, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                });
                 TdJson.SendUtf8(_client, "{\"@type\":\"getInstalledStickerSets\",\"sticker_type\":{\"@type\":\"stickerTypeRegular\"}}");
+            }
         }
 
         private void StickerGrid_ItemClick(object sender, Windows.UI.Xaml.Controls.ItemClickEventArgs e) {
@@ -2814,6 +2822,7 @@ namespace TelegramWP10
             if (stickers == null || setId == 0) return;
             Log("STICKER set id=" + setId + " count=" + stickers.Count);
             var items = new List<StickerItem>();
+            int downloadCount = 0;
             foreach (var st in stickers) {
                 bool isAnimated = st["is_animated"]?.ToObject<bool>() ?? false;
                 bool isVideo    = st["is_video"]?.ToObject<bool>() ?? false;
@@ -2833,7 +2842,11 @@ namespace TelegramWP10
                         if (bmp != null) item.Thumb = bmp;
                     } else if (tfid > 0) {
                         _stickerThumbToItem[tfid] = fid;
-                        TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + tfid + ",\"priority\":3,\"synchronous\":false}");
+                        // Скачиваем только первые 20 thumbnail сразу — остальные по требованию
+                        if (downloadCount < 20) {
+                            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + tfid + ",\"priority\":3,\"synchronous\":false}");
+                            downloadCount++;
+                        }
                     }
                 }
                 items.Add(item);
@@ -2841,7 +2854,7 @@ namespace TelegramWP10
             // Удаляем старые стикеры этого сета если были
             _currentStickerItems.RemoveAll(s => s.SetId == setId);
             _currentStickerItems.AddRange(items);
-            // Если сейчас открыт этот сет — обновляем
+            // Обновляем UI
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 if (StickerPanel.Visibility == Visibility.Visible)
                     StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
