@@ -2829,7 +2829,8 @@ namespace TelegramWP10
 
             // Сначала собираем все item-ы и пути к thumbnail синхронно
             var items = new List<StickerItem>();
-            var thumbTasks = new List<(StickerItem item, Task<BitmapImage> task)>();
+            var thumbItems = new List<StickerItem>();
+            var thumbTasks = new List<Task<BitmapImage>>();
             int downloadCount = 0;
 
             foreach (var st in stickers) {
@@ -2849,7 +2850,8 @@ namespace TelegramWP10
                         (tPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ||
                          tPath.EndsWith(".jpg",  StringComparison.OrdinalIgnoreCase))) {
                         // Запускаем параллельно — не ждём
-                        thumbTasks.Add((item, LoadStickerThumbAsync(tPath)));
+                        thumbItems.Add(item);
+                        thumbTasks.Add(LoadStickerThumbAsync(tPath));
                     } else if (tfid > 0) {
                         _stickerThumbToItem[tfid] = fid;
                         if (downloadCount < 20) {
@@ -2862,9 +2864,9 @@ namespace TelegramWP10
 
             // Ждём все thumbnail параллельно
             if (thumbTasks.Count > 0) {
-                await Task.WhenAll(thumbTasks.Select(t => t.task));
-                foreach (var (item, task) in thumbTasks)
-                    if (task.Result != null) item.Thumb = task.Result;
+                var results = await Task.WhenAll(thumbTasks);
+                for (int i = 0; i < thumbItems.Count; i++)
+                    if (results[i] != null) thumbItems[i].Thumb = results[i];
             }
 
             // Обновляем коллекцию и UI
