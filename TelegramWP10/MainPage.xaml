@@ -413,6 +413,7 @@
                                 </StackPanel>
 
                                 <!-- Документ -->
+                                <Border Visibility="{Binding DocumentVisibility}" Background="#22FFFFFF" CornerRadius="6" Padding="8,6" Margin="0,0,0,5">
                                     <StackPanel>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
