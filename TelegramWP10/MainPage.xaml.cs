@@ -963,6 +963,38 @@ namespace TelegramWP10
                     HandleStickerSet(update["sticker_set"] ?? update);
                     break;
 
+                case "updatePoll":
+                    // Обновление результатов опроса
+                    var updPoll = update["poll"];
+                    if (updPoll != null) {
+                        long updPollId = updPoll["id"]?.ToObject<long>() ?? 0;
+                        // Ищем сообщение с этим опросом в текущем чате
+                        var pollMsg = _messagesDict.Values.FirstOrDefault(m => m.IsPoll && m.Id == updPollId);
+                        if (pollMsg == null) {
+                            // Ищем по любому совпадению — poll id может не совпадать с msg id
+                            pollMsg = _messagesDict.Values.FirstOrDefault(m => m.IsPoll);
+                        }
+                        if (pollMsg != null) {
+                            int totalVotes = updPoll["total_voter_count"]?.ToObject<int>() ?? 0;
+                            var opts = updPoll["options"] as JArray;
+                            if (opts != null && pollMsg.PollOptions.Count == opts.Count) {
+                                for (int i = 0; i < opts.Count; i++) {
+                                    int votes = opts[i]["voter_count"]?.ToObject<int>() ?? 0;
+                                    int pct = totalVotes > 0 ? (int)Math.Round(votes * 100.0 / totalVotes) : 0;
+                                    pollMsg.PollOptions[i].VoteCount = votes;
+                                    pollMsg.PollOptions[i].Percent   = pct;
+                                    pollMsg.PollOptions[i].IsChosen  = opts[i]["is_chosen"]?.ToObject<bool>() ?? false;
+                                    pollMsg.PollOptions[i].OnPropertyChanged("Percent");
+                                    pollMsg.PollOptions[i].OnPropertyChanged("PercentText");
+                                    pollMsg.PollOptions[i].OnPropertyChanged("BarWidth");
+                                    pollMsg.PollOptions[i].OnPropertyChanged("BarColor");
+                                    pollMsg.PollOptions[i].OnPropertyChanged("VoteText");
+                                }
+                            }
+                        }
+                    }
+                    break;
+
                 case "ok":
                     break;
 
@@ -1321,6 +1353,7 @@ namespace TelegramWP10
                     : mtype == "messageVideo" ? "🎥 Видео"
                     : mtype == "messageVoiceNote" ? "🎤 Голосовое"
                     : mtype == "messageSticker" ? "Стикер"
+                    : mtype == "messagePoll" ? "📊 Опрос"
                     : mtype == "messageDocument" ? "📄 Документ"
                     : mtype == "messageAnimation" ? "🎞 GIF"
                     : mtype == "messageCall" ? ((content["is_video"]?.ToObject<bool>() ?? false) ? "📹" : "📞") + " Звонок"
@@ -1656,6 +1689,34 @@ namespace TelegramWP10
                             Log("STICKER no thumbnail, skip animated msg=" + msgId + " file_id=" + sfid);
                         }
                     }
+                } else if (type == "messagePoll") {
+                    var poll = content["poll"];
+                    if (poll != null) {
+                        item.IsPoll = true;
+                        item.Text = "";
+                        item.PollQuestion = poll["question"]?["text"]?.ToString() ?? poll["question"]?.ToString() ?? "";
+                        // Тип опроса
+                        bool isAnonymous = poll["is_anonymous"]?.ToObject<bool>() ?? true;
+                        bool isQuiz = poll["type"]?["@type"]?.ToString() == "pollTypeQuiz";
+                        item.PollType = isQuiz ? "🎯 Викторина" : (isAnonymous ? "📊 Анонимный опрос" : "📊 Опрос");
+                        // Варианты ответа
+                        int totalVotes = poll["total_voter_count"]?.ToObject<int>() ?? 0;
+                        var options = poll["options"] as JArray;
+                        item.PollOptions.Clear();
+                        if (options != null) {
+                            foreach (var opt in options) {
+                                int votes = opt["voter_count"]?.ToObject<int>() ?? 0;
+                                int pct = totalVotes > 0 ? (int)Math.Round(votes * 100.0 / totalVotes) : 0;
+                                item.PollOptions.Add(new PollOptionItem {
+                                    Text     = opt["text"]?["text"]?.ToString() ?? opt["text"]?.ToString() ?? "",
+                                    VoteCount = votes,
+                                    Percent  = pct,
+                                    IsChosen = opt["is_chosen"]?.ToObject<bool>() ?? false
+                                });
+                            }
+                        }
+                        Log("POLL msg=" + msgId + " q=" + item.PollQuestion + " opts=" + item.PollOptions.Count);
+                    }
                 } else if (type == "messageDocument") {
                     var doc = content["document"];
                     var docFile = doc?["document"] as JObject;
@@ -1702,7 +1763,7 @@ namespace TelegramWP10
                         }
                     }
                 }
-                if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio" && type != "messageSticker") {
+                if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio" && type != "messageSticker" && type != "messagePoll") {
                     if (type == "messageCall") {
                         var callContent = content;
                         bool isVideo = callContent["is_video"]?.ToObject<bool>() ?? false;

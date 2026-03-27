@@ -384,7 +384,35 @@
                                 </Grid>
 
                                 <!-- Документ -->
-                                <Border Visibility="{Binding DocumentVisibility}" Background="#22FFFFFF" CornerRadius="6" Padding="8,6" Margin="0,0,0,5">
+                                <!-- Опрос -->
+                                <StackPanel Visibility="{Binding PollVisibility}" Margin="0,0,0,5" MinWidth="200">
+                                    <TextBlock Text="{Binding PollType}" Foreground="#888888" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding PollQuestion}" Foreground="{Binding TextColor}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                    <ItemsControl ItemsSource="{Binding PollOptions}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Text}" Foreground="White" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding PercentText}" Foreground="#AAAAAA" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <!-- Полоска прогресса -->
+                                                    <Border Height="4" CornerRadius="2" Background="#33FFFFFF" Margin="0,3,0,0">
+                                                        <Border Height="4" CornerRadius="2" Background="{Binding BarColor}"
+                                                                HorizontalAlignment="Left" Width="{Binding BarWidth}"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding VoteText}" Foreground="#888888" FontSize="11" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <!-- Документ -->
                                     <StackPanel>
                                         <Grid>
                                             <Grid.ColumnDefinitions>

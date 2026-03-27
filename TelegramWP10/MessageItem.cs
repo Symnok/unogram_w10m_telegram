@@ -81,6 +81,15 @@ namespace TelegramWP10
         public bool IsDocument { get => _isDocument; set { _isDocument = value; OnPropertyChanged("IsDocument"); OnPropertyChanged("DocumentVisibility"); } }
         public Visibility DocumentVisibility => IsDocument ? Visibility.Visible : Visibility.Collapsed;
 
+        // Опрос
+        private bool _isPoll = false;
+        public bool IsPoll { get => _isPoll; set { _isPoll = value; OnPropertyChanged("IsPoll"); OnPropertyChanged("PollVisibility"); } }
+        public Visibility PollVisibility => _isPoll ? Visibility.Visible : Visibility.Collapsed;
+        public string PollQuestion { get; set; } = "";
+        public string PollType { get; set; } = ""; // "📊 Опрос" или "🔒 Анонимный опрос" и т.п.
+        public System.Collections.ObjectModel.ObservableCollection<PollOptionItem> PollOptions { get; set; }
+            = new System.Collections.ObjectModel.ObservableCollection<PollOptionItem>();
+
         public string DocumentName { get; set; }
         public string DocumentSize { get; set; }
 
@@ -170,6 +179,22 @@ namespace TelegramWP10
         }
         public string CommentsText => _replyCount > 0 ? "💬 " + _replyCount + " комментариев" : "💬 Оставить комментарий";
         public Visibility CommentsVisibility => _replyCount >= 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        public void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    public class PollOptionItem : INotifyPropertyChanged
+    {
+        public string Text { get; set; } = "";
+        public int VoteCount { get; set; } = 0;
+        public int Percent { get; set; } = 0;
+        public bool IsChosen { get; set; } = false;
+        public string PercentText => Percent + "%";
+        public string VoteText => VoteCount > 0 ? VoteCount + " гол." : "";
+        // Ширина полоски прогресса 0-200px
+        public double BarWidth => Percent * 2.0;
+        public string BarColor => IsChosen ? "#0088cc" : "#555555";
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
