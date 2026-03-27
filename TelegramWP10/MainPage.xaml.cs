@@ -804,7 +804,7 @@ namespace TelegramWP10
                         if (gUid == _currentChatId)
                             UpdateChatStatus(update["status"]);
                         // Обновляем контакт если он в списке контактов
-                        var matchContact = _contactItems.FirstOrDefault(c => c.UserId == gUid);
+                        var matchContact = _contactItems.FirstOrDefault(ctItem => ctItem.UserId == gUid);
                         if (matchContact != null) {
                             string fn = (update["first_name"]?.ToString() + " " + update["last_name"]?.ToString()).Trim();
                             matchContact.FullName = string.IsNullOrEmpty(fn) ? gUid.ToString() : fn;
