@@ -575,6 +575,11 @@
                         </GridView.ItemTemplate>
                     </GridView>
                 </ScrollViewer>
+                <!-- Индикатор загрузки -->
+                <TextBlock x:Name="StickerLoadingText" Grid.Row="1"
+                           Text="Загрузка..." Foreground="#888888" FontSize="16"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="Collapsed"/>
             </Grid>
 
             </StackPanel>

@@ -2748,14 +2748,9 @@ namespace TelegramWP10
             StickerPanel.Visibility = Visibility.Visible;
             _stickerPanelOpen = true;
             if (_loadedStickerSetIds.Count == 0) {
-                // Показываем индикатор загрузки
                 StickerGrid.ItemsSource = null;
+                StickerLoadingText.Visibility = Visibility.Visible;
                 StickerPackTabs.Children.Clear();
-                StickerPackTabs.Children.Add(new TextBlock {
-                    Text = "Загрузка...", Foreground = CB("#888888"),
-                    FontSize = 13, Margin = new Thickness(12, 8, 0, 0),
-                    VerticalAlignment = VerticalAlignment.Center
-                });
                 TdJson.SendUtf8(_client, "{\"@type\":\"getInstalledStickerSets\",\"sticker_type\":{\"@type\":\"stickerTypeRegular\"}}");
             }
         }
@@ -2811,9 +2806,19 @@ namespace TelegramWP10
             }
         }
 
+        private long _currentStickerSetId = 0;
+
         private void ShowStickerSet(long setId) {
-            LoadStickerSet(setId);
-            StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
+            _currentStickerSetId = setId;
+            var existing = _currentStickerItems.Where(s => s.SetId == setId).ToList();
+            if (existing.Count > 0) {
+                StickerGrid.ItemsSource = existing;
+                StickerLoadingText.Visibility = Visibility.Collapsed;
+            } else {
+                StickerGrid.ItemsSource = null;
+                StickerLoadingText.Visibility = Visibility.Visible;
+                LoadStickerSet(setId);
+            }
         }
 
         private async void HandleStickerSet(Newtonsoft.Json.Linq.JToken update) {
@@ -2856,8 +2861,10 @@ namespace TelegramWP10
             _currentStickerItems.AddRange(items);
             // Обновляем UI
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                if (StickerPanel.Visibility == Visibility.Visible)
+                if (StickerPanel.Visibility == Visibility.Visible && _currentStickerSetId == setId) {
                     StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
+                    StickerLoadingText.Visibility = Visibility.Collapsed;
+                }
             });
         }
 
