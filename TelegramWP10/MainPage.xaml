@@ -400,8 +400,8 @@
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="{Binding Text}" Foreground="White" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="1" Text="{Binding PercentText}" Foreground="#AAAAAA" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding Text}" Foreground="{Binding TextColor}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding PercentText}" Foreground="{Binding TextColor}" Opacity="0.6" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                                     </Grid>
                                                     <!-- Полоска прогресса -->
                                                     <ProgressBar Value="{Binding Percent}" Maximum="100"

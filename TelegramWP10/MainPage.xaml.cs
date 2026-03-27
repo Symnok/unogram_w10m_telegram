@@ -1718,9 +1718,10 @@ namespace TelegramWP10
                                 int votes = opt["voter_count"]?.ToObject<int>() ?? 0;
                                 int pct = totalVotes > 0 ? (int)Math.Round(votes * 100.0 / totalVotes) : 0;
                                 item.PollOptions.Add(new PollOptionItem {
-                                    OptionId = oi,
-                                    MsgId    = msgId,
-                                    Text     = opt["text"]?["text"]?.ToString() ?? opt["text"]?.ToString() ?? "",
+                                    OptionId  = oi,
+                                    MsgId     = msgId,
+                                    TextColor = item.TextColor,
+                                    Text      = opt["text"]?["text"]?.ToString() ?? opt["text"]?.ToString() ?? "",
                                     VoteCount = votes,
                                     Percent  = pct,
                                     IsChosen = opt["is_chosen"]?.ToObject<bool>() ?? false

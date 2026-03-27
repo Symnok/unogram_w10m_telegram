@@ -188,6 +188,7 @@ namespace TelegramWP10
     {
         public int OptionId { get; set; } = 0;
         public long MsgId   { get; set; } = 0;
+        public string TextColor { get; set; } = "#FFFFFF"; // передаётся из MessageItem
 
         private string _text = "";
         public string Text { get => _text; set { _text = value; OnPropertyChanged("Text"); } }
