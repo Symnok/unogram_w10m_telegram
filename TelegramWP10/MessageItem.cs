@@ -108,9 +108,17 @@ namespace TelegramWP10
         private bool _isOutgoing = false;
         private bool _isRead = false;
         public bool IsOutgoing { get => _isOutgoing; set { _isOutgoing = value; OnPropertyChanged("IsOutgoing"); OnPropertyChanged("ReadStatusVisibility"); OnPropertyChanged("ReadStatusText"); } }
-        public bool IsRead { get => _isRead; set { _isRead = value; OnPropertyChanged("IsRead"); OnPropertyChanged("ReadStatusText"); } }
+        public bool IsRead { get => _isRead; set { _isRead = value; OnPropertyChanged("IsRead"); OnPropertyChanged("ReadStatusText"); OnPropertyChanged("ReadStatusColor"); } }
         public Visibility ReadStatusVisibility => _isOutgoing ? Visibility.Visible : Visibility.Collapsed;
         public string ReadStatusText => _isRead ? "✓✓" : "✓";
+        // Прочитанные — зелёные в светлой теме, белые в тёмной; непрочитанные — серые
+        public string ReadStatusColor {
+            get {
+                bool isLight = _background == "#FFFFFF" || _background == "#EFFDDE";
+                if (_isRead) return isLight ? "#4CAF50" : "#CCFFFFFF";
+                return isLight ? "#AAAAAA" : "#88FFFFFF";
+            }
+        }
 
         // Ник отправителя (для групп, входящих)
         private string _senderName = "";
