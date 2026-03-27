@@ -31,6 +31,8 @@ namespace TelegramWP10
         private Dictionary<long, MessageItem> _replyRequests = new Dictionary<long, MessageItem>();
         private long _currentChatId = 0;
         private long _fullPhotoMsgId = 0;
+        private long _threadMessageId = 0;
+        private long _threadChatId = 0;
         private bool _currentChatIsGroup = false;
         private Windows.UI.Xaml.DispatcherTimer _statusTimer;
         private Windows.UI.Xaml.DispatcherTimer _audioPositionTimer;
@@ -909,6 +911,9 @@ namespace TelegramWP10
                         var reacts = update["interaction_info"]?["reactions"]?["reactions"] as JArray;
                         _messagesDict[umiMsgId].Reactions = reacts != null && reacts.Count > 0
                             ? BuildReactionsString(reacts) : "";
+                        var replyInfo = update["interaction_info"]?["reply_info"];
+                        if (replyInfo != null)
+                            _messagesDict[umiMsgId].ReplyCount = replyInfo["reply_count"]?.ToObject<int>() ?? 0;
                     }
                     break;
 
@@ -925,6 +930,18 @@ namespace TelegramWP10
                         foreach (var m in _messageItems)
                             if (m.IsOutgoing && m.Id <= ucrMsgId)
                                 m.IsRead = true;
+                    }
+                    break;
+
+                case "messageThreadInfo":
+                    // Ответ на getMessageThread — открываем тред
+                    long threadChatId = update["chat_id"]?.ToObject<long>() ?? 0;
+                    long threadMsgId  = update["message_thread_id"]?.ToObject<long>() ?? 0;
+                    if (threadChatId != 0 && threadMsgId != 0 && _chatsDict.ContainsKey(threadChatId)) {
+                        _threadMessageId = threadMsgId;
+                        _threadChatId = threadChatId;
+                        Log("THREAD: chat=" + threadChatId + " thread_msg=" + threadMsgId);
+                        OpenChat(_chatsDict[threadChatId], threadMsgId);
                     }
                     break;
 
@@ -1471,6 +1488,13 @@ namespace TelegramWP10
                 if (reactions != null && reactions.Count > 0)
                     item.Reactions = BuildReactionsString(reactions);
 
+                // Комментарии к постам канала
+                var replyInfo = msg["interaction_info"]?["reply_info"];
+                if (replyInfo != null) {
+                    int replyCount = replyInfo["reply_count"]?.ToObject<int>() ?? 0;
+                    item.ReplyCount = replyCount;
+                }
+
                 // Inline-кнопки
                 var markup = msg["reply_markup"];
                 if (markup != null && markup["@type"]?.ToString() == "replyMarkupInlineKeyboard") {
@@ -1760,11 +1784,41 @@ namespace TelegramWP10
 
         private void ChatListView_ItemClick(object sender, ItemClickEventArgs e) {
             var chat = (ChatItem)e.ClickedItem;
-            if (chat.Id == _currentChatId) return;
+            if (chat.Id == _currentChatId && _threadMessageId == 0) return;
+            _threadMessageId = 0;
+            _threadChatId = 0;
+            if (_chatsDict.ContainsKey(chat.Id))
+                OpenChat(_chatsDict[chat.Id], 0);
+        }
+
+        // Открыть чат по ID (используется при возврате из треда)
+        private void OpenChatById(long chatId) {
+            if (!_chatsDict.ContainsKey(chatId)) return;
+            var chat = _chatsDict[chatId];
+            // Эмулируем клик по чату
+            var fakeItem = new ChatItem { Id = chatId, Title = chat.Title,
+                Photo = chat.Photo, IsChannel = chat.IsChannel, OutboxReadId = chat.OutboxReadId };
+            OpenChat(fakeItem, 0);
+        }
+
+        // Открыть тред комментариев поста
+        private void CommentsButton_Click(object sender, RoutedEventArgs e) {
+            var btn = sender as Windows.UI.Xaml.Controls.Button;
+            if (btn == null) return;
+            long msgId = (long)btn.Tag;
+            Log("COMMENTS: getMessageThread chat=" + _currentChatId + " msg=" + msgId);
+            _threadChatId = _currentChatId;
+            _threadMessageId = msgId;
+            TdJson.SendUtf8(_client, "{\"@type\":\"getMessageThread\",\"chat_id\":" + _currentChatId + ",\"message_id\":" + msgId + "}");
+        }
+
+        // Открыть чат с опциональным thread_id
+        private void OpenChat(ChatItem chat, long threadId) {
+            if (_currentChatId != 0)
+                TdJson.SendUtf8(_client, "{\"@type\":\"closeChat\",\"chat_id\":" + _currentChatId + "}");
             _currentChatId = chat.Id;
             _currentChatIsGroup = _chatsDict.ContainsKey(chat.Id) &&
-                (_chatsDict[chat.Id].IsChannel == false) &&
-                (chat.Id < 0); // группы и супергруппы имеют отрицательный ID
+                !_chatsDict[chat.Id].IsChannel && chat.Id < 0;
             _pendingHistoryChatId = chat.Id;
             _historyRetryCount = 0;
             _loadingOlderHistory = false;
@@ -1784,33 +1838,26 @@ namespace TelegramWP10
             PhotoOverlayImage.Source = null;
             MessageInput.Text = "";
             SendButton.Content = "➤";
-            // Показываем панель чата с индикатором загрузки, но список сообщений ещё скрыт
             StartPanel.Visibility = Visibility.Collapsed;
             MessagesPanel.Visibility = Visibility.Visible;
-            CurrentChatTitle.Text = chat.Title;
-            // Аватарка в шапке
-            if (chat.Photo != null)
-                ChatHeaderAvatarBrush.ImageSource = chat.Photo;
-            else
-                ChatHeaderAvatarBrush.ImageSource = null;
-            ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Windows.UI.Xaml.Visibility.Visible : Windows.UI.Xaml.Visibility.Collapsed;
-            // Показываем статус если это личный чат
-            if (_usersDict.ContainsKey(_currentChatId))
-                UpdateChatStatus(_usersDict[_currentChatId]["status"]);
-            else if (chat.IsChannel) {
-                CurrentChatStatus.Text = "Канал";
-                CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
-            } else
-                CurrentChatStatus.Text = "";
-            // Скрываем поле ввода для каналов
-            InputBorder.Visibility = chat.IsChannel ? Visibility.Collapsed : Visibility.Visible;
+            // Заголовок — если тред, показываем "Комментарии"
+            CurrentChatTitle.Text = threadId != 0 ? "Комментарии" : chat.Title;
+            CurrentChatStatus.Text = threadId != 0 ? "← " + chat.Title : "";
+            // Аватарка
+            if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
+            else ChatHeaderAvatarBrush.ImageSource = null;
+            ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
+            // Поле ввода — в треде всегда доступно
+            InputBorder.Visibility = Visibility.Visible;
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
             MessagesListView.Visibility = Visibility.Collapsed;
-            Log("OPEN CHAT id=" + _currentChatId + " title=" + chat.Title);
-            // openChat запускает синхронизацию истории с сервером
+            Log("OPEN CHAT id=" + _currentChatId + " thread=" + threadId + " title=" + chat.Title);
             TdJson.SendUtf8(_client, "{\"@type\":\"openChat\",\"chat_id\":" + _currentChatId + "}");
-            TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId + ",\"from_message_id\":0,\"offset\":0,\"limit\":50}");
+            string histReq = threadId != 0
+                ? "{\"@type\":\"getMessageThreadHistory\",\"chat_id\":" + _currentChatId + ",\"message_id\":" + threadId + ",\"from_message_id\":0,\"offset\":0,\"limit\":50}"
+                : "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId + ",\"from_message_id\":0,\"offset\":0,\"limit\":50}";
+            TdJson.SendUtf8(_client, histReq);
         }
 
         private void ForwardMessage_Click(object sender, RoutedEventArgs e) {
@@ -1900,6 +1947,9 @@ namespace TelegramWP10
                     ["text"] = new JObject { ["@type"] = "formattedText", ["text"] = text }
                 }
             };
+            // Если открыт тред комментариев — передаём message_thread_id
+            if (_threadMessageId != 0)
+                sendReq["message_thread_id"] = _threadMessageId;
             if (_replyToMessageId != 0) {
                 sendReq["reply_to"] = new JObject {
                     ["@type"] = "inputMessageReplyToMessage",
@@ -2762,6 +2812,7 @@ namespace TelegramWP10
             _stickerPanelOpen = false;
             // Отправляем стикер
             string req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                         (_threadMessageId != 0 ? ",\"message_thread_id\":" + _threadMessageId : "") +
                          ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
                          ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + item.FileId + "}}}";
             Log("SEND STICKER file_id=" + item.FileId);
@@ -2944,6 +2995,14 @@ namespace TelegramWP10
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e) {
+            // Если открыт тред комментариев — возвращаемся в канал
+            if (_threadMessageId != 0) {
+                long channelChatId = _threadChatId;
+                _threadMessageId = 0;
+                _threadChatId = 0;
+                OpenChatById(channelChatId);
+                return;
+            }
             if (_currentChatId != 0)
                 TdJson.SendUtf8(_client, "{\"@type\":\"closeChat\",\"chat_id\":" + _currentChatId + "}");
             _currentChatId = 0;

@@ -480,6 +480,17 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <!-- Кнопка комментариев (только для постов каналов) -->
+                                <Button Content="{Binding CommentsText}"
+                                        Tag="{Binding Id}"
+                                        Click="CommentsButton_Click"
+                                        Visibility="{Binding CommentsVisibility}"
+                                        Margin="0,6,0,0"
+                                        Padding="10,5"
+                                        HorizontalAlignment="Stretch"
+                                        Background="#1A5276"
+                                        Foreground="White"
+                                        FontSize="12"/>
                             </StackPanel>
                         </Border>
                         </StackPanel>

@@ -162,6 +162,15 @@ namespace TelegramWP10
         }
         public Visibility ForwardedVisibility => !string.IsNullOrEmpty(_forwardedFrom) ? Visibility.Visible : Visibility.Collapsed;
 
+        // Комментарии к посту канала
+        private int _replyCount = -1; // -1 = нет комментариев/не канал
+        public int ReplyCount {
+            get => _replyCount;
+            set { _replyCount = value; OnPropertyChanged("ReplyCount"); OnPropertyChanged("CommentsText"); OnPropertyChanged("CommentsVisibility"); }
+        }
+        public string CommentsText => _replyCount > 0 ? "💬 " + _replyCount + " комментариев" : "💬 Оставить комментарий";
+        public Visibility CommentsVisibility => _replyCount >= 0 ? Visibility.Visible : Visibility.Collapsed;
+
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
