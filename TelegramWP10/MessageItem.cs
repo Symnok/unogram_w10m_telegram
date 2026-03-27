@@ -186,17 +186,25 @@ namespace TelegramWP10
 
     public class PollOptionItem : INotifyPropertyChanged
     {
-        public int OptionId { get; set; } = 0;  // индекс варианта
-        public long MsgId   { get; set; } = 0;  // ID сообщения с опросом
-        public string Text { get; set; } = "";
-        public int VoteCount { get; set; } = 0;
-        public int Percent { get; set; } = 0;
-        public bool IsChosen { get; set; } = false;
-        public string PercentText => Percent + "%";
-        public string VoteText => VoteCount > 0 ? VoteCount + " гол." : "";
-        // Ширина полоски прогресса 0-200px
-        public double BarWidth => Percent * 2.0;
-        public string BarColor => IsChosen ? "#0088cc" : "#555555";
+        public int OptionId { get; set; } = 0;
+        public long MsgId   { get; set; } = 0;
+
+        private string _text = "";
+        public string Text { get => _text; set { _text = value; OnPropertyChanged("Text"); } }
+
+        private int _voteCount = 0;
+        public int VoteCount { get => _voteCount; set { _voteCount = value; OnPropertyChanged("VoteCount"); OnPropertyChanged("VoteText"); } }
+
+        private int _percent = 0;
+        public int Percent { get => _percent; set { _percent = value; OnPropertyChanged("Percent"); OnPropertyChanged("PercentText"); OnPropertyChanged("BarWidth"); } }
+
+        private bool _isChosen = false;
+        public bool IsChosen { get => _isChosen; set { _isChosen = value; OnPropertyChanged("IsChosen"); OnPropertyChanged("BarColor"); } }
+
+        public string PercentText => _percent + "%";
+        public string VoteText    => _voteCount > 0 ? _voteCount + " гол." : "";
+        public double BarWidth    => _percent * 2.0;
+        public string BarColor    => _isChosen ? "#0088cc" : "#555555";
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

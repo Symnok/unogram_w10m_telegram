@@ -984,11 +984,6 @@ namespace TelegramWP10
                                     pollMsg.PollOptions[i].VoteCount = votes;
                                     pollMsg.PollOptions[i].Percent   = pct;
                                     pollMsg.PollOptions[i].IsChosen  = opts[i]["is_chosen"]?.ToObject<bool>() ?? false;
-                                    pollMsg.PollOptions[i].OnPropertyChanged("Percent");
-                                    pollMsg.PollOptions[i].OnPropertyChanged("PercentText");
-                                    pollMsg.PollOptions[i].OnPropertyChanged("BarWidth");
-                                    pollMsg.PollOptions[i].OnPropertyChanged("BarColor");
-                                    pollMsg.PollOptions[i].OnPropertyChanged("VoteText");
                                 }
                             }
                         }
