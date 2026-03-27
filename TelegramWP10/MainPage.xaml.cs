@@ -2868,15 +2868,25 @@ namespace TelegramWP10
                 }
             }
 
-            // Показываем стикеры сразу — thumbnail подгрузятся по мере готовности
+            // Показываем стикеры поштучно с задержкой 1 секунда
             _currentStickerItems.RemoveAll(s => s.SetId == setId);
             _currentStickerItems.AddRange(items);
+            var visibleItems = new List<StickerItem>();
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 if (StickerPanel.Visibility == Visibility.Visible && _currentStickerSetId == setId) {
-                    StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
+                    StickerGrid.ItemsSource = visibleItems;
                     StickerLoadingText.Visibility = Visibility.Collapsed;
                 }
             });
+            foreach (var it in items) {
+                await Task.Delay(1000);
+                await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                    if (_currentStickerSetId == setId && StickerPanel.Visibility == Visibility.Visible) {
+                        visibleItems.Add(it);
+                        StickerGrid.ItemsSource = visibleItems.ToList();
+                    }
+                });
+            }
         }
 
         private async Task<BitmapImage> LoadStickerThumbAsync(string path) {
