@@ -61,6 +61,7 @@ namespace TelegramWP10
         // Стикеры
         private bool _stickerPanelOpen = false;
         private List<ContactItem> _contactItems = new List<ContactItem>();
+        private long _pendingContactUserId = 0; // userId ожидающий createPrivateChat
         private List<StickerItem> _currentStickerItems = new List<StickerItem>();
         private Dictionary<long, long> _stickerThumbToItem = new Dictionary<long, long>(); // thumbFileId → fileId
         private List<long> _loadedStickerSetIds = new List<long>(); // чтобы не применять дважды
@@ -802,6 +803,14 @@ namespace TelegramWP10
                         _usersDict[gUid] = update;
                         if (gUid == _currentChatId)
                             UpdateChatStatus(update["status"]);
+                        // Обновляем контакт если он в списке контактов
+                        var matchContact = _contactItems.FirstOrDefault(c => c.UserId == gUid);
+                        if (matchContact != null) {
+                            string fn = (update["first_name"]?.ToString() + " " + update["last_name"]?.ToString()).Trim();
+                            matchContact.FullName = string.IsNullOrEmpty(fn) ? gUid.ToString() : fn;
+                            matchContact.Username = update["username"]?.ToString() ?? update["usernames"]?["editable_username"]?.ToString() ?? "";
+                            { var t = LoadContactAvatarFromUser(matchContact, update); }
+                        }
                     }
                     break;
 
@@ -1027,8 +1036,23 @@ namespace TelegramWP10
                     break;
 
                 case "chat":
-                    // Ответ на getChat — обрабатывается как updateNewChat через общий путь
-                    // TDLib также шлёт updateNewChat, поэтому просто грузим следующий
+                    // Ответ на createPrivateChat — открываем чат
+                    if (_pendingContactUserId != 0) {
+                        long newChatId = update["id"]?.ToObject<long>() ?? 0;
+                        _pendingContactUserId = 0;
+                        if (newChatId != 0) {
+                            // updateNewChat придёт и добавит в _chatsDict, но может опоздать
+                            // Создаём ChatItem на месте если ещё нет
+                            if (!_chatsDict.ContainsKey(newChatId)) {
+                                var ci = new ChatItem {
+                                    Id = newChatId,
+                                    Title = update["title"]?.ToString() ?? "Чат"
+                                };
+                                _chatsDict[newChatId] = ci;
+                            }
+                            OpenChat(_chatsDict[newChatId], 0);
+                        }
+                    }
                     break;
 
                 case "message":
@@ -2925,7 +2949,9 @@ namespace TelegramWP10
                         Username = u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? ""
                     });
                 } else {
-                    contacts.Add(new ContactItem { UserId = cid2, FullName = cid2.ToString() });
+                    // Нет данных — добавляем заглушку и запрашиваем
+                    contacts.Add(new ContactItem { UserId = cid2, FullName = "..." });
+                    TdJson.SendUtf8(_client, "{\"@type\":\"getUser\",\"user_id\":" + cid2 + "}");
                 }
             }
             contacts = contacts.OrderBy(contact => contact.FullName).ToList();
@@ -2933,19 +2959,22 @@ namespace TelegramWP10
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 ContactsLoadingText.Visibility = Visibility.Collapsed;
                 ContactsListView.ItemsSource   = _contactItems;
+                // Загружаем аватарки для тех у кого уже есть данные
                 foreach (var contact in _contactItems)
-                    if (_usersDict.ContainsKey(contact.UserId)) {
-                        var ph = _usersDict[contact.UserId]["profile_photo"]?["small"] as JObject;
-                        if (ph != null) {
-                            long pfid = ph["id"]?.ToObject<long>() ?? 0;
-                            string pPath = ph["local"]?["path"]?.ToString();
-                            if (!string.IsNullOrEmpty(pPath))
-                                { var t = LoadContactAvatar(contact, pPath); }
-                            else if (pfid > 0)
-                                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
-                        }
-                    }
+                    if (_usersDict.ContainsKey(contact.UserId))
+                        { var t = LoadContactAvatarFromUser(contact, _usersDict[contact.UserId]); }
             });
+        }
+
+        private async Task LoadContactAvatarFromUser(ContactItem contact, JToken user) {
+            var ph = user["profile_photo"]?["small"] as JObject;
+            if (ph == null) return;
+            long pfid = ph["id"]?.ToObject<long>() ?? 0;
+            string pPath = ph["local"]?["path"]?.ToString();
+            if (!string.IsNullOrEmpty(pPath))
+                await LoadContactAvatar(contact, pPath);
+            else if (pfid > 0)
+                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
         }
 
         private void ContactsButton_Click(object sender, RoutedEventArgs e) {
@@ -2963,13 +2992,9 @@ namespace TelegramWP10
             var contact = e.ClickedItem as ContactItem;
             if (contact == null) return;
             ContactsOverlay.Visibility = Visibility.Collapsed;
-            // Открываем чат с контактом — ищем в _chatsDict
-            if (_chatsDict.ContainsKey(contact.UserId))
-                OpenChat(_chatsDict[contact.UserId], 0);
-            else {
-                // Создаём личный чат если ещё не было
-                TdJson.SendUtf8(_client, "{\"@type\":\"createPrivateChat\",\"user_id\":" + contact.UserId + ",\"force\":true}");
-            }
+            // createPrivateChat вернёт существующий чат или создаст новый
+            _pendingContactUserId = contact.UserId;
+            TdJson.SendUtf8(_client, "{\"@type\":\"createPrivateChat\",\"user_id\":" + contact.UserId + ",\"force\":true}");
         }
 
         private async Task LoadContactAvatar(ContactItem contact, string path) {
