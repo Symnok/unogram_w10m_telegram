@@ -2802,7 +2802,11 @@ namespace TelegramWP10
                     ShowStickerSet(capturedSid);
                 };
                 StickerPackTabs.Children.Add(btn);
-                if (first) { LoadStickerSet(sid); first = false; }
+                if (first) {
+                    _currentStickerSetId = sid; // первый пак — устанавливаем сразу
+                    LoadStickerSet(sid);
+                    first = false;
+                }
             }
         }
 
@@ -2868,25 +2872,15 @@ namespace TelegramWP10
                 }
             }
 
-            // Показываем стикеры поштучно с задержкой 1 секунда
+            // Показываем все стикеры сразу
             _currentStickerItems.RemoveAll(s => s.SetId == setId);
             _currentStickerItems.AddRange(items);
-            var visibleItems = new List<StickerItem>();
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 if (StickerPanel.Visibility == Visibility.Visible && _currentStickerSetId == setId) {
-                    StickerGrid.ItemsSource = visibleItems;
+                    StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
                     StickerLoadingText.Visibility = Visibility.Collapsed;
                 }
             });
-            foreach (var it in items) {
-                await Task.Delay(1000);
-                await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                    if (_currentStickerSetId == setId && StickerPanel.Visibility == Visibility.Visible) {
-                        visibleItems.Add(it);
-                        StickerGrid.ItemsSource = visibleItems.ToList();
-                    }
-                });
-            }
         }
 
         private async Task<BitmapImage> LoadStickerThumbAsync(string path) {
