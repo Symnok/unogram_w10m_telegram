@@ -3026,7 +3026,9 @@ namespace TelegramWP10
             _stickerPanelOpen = true;
             if (_loadedStickerSetIds.Count == 0) {
                 StickerGrid.ItemsSource = null;
-                StickerLoadingText.Visibility = Visibility.Visible;
+                StickerLoadingText.Text = "Загрузка...";
+                StickerProgressText.Text = "";
+                StickerLoadingPanel.Visibility = Visibility.Visible;
                 StickerPackTabs.Children.Clear();
                 TdJson.SendUtf8(_client, "{\"@type\":\"getInstalledStickerSets\",\"sticker_type\":{\"@type\":\"stickerTypeRegular\"}}");
             }
@@ -3095,10 +3097,13 @@ namespace TelegramWP10
             var existing = _currentStickerItems.Where(s => s.SetId == setId).ToList();
             if (existing.Count > 0) {
                 StickerGrid.ItemsSource = existing;
-                StickerLoadingText.Visibility = Visibility.Collapsed;
+                StickerLoadingPanel.Visibility = Visibility.Collapsed;
+                UpdateStickerProgress(setId);
             } else {
                 StickerGrid.ItemsSource = null;
-                StickerLoadingText.Visibility = Visibility.Visible;
+                StickerLoadingText.Text = "Загрузка...";
+                StickerProgressText.Text = "";
+                StickerLoadingPanel.Visibility = Visibility.Visible;
                 LoadStickerSet(setId);
             }
         }
@@ -3107,7 +3112,8 @@ namespace TelegramWP10
             long setId = update["id"]?.ToObject<long>() ?? 0;
             var stickers = update["stickers"] as Newtonsoft.Json.Linq.JArray;
             if (stickers == null || setId == 0) return;
-            Log("STICKER set id=" + setId + " count=" + stickers.Count);
+            int total = stickers.Count;
+            Log("STICKER set id=" + setId + " count=" + total);
 
             var items = new List<StickerItem>();
             int downloadCount = 0;
@@ -3128,15 +3134,13 @@ namespace TelegramWP10
                     if (!string.IsNullOrEmpty(tPath) &&
                         (tPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ||
                          tPath.EndsWith(".jpg",  StringComparison.OrdinalIgnoreCase))) {
-                        // Загружаем thumbnail fire-and-forget, обновляем по готовности
                         var capturedItem = item;
                         var capturedSetId = setId;
-                        _ = LoadStickerThumbAsync(tPath).ContinueWith(t => {
-                            if (t.Result != null) {
-                                capturedItem.Thumb = t.Result;
+                        _ = LoadStickerThumbAsync(tPath).ContinueWith(t2 => {
+                            if (t2.Result != null) {
+                                capturedItem.Thumb = t2.Result;
                                 var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Low, () => {
-                                    if (_currentStickerSetId == capturedSetId && StickerPanel.Visibility == Visibility.Visible)
-                                        StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == capturedSetId).ToList();
+                                    UpdateStickerProgress(capturedSetId);
                                 });
                             }
                         }, TaskScheduler.Default);
@@ -3150,15 +3154,32 @@ namespace TelegramWP10
                 }
             }
 
-            // Показываем все стикеры сразу
             _currentStickerItems.RemoveAll(s => s.SetId == setId);
             _currentStickerItems.AddRange(items);
+
+            // Показываем сразу все ячейки (с пустыми thumb), скрываем "Загрузка..."
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 if (StickerPanel.Visibility == Visibility.Visible && _currentStickerSetId == setId) {
                     StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
-                    StickerLoadingText.Visibility = Visibility.Collapsed;
+                    StickerLoadingPanel.Visibility = Visibility.Collapsed;
+                    UpdateStickerProgress(setId);
                 }
             });
+        }
+
+        // Обновляем счётчик загруженных thumbnail
+        private void UpdateStickerProgress(long setId) {
+            if (_currentStickerSetId != setId || StickerPanel.Visibility != Visibility.Visible) return;
+            var setItems = _currentStickerItems.Where(s => s.SetId == setId).ToList();
+            int loaded = setItems.Count(s => s.Thumb != null);
+            int total  = setItems.Count;
+            if (total == 0) return;
+            if (loaded < total) {
+                StickerProgressText.Text = loaded + " / " + total;
+                StickerProgressText.Visibility = Visibility.Visible;
+            } else {
+                StickerProgressText.Visibility = Visibility.Collapsed;
+            }
         }
 
         private async Task<BitmapImage> LoadStickerThumbAsync(string path) {
@@ -3206,8 +3227,11 @@ namespace TelegramWP10
             var bmp = await LoadStickerThumbAsync(path);
             if (bmp == null) return;
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                var item = _currentStickerItems.FirstOrDefault(s => s.FileId == stickerFid);
-                if (item != null) item.Thumb = bmp;
+                var item = _currentStickerItems.FirstOrDefault(s3 => s3.FileId == stickerFid);
+                if (item != null) {
+                    item.Thumb = bmp;
+                    UpdateStickerProgress(item.SetId);
+                }
             });
         }
 
