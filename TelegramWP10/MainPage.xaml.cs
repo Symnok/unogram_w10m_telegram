@@ -2827,10 +2827,7 @@ namespace TelegramWP10
             if (stickers == null || setId == 0) return;
             Log("STICKER set id=" + setId + " count=" + stickers.Count);
 
-            // Сначала собираем все item-ы и пути к thumbnail синхронно
             var items = new List<StickerItem>();
-            var thumbItems = new List<StickerItem>();
-            var thumbTasks = new List<Task<BitmapImage>>();
             int downloadCount = 0;
 
             foreach (var st in stickers) {
@@ -2849,9 +2846,18 @@ namespace TelegramWP10
                     if (!string.IsNullOrEmpty(tPath) &&
                         (tPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ||
                          tPath.EndsWith(".jpg",  StringComparison.OrdinalIgnoreCase))) {
-                        // Запускаем параллельно — не ждём
-                        thumbItems.Add(item);
-                        thumbTasks.Add(LoadStickerThumbAsync(tPath));
+                        // Загружаем thumbnail fire-and-forget, обновляем по готовности
+                        var capturedItem = item;
+                        var capturedSetId = setId;
+                        _ = LoadStickerThumbAsync(tPath).ContinueWith(t => {
+                            if (t.Result != null) {
+                                capturedItem.Thumb = t.Result;
+                                var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Low, () => {
+                                    if (_currentStickerSetId == capturedSetId && StickerPanel.Visibility == Visibility.Visible)
+                                        StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == capturedSetId).ToList();
+                                });
+                            }
+                        }, TaskScheduler.Default);
                     } else if (tfid > 0) {
                         _stickerThumbToItem[tfid] = fid;
                         if (downloadCount < 20) {
@@ -2862,14 +2868,7 @@ namespace TelegramWP10
                 }
             }
 
-            // Ждём все thumbnail параллельно
-            if (thumbTasks.Count > 0) {
-                var results = await Task.WhenAll(thumbTasks);
-                for (int i = 0; i < thumbItems.Count; i++)
-                    if (results[i] != null) thumbItems[i].Thumb = results[i];
-            }
-
-            // Обновляем коллекцию и UI
+            // Показываем стикеры сразу — thumbnail подгрузятся по мере готовности
             _currentStickerItems.RemoveAll(s => s.SetId == setId);
             _currentStickerItems.AddRange(items);
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
