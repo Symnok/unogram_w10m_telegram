@@ -1049,10 +1049,23 @@ namespace TelegramWP10
                     // Обновляем текст если это ответ после редактирования
                     if (fetchedMsgId != 0 && _messagesDict.ContainsKey(fetchedMsgId)) {
                         var mc = update["content"];
-                        if (mc?["@type"]?.ToString() == "messageText") {
+                        string mcType = mc?["@type"]?.ToString() ?? "";
+                        if (mcType == "messageText") {
                             string refreshed = mc["text"]?["text"]?.ToString() ?? "";
                             Log("message refresh text=" + refreshed);
                             _messagesDict[fetchedMsgId].Text = refreshed;
+                        } else if (mcType == "messagePoll") {
+                            // Полная перезагрузка опроса
+                            var newItem = ParseMessage(update);
+                            if (newItem != null && newItem.IsPoll) {
+                                var existing = _messagesDict[fetchedMsgId];
+                                existing.PollQuestion = newItem.PollQuestion;
+                                existing.PollType     = newItem.PollType;
+                                existing.PollOptions.Clear();
+                                foreach (var o in newItem.PollOptions)
+                                    existing.PollOptions.Add(o);
+                                Log("POLL refreshed msg=" + fetchedMsgId);
+                            }
                         }
                     }
                     break;
@@ -1880,12 +1893,19 @@ namespace TelegramWP10
             var btn = sender as Windows.UI.Xaml.Controls.Button;
             var opt = btn?.Tag as PollOptionItem;
             if (opt == null) return;
-            // setPollAnswer — передаём массив индексов выбранных вариантов
             string req = "{\"@type\":\"setPollAnswer\",\"chat_id\":" + _currentChatId +
                          ",\"message_id\":" + opt.MsgId +
                          ",\"option_ids\":[" + opt.OptionId + "]}";
             Log("POLL vote msg=" + opt.MsgId + " option=" + opt.OptionId);
             TdJson.SendUtf8(_client, req);
+            // После небольшой задержки перезагружаем сообщение
+            long msgId = opt.MsgId;
+            var timer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+            timer.Tick += (s2, e2) => {
+                timer.Stop();
+                TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + _currentChatId + ",\"message_id\":" + msgId + "}");
+            };
+            timer.Start();
         }
 
         private void CommentsButton_Click(object sender, RoutedEventArgs e) {
