@@ -1509,7 +1509,10 @@ namespace TelegramWP10
                         }
                     }
                     // Текст цитаты — сначала quote (выделенный фрагмент), потом content
-                    string replyText = replyTo["quote"]?["text"]?.ToString();
+                    // quote.text — это formattedText объект, поэтому нужно ["text"]["text"]
+                    var quoteObj = replyTo["quote"]?["text"];
+                    string replyText = quoteObj?["text"]?.ToString()  // formattedText.text
+                                    ?? quoteObj?.ToString();           // fallback если вдруг строка
                     if (string.IsNullOrEmpty(replyText)) {
                         var replyContent = replyTo["content"];
                         if (replyContent != null) {
