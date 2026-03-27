@@ -794,6 +794,16 @@ namespace TelegramWP10
                     }
                     break;
 
+                case "user":
+                    // Ответ на getUser
+                    long gUid = update["id"]?.ToObject<long>() ?? 0;
+                    if (gUid != 0) {
+                        _usersDict[gUid] = update;
+                        if (gUid == _currentChatId)
+                            UpdateChatStatus(update["status"]);
+                    }
+                    break;
+
                 case "updateUser":
                     var user = update["user"];
                     long uid = user?["id"]?.ToObject<long>() ?? 0;
@@ -1842,13 +1852,24 @@ namespace TelegramWP10
             MessagesPanel.Visibility = Visibility.Visible;
             // Заголовок — если тред, показываем "Комментарии"
             CurrentChatTitle.Text = threadId != 0 ? "Комментарии" : chat.Title;
-            CurrentChatStatus.Text = threadId != 0 ? "← " + chat.Title : "";
+            if (threadId != 0) {
+                CurrentChatStatus.Text = "← " + chat.Title;
+                CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
+            } else if (_usersDict.ContainsKey(chat.Id)) {
+                UpdateChatStatus(_usersDict[chat.Id]["status"]);
+            } else if (chat.IsChannel) {
+                CurrentChatStatus.Text = "Канал";
+                CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
+            } else {
+                CurrentChatStatus.Text = "";
+                // Запрашиваем пользователя — статус появится когда придёт updateUser
+                TdJson.SendUtf8(_client, "{\"@type\":\"getUser\",\"user_id\":" + chat.Id + "}");
+            }
+            InputBorder.Visibility = (chat.IsChannel && threadId == 0) ? Visibility.Collapsed : Visibility.Visible;
             // Аватарка
             if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
             else ChatHeaderAvatarBrush.ImageSource = null;
             ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
-            // Поле ввода — в треде всегда доступно
-            InputBorder.Visibility = Visibility.Visible;
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
             MessagesListView.Visibility = Visibility.Collapsed;
