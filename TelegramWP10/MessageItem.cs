@@ -186,6 +186,8 @@ namespace TelegramWP10
 
     public class PollOptionItem : INotifyPropertyChanged
     {
+        public int OptionId { get; set; } = 0;  // индекс варианта
+        public long MsgId   { get; set; } = 0;  // ID сообщения с опросом
         public string Text { get; set; } = "";
         public int VoteCount { get; set; } = 0;
         public int Percent { get; set; } = 0;

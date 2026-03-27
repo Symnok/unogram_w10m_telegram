@@ -1704,10 +1704,13 @@ namespace TelegramWP10
                         var options = poll["options"] as JArray;
                         item.PollOptions.Clear();
                         if (options != null) {
-                            foreach (var opt in options) {
+                            for (int oi = 0; oi < options.Count; oi++) {
+                                var opt = options[oi];
                                 int votes = opt["voter_count"]?.ToObject<int>() ?? 0;
                                 int pct = totalVotes > 0 ? (int)Math.Round(votes * 100.0 / totalVotes) : 0;
                                 item.PollOptions.Add(new PollOptionItem {
+                                    OptionId = oi,
+                                    MsgId    = msgId,
                                     Text     = opt["text"]?["text"]?.ToString() ?? opt["text"]?.ToString() ?? "",
                                     VoteCount = votes,
                                     Percent  = pct,
@@ -1873,6 +1876,18 @@ namespace TelegramWP10
         }
 
         // Открыть тред комментариев поста
+        private void PollOption_Click(object sender, RoutedEventArgs e) {
+            var btn = sender as Windows.UI.Xaml.Controls.Button;
+            var opt = btn?.Tag as PollOptionItem;
+            if (opt == null) return;
+            // setPollAnswer — передаём массив индексов выбранных вариантов
+            string req = "{\"@type\":\"setPollAnswer\",\"chat_id\":" + _currentChatId +
+                         ",\"message_id\":" + opt.MsgId +
+                         ",\"option_ids\":[" + opt.OptionId + "]}";
+            Log("POLL vote msg=" + opt.MsgId + " option=" + opt.OptionId);
+            TdJson.SendUtf8(_client, req);
+        }
+
         private void CommentsButton_Click(object sender, RoutedEventArgs e) {
             var btn = sender as Windows.UI.Xaml.Controls.Button;
             if (btn == null) return;
