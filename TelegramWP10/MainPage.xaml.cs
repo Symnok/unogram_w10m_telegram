@@ -1050,16 +1050,17 @@ namespace TelegramWP10
                             Log("message refresh text=" + refreshed);
                             _messagesDict[fetchedMsgId].Text = refreshed;
                         } else if (mcType == "messagePoll") {
-                            // Полная перезагрузка опроса
+                            // Полная перезагрузка — заменяем MessageItem в списке целиком
                             var newItem = ParseMessage(update);
                             if (newItem != null && newItem.IsPoll) {
-                                var existing = _messagesDict[fetchedMsgId];
-                                existing.PollQuestion = newItem.PollQuestion;
-                                existing.PollType     = newItem.PollType;
-                                existing.PollOptions.Clear();
-                                foreach (var o in newItem.PollOptions)
-                                    existing.PollOptions.Add(o);
-                                Log("POLL refreshed msg=" + fetchedMsgId);
+                                int idx = -1;
+                                for (int i = 0; i < _messageItems.Count; i++)
+                                    if (_messageItems[i].Id == fetchedMsgId) { idx = i; break; }
+                                if (idx >= 0) {
+                                    _messageItems[idx] = newItem;
+                                    _messagesDict[fetchedMsgId] = newItem;
+                                    Log("POLL full refresh msg=" + fetchedMsgId);
+                                }
                             }
                         }
                     }
