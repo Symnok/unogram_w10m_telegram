@@ -189,7 +189,7 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="{Binding LastMessage}" Foreground="{Binding SubtitleColor}" FontSize="13" TextTrimming="CharacterEllipsis" MaxLines="1" TextWrapping="NoWrap"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="#0088cc" FontSize="13"
+                                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="{Binding StatusColor}" FontSize="13"
                                                        VerticalAlignment="Center" Margin="6,0,0,0"
                                                        Visibility="{Binding StatusVisibility}"/>
                                             <Border Grid.Column="1" Background="#0088cc" CornerRadius="10" MinWidth="20" Height="20"

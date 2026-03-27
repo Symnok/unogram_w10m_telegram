@@ -2839,6 +2839,7 @@ namespace TelegramWP10
             ChatItem.ThemeTitleColor    = "#FFFFFF";
             ChatItem.ThemeSubtitleColor = "#888888";
             ChatItem.ThemeTimeColor     = "#888888";
+            ChatItem.ThemeStatusColor   = "#0088cc";
             StartPanel.Background          = CB("#111111");
             MessagesPanel.Background       = CB("#111111");
             ChatHeader.Background          = CB("#1F3A52");
@@ -2882,6 +2883,7 @@ namespace TelegramWP10
             ChatItem.ThemeTitleColor    = "#000000";
             ChatItem.ThemeSubtitleColor = "#707070";
             ChatItem.ThemeTimeColor     = "#707070";
+            ChatItem.ThemeStatusColor   = "#4CAF50";
             // Фон
             StartPanel.Background          = CB("#EFEFF3");
             MessagesPanel.Background       = CB("#B2CDB0");

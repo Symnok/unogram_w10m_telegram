@@ -14,15 +14,18 @@ namespace TelegramWP10
         internal static string ThemeTitleColor    = "#FFFFFF";
         internal static string ThemeSubtitleColor = "#888888";
         internal static string ThemeTimeColor     = "#888888";
+        internal static string ThemeStatusColor   = "#0088cc"; // галочки: синие в тёмной, зелёные в светлой
 
         public string TitleColor    => ThemeTitleColor;
         public string SubtitleColor => ThemeSubtitleColor;
         public string TimeColor     => ThemeTimeColor;
+        public string StatusColor   => ThemeStatusColor;
 
         public void NotifyThemeChanged() {
             OnPropertyChanged("TitleColor");
             OnPropertyChanged("SubtitleColor");
             OnPropertyChanged("TimeColor");
+            OnPropertyChanged("StatusColor");
         }
 
         private BitmapImage _photo = null;
