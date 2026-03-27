@@ -203,7 +203,6 @@ namespace TelegramWP10
 
         public string PercentText => _percent + "%";
         public string VoteText    => _voteCount > 0 ? _voteCount + " гол." : "";
-        public double BarWidth    => _percent * 2.0;
         public string BarColor    => _isChosen ? "#0088cc" : "#555555";
 
         public event PropertyChangedEventHandler PropertyChanged;

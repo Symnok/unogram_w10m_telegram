@@ -404,10 +404,10 @@
                                                         <TextBlock Grid.Column="1" Text="{Binding PercentText}" Foreground="#AAAAAA" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                                     </Grid>
                                                     <!-- Полоска прогресса -->
-                                                    <Border Height="4" CornerRadius="2" Background="#33FFFFFF" Margin="0,3,0,0">
-                                                        <Border Height="4" CornerRadius="2" Background="{Binding BarColor}"
-                                                                HorizontalAlignment="Left" Width="{Binding BarWidth}"/>
-                                                    </Border>
+                                                    <ProgressBar Value="{Binding Percent}" Maximum="100"
+                                                                 Foreground="{Binding BarColor}"
+                                                                 Background="#33FFFFFF"
+                                                                 Height="4" Margin="0,3,0,0"/>
                                                     <TextBlock Text="{Binding VoteText}" Foreground="#888888" FontSize="11" Margin="0,2,0,0"/>
                                                 </StackPanel>
                                                 </Button>
