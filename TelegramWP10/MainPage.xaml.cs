@@ -993,42 +993,9 @@ namespace TelegramWP10
 
                 case "users":
                     // Ответ на getContacts
-                    var userIds = update["user_ids"] as JArray;
-                    if (userIds != null) {
-                        var contacts = new List<ContactItem>();
-                        foreach (var uid in userIds) {
-                            long cid = uid.ToObject<long>();
-                            if (_usersDict.ContainsKey(cid)) {
-                                var u = _usersDict[cid];
-                                contacts.Add(new ContactItem {
-                                    UserId    = cid,
-                                    FullName  = (u["first_name"]?.ToString() + " " + u["last_name"]?.ToString()).Trim(),
-                                    Username  = u["username"]?.ToString() ?? u["usernames"]?["editable_username"]?.ToString() ?? ""
-                                });
-                            } else {
-                                contacts.Add(new ContactItem { UserId = cid, FullName = cid.ToString() });
-                            }
-                        }
-                        contacts = contacts.OrderBy(c => c.FullName).ToList();
-                        _contactItems = contacts;
-                        await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                            ContactsLoadingText.Visibility = Visibility.Collapsed;
-                            ContactsListView.ItemsSource   = _contactItems;
-                            // Загружаем аватарки
-                            foreach (var c in _contactItems)
-                                if (_usersDict.ContainsKey(c.UserId)) {
-                                    var ph = _usersDict[c.UserId]["profile_photo"]?["small"] as JObject;
-                                    if (ph != null) {
-                                        long pfid = ph["id"]?.ToObject<long>() ?? 0;
-                                        string pPath = ph["local"]?["path"]?.ToString();
-                                        if (!string.IsNullOrEmpty(pPath))
-                                            { var t = LoadContactAvatar(c, pPath); }
-                                        else if (pfid > 0)
-                                            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
-                                    }
-                                }
-                        });
-                    }
+                    var contactUserIds = update["user_ids"] as JArray;
+                    if (contactUserIds != null)
+                        { var t = HandleContactsLoaded(contactUserIds); }
                     break;
 
                 case "ok":
@@ -2945,6 +2912,41 @@ namespace TelegramWP10
         // ======= СТИКЕРЫ =======
 
         // ======= КОНТАКТЫ =======
+
+        private async Task HandleContactsLoaded(JArray userIds) {
+            var contacts = new List<ContactItem>();
+            foreach (var uid2 in userIds) {
+                long cid2 = uid2.ToObject<long>();
+                if (_usersDict.ContainsKey(cid2)) {
+                    var u2 = _usersDict[cid2];
+                    contacts.Add(new ContactItem {
+                        UserId   = cid2,
+                        FullName = (u2["first_name"]?.ToString() + " " + u2["last_name"]?.ToString()).Trim(),
+                        Username = u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? ""
+                    });
+                } else {
+                    contacts.Add(new ContactItem { UserId = cid2, FullName = cid2.ToString() });
+                }
+            }
+            contacts = contacts.OrderBy(contact => contact.FullName).ToList();
+            _contactItems = contacts;
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                ContactsLoadingText.Visibility = Visibility.Collapsed;
+                ContactsListView.ItemsSource   = _contactItems;
+                foreach (var contact in _contactItems)
+                    if (_usersDict.ContainsKey(contact.UserId)) {
+                        var ph = _usersDict[contact.UserId]["profile_photo"]?["small"] as JObject;
+                        if (ph != null) {
+                            long pfid = ph["id"]?.ToObject<long>() ?? 0;
+                            string pPath = ph["local"]?["path"]?.ToString();
+                            if (!string.IsNullOrEmpty(pPath))
+                                { var t = LoadContactAvatar(contact, pPath); }
+                            else if (pfid > 0)
+                                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
+                        }
+                    }
+            });
+        }
 
         private void ContactsButton_Click(object sender, RoutedEventArgs e) {
             ContactsOverlay.Visibility = Visibility.Visible;
