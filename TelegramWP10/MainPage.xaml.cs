@@ -60,6 +60,7 @@ namespace TelegramWP10
         private bool _proxyApplied = false;
         // Стикеры
         private bool _stickerPanelOpen = false;
+        private List<ContactItem> _contactItems = new List<ContactItem>();
         private List<StickerItem> _currentStickerItems = new List<StickerItem>();
         private Dictionary<long, long> _stickerThumbToItem = new Dictionary<long, long>(); // thumbFileId → fileId
         private List<long> _loadedStickerSetIds = new List<long>(); // чтобы не применять дважды
@@ -987,6 +988,46 @@ namespace TelegramWP10
                                 }
                             }
                         }
+                    }
+                    break;
+
+                case "users":
+                    // Ответ на getContacts
+                    var userIds = update["user_ids"] as JArray;
+                    if (userIds != null) {
+                        var contacts = new List<ContactItem>();
+                        foreach (var uid in userIds) {
+                            long cid = uid.ToObject<long>();
+                            if (_usersDict.ContainsKey(cid)) {
+                                var u = _usersDict[cid];
+                                contacts.Add(new ContactItem {
+                                    UserId    = cid,
+                                    FullName  = (u["first_name"]?.ToString() + " " + u["last_name"]?.ToString()).Trim(),
+                                    Username  = u["username"]?.ToString() ?? u["usernames"]?["editable_username"]?.ToString() ?? ""
+                                });
+                            } else {
+                                contacts.Add(new ContactItem { UserId = cid, FullName = cid.ToString() });
+                            }
+                        }
+                        contacts = contacts.OrderBy(c => c.FullName).ToList();
+                        _contactItems = contacts;
+                        await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                            ContactsLoadingText.Visibility = Visibility.Collapsed;
+                            ContactsListView.ItemsSource   = _contactItems;
+                            // Загружаем аватарки
+                            foreach (var c in _contactItems)
+                                if (_usersDict.ContainsKey(c.UserId)) {
+                                    var ph = _usersDict[c.UserId]["profile_photo"]?["small"] as JObject;
+                                    if (ph != null) {
+                                        long pfid = ph["id"]?.ToObject<long>() ?? 0;
+                                        string pPath = ph["local"]?["path"]?.ToString();
+                                        if (!string.IsNullOrEmpty(pPath))
+                                            { var t = LoadContactAvatar(c, pPath); }
+                                        else if (pfid > 0)
+                                            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
+                                    }
+                                }
+                        });
                     }
                     break;
 
@@ -2902,6 +2943,46 @@ namespace TelegramWP10
         }
 
         // ======= СТИКЕРЫ =======
+
+        // ======= КОНТАКТЫ =======
+
+        private void ContactsButton_Click(object sender, RoutedEventArgs e) {
+            ContactsOverlay.Visibility = Visibility.Visible;
+            ContactsListView.ItemsSource = null;
+            ContactsLoadingText.Visibility = Visibility.Visible;
+            TdJson.SendUtf8(_client, "{\"@type\":\"getContacts\"}");
+        }
+
+        private void ContactsOverlay_Close(object sender, RoutedEventArgs e) {
+            ContactsOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void ContactItem_Click(object sender, Windows.UI.Xaml.Controls.ItemClickEventArgs e) {
+            var contact = e.ClickedItem as ContactItem;
+            if (contact == null) return;
+            ContactsOverlay.Visibility = Visibility.Collapsed;
+            // Открываем чат с контактом — ищем в _chatsDict
+            if (_chatsDict.ContainsKey(contact.UserId))
+                OpenChat(_chatsDict[contact.UserId], 0);
+            else {
+                // Создаём личный чат если ещё не было
+                TdJson.SendUtf8(_client, "{\"@type\":\"createPrivateChat\",\"user_id\":" + contact.UserId + ",\"force\":true}");
+            }
+        }
+
+        private async Task LoadContactAvatar(ContactItem contact, string path) {
+            try {
+                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                var bmp = new BitmapImage();
+                using (var stream = await file.OpenReadAsync())
+                    await bmp.SetSourceAsync(stream);
+                await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                    contact.Photo = bmp;
+                    contact.OnPropertyChanged("Photo");
+                    contact.OnPropertyChanged("NoPhotoVisibility");
+                });
+            } catch { }
+        }
 
         private void StickerButton_Click(object sender, RoutedEventArgs e) {
             if (_stickerPanelOpen) {
