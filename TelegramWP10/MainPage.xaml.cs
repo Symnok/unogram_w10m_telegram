@@ -2826,40 +2826,50 @@ namespace TelegramWP10
             var stickers = update["stickers"] as Newtonsoft.Json.Linq.JArray;
             if (stickers == null || setId == 0) return;
             Log("STICKER set id=" + setId + " count=" + stickers.Count);
+
+            // Сначала собираем все item-ы и пути к thumbnail синхронно
             var items = new List<StickerItem>();
+            var thumbTasks = new List<(StickerItem item, Task<BitmapImage> task)>();
             int downloadCount = 0;
+
             foreach (var st in stickers) {
-                bool isAnimated = st["is_animated"]?.ToObject<bool>() ?? false;
-                bool isVideo    = st["is_video"]?.ToObject<bool>() ?? false;
-                var stickerFile = st["sticker"] as Newtonsoft.Json.Linq.JObject;
+                var stickerFile = st["sticker"] as JObject;
                 if (stickerFile == null) continue;
                 long fid = stickerFile["id"]?.ToObject<long>() ?? 0;
                 var item = new StickerItem { SetId = setId, FileId = fid };
-                // Берём thumbnail
+                items.Add(item);
+
                 var thumb = st["thumbnail"];
-                var thumbFile = thumb?["file"] as Newtonsoft.Json.Linq.JObject;
+                var thumbFile = thumb?["file"] as JObject;
                 if (thumbFile != null) {
                     long tfid = thumbFile["id"]?.ToObject<long>() ?? 0;
                     item.ThumbFileId = tfid;
                     string tPath = thumbFile["local"]?["path"]?.ToString();
-                    if (!string.IsNullOrEmpty(tPath) && (tPath.EndsWith(".webp") || tPath.EndsWith(".jpg"))) {
-                        var bmp = await LoadStickerThumbAsync(tPath);
-                        if (bmp != null) item.Thumb = bmp;
+                    if (!string.IsNullOrEmpty(tPath) &&
+                        (tPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ||
+                         tPath.EndsWith(".jpg",  StringComparison.OrdinalIgnoreCase))) {
+                        // Запускаем параллельно — не ждём
+                        thumbTasks.Add((item, LoadStickerThumbAsync(tPath)));
                     } else if (tfid > 0) {
                         _stickerThumbToItem[tfid] = fid;
-                        // Скачиваем только первые 20 thumbnail сразу — остальные по требованию
                         if (downloadCount < 20) {
                             TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + tfid + ",\"priority\":3,\"synchronous\":false}");
                             downloadCount++;
                         }
                     }
                 }
-                items.Add(item);
             }
-            // Удаляем старые стикеры этого сета если были
+
+            // Ждём все thumbnail параллельно
+            if (thumbTasks.Count > 0) {
+                await Task.WhenAll(thumbTasks.Select(t => t.task));
+                foreach (var (item, task) in thumbTasks)
+                    if (task.Result != null) item.Thumb = task.Result;
+            }
+
+            // Обновляем коллекцию и UI
             _currentStickerItems.RemoveAll(s => s.SetId == setId);
             _currentStickerItems.AddRange(items);
-            // Обновляем UI
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 if (StickerPanel.Visibility == Visibility.Visible && _currentStickerSetId == setId) {
                     StickerGrid.ItemsSource = _currentStickerItems.Where(s => s.SetId == setId).ToList();
