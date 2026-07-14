@@ -71,6 +71,7 @@
                                         <Button.Flyout>
                                             <MenuFlyout>
                                                 <MenuFlyoutItem x:Name="ClearCacheItem" Text="🗑 Очистить кэш" Click="ClearCache_Click"/>
+                                                <MenuFlyoutItem x:Name="SoundToggleItem" Text="🔔 Звук: Вкл" Click="SoundToggle_Click"/>
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>

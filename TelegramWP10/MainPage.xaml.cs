@@ -58,6 +58,7 @@ namespace TelegramWP10
         private Windows.UI.Xaml.DispatcherTimer _connectingTimer; // таймер 10с на подключение
         private bool _proxyConnected = false;
         private bool _proxyApplied = false;
+        private bool _soundEnabled = true; // звук уведомлений
         // Стикеры
         private bool _stickerPanelOpen = false;
         private List<ContactItem> _contactItems = new List<ContactItem>();
@@ -106,6 +107,13 @@ namespace TelegramWP10
             // Загружаем тему
             if (ls.Values.ContainsKey("light_theme"))
                 _isLightTheme = (bool)ls.Values["light_theme"];
+            if (ls.Values.ContainsKey("sound_enabled"))
+                _soundEnabled = (bool)ls.Values["sound_enabled"];
+            // Текст кнопки звука обновляется в Loaded
+            this.Loaded += (s2, e2) => {
+                if (SoundToggleItem != null)
+                    SoundToggleItem.Text = _soundEnabled ? "🔔 Звук: Вкл" : "🔕 Звук: Выкл";
+            };
             // ApplyTheme вызывается в Loaded когда все элементы готовы
             this.Loaded += (s, e) => ApplyTheme();
             // Сбрасываем UI в начальное состояние (на случай restore после suspend)
@@ -720,6 +728,14 @@ namespace TelegramWP10
                     // Обновляем бейдж архива если сообщение пришло в архивный чат
                     if (_archiveChatItems.Any(ch => ch.Id == newMsgChatId))
                         UpdateArchiveUnreadBadge();
+                    // Звук для входящих личных сообщений
+                    if (_soundEnabled && newMsg != null) {
+                        bool isOutgoing = newMsg["is_outgoing"]?.ToObject<bool>() ?? false;
+                        // Только личные чаты (положительный chat_id = личный чат)
+                        bool isPrivate = newMsgChatId > 0;
+                        if (!isOutgoing && isPrivate)
+                            PlayNotificationSound();
+                    }
                     break;
 
                 case "updateConnectionState":
@@ -2980,6 +2996,30 @@ namespace TelegramWP10
                 await LoadContactAvatar(contact, pPath);
             else if (pfid > 0)
                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
+        }
+
+        private void PlayNotificationSound() {
+            try {
+                var mediaElement = new Windows.UI.Xaml.Controls.MediaElement {
+                    AudioCategory = Windows.UI.Xaml.Media.AudioCategory.Communications,
+                    Volume = 1.0
+                };
+                // Системный звук уведомления Windows
+                mediaElement.Source = new Uri("ms-winsoundevent:Notification.IM");
+                // Добавляем временно в визуальное дерево чтобы звук сработал
+                var rootGrid = Window.Current.Content as Windows.UI.Xaml.Controls.Grid;
+                if (rootGrid != null) {
+                    rootGrid.Children.Add(mediaElement);
+                    mediaElement.MediaEnded += (s, e) => rootGrid.Children.Remove(mediaElement);
+                    mediaElement.Play();
+                }
+            } catch (Exception ex) { Log("Sound ERR: " + ex.Message); }
+        }
+
+        private void SoundToggle_Click(object sender, RoutedEventArgs e) {
+            _soundEnabled = !_soundEnabled;
+            Windows.Storage.ApplicationData.Current.LocalSettings.Values["sound_enabled"] = _soundEnabled;
+            SoundToggleItem.Text = _soundEnabled ? "🔔 Звук: Вкл" : "🔕 Звук: Выкл";
         }
 
         private async void ClearCache_Click(object sender, RoutedEventArgs e) {
