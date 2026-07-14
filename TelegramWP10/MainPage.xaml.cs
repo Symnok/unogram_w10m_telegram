@@ -728,13 +728,25 @@ namespace TelegramWP10
                     // Обновляем бейдж архива если сообщение пришло в архивный чат
                     if (_archiveChatItems.Any(ch => ch.Id == newMsgChatId))
                         UpdateArchiveUnreadBadge();
-                    // Звук для входящих личных сообщений
+                    // Звук и уведомление для входящих личных сообщений
                     if (_soundEnabled && newMsg != null) {
                         bool isOutgoing = newMsg["is_outgoing"]?.ToObject<bool>() ?? false;
-                        // Только личные чаты (положительный chat_id = личный чат)
-                        bool isPrivate = newMsgChatId > 0;
-                        if (!isOutgoing && isPrivate)
-                            PlayNotificationSound();
+                        bool isPrivate  = newMsgChatId > 0;
+                        if (!isOutgoing && isPrivate) {
+                            // Собираем имя и текст для уведомления
+                            string senderName = "";
+                            if (_chatsDict.ContainsKey(newMsgChatId))
+                                senderName = _chatsDict[newMsgChatId].Title;
+                            else if (_usersDict.ContainsKey(newMsgChatId)) {
+                                var u = _usersDict[newMsgChatId];
+                                senderName = (u["first_name"]?.ToString() + " " + u["last_name"]?.ToString()).Trim();
+                            }
+                            var mc = newMsg["content"];
+                            string msgText = mc?["text"]?["text"]?.ToString()
+                                          ?? mc?["caption"]?["text"]?.ToString()
+                                          ?? (mc?["@type"]?.ToString()?.Replace("message","") ?? "Сообщение");
+                            ShowToastNotification(senderName, msgText);
+                        }
                     }
                     break;
 
@@ -2998,33 +3010,36 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
         }
 
-        private void PlayNotificationSound() {
+        private void ShowToastNotification(string title, string body) {
             try {
-                // Используем Toast уведомление — единственный надёжный способ
-                // воспроизвести системный звук в UWP/WP10
-                var toastXml = Windows.UI.Notifications.ToastNotificationManager
-                    .GetTemplateContent(Windows.UI.Notifications.ToastTemplateType.ToastText01);
-
-                // Убираем визуальный текст — нам нужен только звук
-                var toastNode = toastXml.DocumentElement;
-                var audioEl = toastXml.CreateElement("audio");
-                audioEl.SetAttribute("src", "ms-winsoundevent:Notification.IM");
-                audioEl.SetAttribute("loop", "false");
-                toastNode.AppendChild(audioEl);
-
-                // Делаем продолжительность короткой
-                toastNode.SetAttribute("duration", "short");
-                // Скрываем визуальную часть
-                var textNodes = toastXml.GetElementsByTagName("text");
-                if (textNodes.Length > 0)
-                    textNodes[0].InnerText = " "; // пустой текст
-
+                // Строим XML вручную — полный контроль над звуком
+                string xml = $@"<toast duration=""short"">
+  <visual>
+    <binding template=""ToastGeneric"">
+      <text>{EscapeXml(title)}</text>
+      <text>{EscapeXml(body)}</text>
+    </binding>
+  </visual>
+  <audio src=""ms-winsoundevent:Notification.IM"" loop=""false""/>
+</toast>";
+                var toastXml = new Windows.Data.Xml.Dom.XmlDocument();
+                toastXml.LoadXml(xml);
                 var toast = new Windows.UI.Notifications.ToastNotification(toastXml);
-                toast.ExpirationTime = DateTimeOffset.Now.AddSeconds(2);
-                Windows.UI.Notifications.ToastNotificationManager
-                    .CreateToastNotifier().Show(toast);
-                Log("Sound: played");
-            } catch (Exception ex) { Log("Sound ERR: " + ex.Message); }
+                // Без ExpirationTime — уведомление живёт стандартное время
+                // Показываем из любого потока через Dispatcher
+                var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                    try {
+                        Windows.UI.Notifications.ToastNotificationManager
+                            .CreateToastNotifier().Show(toast);
+                        Log("Toast shown: " + title);
+                    } catch (Exception ex2) { Log("Toast show ERR: " + ex2.Message); }
+                });
+            } catch (Exception ex) { Log("Toast ERR: " + ex.Message); }
+        }
+
+        private static string EscapeXml(string s) {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
         }
 
         private void SoundToggle_Click(object sender, RoutedEventArgs e) {
