@@ -65,6 +65,15 @@
                                     <Button x:Name="ThemeToggleButton" Content="☀" Click="ThemeToggle_Click"
                                             Background="Transparent" Foreground="#888888"
                                             FontSize="18" Padding="8,4" BorderThickness="0"/>
+                                    <Button x:Name="SettingsButton" Content="⚙" 
+                                            Background="Transparent" Foreground="#888888"
+                                            FontSize="18" Padding="8,4" BorderThickness="0">
+                                        <Button.Flyout>
+                                            <MenuFlyout>
+                                                <MenuFlyoutItem x:Name="ClearCacheItem" Text="🗑 Очистить кэш" Click="ClearCache_Click"/>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                             <StackPanel Orientation="Horizontal" Margin="15,0,15,10">

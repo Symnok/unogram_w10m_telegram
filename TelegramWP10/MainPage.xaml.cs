@@ -2982,6 +2982,26 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
         }
 
+        private async void ClearCache_Click(object sender, RoutedEventArgs e) {
+            var dialog = new Windows.UI.Popups.MessageDialog(
+                "Удалить все скачанные фото, видео и аудио из кэша?", "Очистить кэш");
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Очистить", async cmd => {
+                try {
+                    // TDLib API — очищаем кэш файлов
+                    TdJson.SendUtf8(_client, "{\"@type\":\"optimizeStorage\",\"size\":0,\"ttl\":0,\"count\":0,\"immunity_delay\":0" +
+                        ",\"file_types\":[{\"@type\":\"fileTypePhoto\"},{\"@type\":\"fileTypeVideo\"},{\"@type\":\"fileTypeAudio\"}" +
+                        ",{\"@type\":\"fileTypeAnimation\"},{\"@type\":\"fileTypeDocument\"}]" +
+                        ",\"chat_ids\":[],\"exclude_chat_ids\":[],\"return_deleted_file_statistics\":true,\"chat_limit\":0}");
+                    var confirmDialog = new Windows.UI.Popups.MessageDialog("Кэш очищен.", "Готово");
+                    await confirmDialog.ShowAsync();
+                } catch (Exception ex) {
+                    Log("ClearCache ERR: " + ex.Message);
+                }
+            }));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
+            await dialog.ShowAsync();
+        }
+
         private void ContactsButton_Click(object sender, RoutedEventArgs e) {
             ContactsOverlay.Visibility = Visibility.Visible;
             ContactsListView.ItemsSource = null;
