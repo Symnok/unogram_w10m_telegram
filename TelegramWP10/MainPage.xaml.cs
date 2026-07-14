@@ -40,7 +40,9 @@ namespace TelegramWP10
         private bool _audioSliderDragging = false;
         private long _pendingHistoryChatId = 0;
         private int _historyRetryCount = 0;
-        private bool _loadingOlderHistory = false; // true = дозагрузка старых, false = начальная загрузка
+        private bool _loadingOlderHistory = false;
+        private bool _hasMoreHistory = true;       // есть ли ещё старые сообщения
+        private ScrollViewer _messagesScrollViewer = null; // кэш ScrollViewer // true = дозагрузка старых, false = начальная загрузка
         private long _currentChatOutboxReadId = 0;
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
@@ -116,6 +118,12 @@ namespace TelegramWP10
             };
             // ApplyTheme вызывается в Loaded когда все элементы готовы
             this.Loaded += (s, e) => ApplyTheme();
+            // Подписываемся на ScrollViewer внутри MessagesListView для бесконечной прокрутки
+            MessagesListView.Loaded += (s, e) => {
+                _messagesScrollViewer = FindScrollViewer(MessagesListView);
+                if (_messagesScrollViewer != null)
+                    _messagesScrollViewer.ViewChanged += MessagesScrollViewer_ViewChanged;
+            };
             // Сбрасываем UI в начальное состояние (на случай restore после suspend)
             LoginPanel.Visibility = Visibility.Visible;
             ChatListView.Visibility = Visibility.Collapsed;
@@ -1176,6 +1184,7 @@ namespace TelegramWP10
                             break;
                         }
                         _messageItems.Clear();
+                        _hasMoreHistory = gotCount >= 50; // если меньше 50 — истории нет
                         for (int i = msgs.Count - 1; i >= 0; i--) {
                             var it = ParseMessage(msgs[i]);
                             if (it != null) _messageItems.Add(it);
@@ -1191,31 +1200,44 @@ namespace TelegramWP10
                                 TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + expectedChat + ",\"from_message_id\":" + oldestId + ",\"offset\":0,\"limit\":" + (50 - gotCount) + "}");
                             }
                         }
+                        // Показываем список и скроллим вниз
+                        _isLoadingHistory = false;
+                        LoadingIndicator.Visibility = Visibility.Collapsed;
+                        MessagesListView.Visibility = Visibility.Visible;
+                        if (_messageItems.Count > 0) {
+                            MessagesListView.UpdateLayout();
+                            MessagesListView.ScrollIntoView(_messageItems[_messageItems.Count - 1]);
+                        }
+                        long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
+                        if (lastMsgId != 0)
+                            TdJson.SendUtf8(_client, "{\"@type\":\"viewMessages\",\"chat_id\":" + expectedChat + ",\"message_ids\":[" + lastMsgId + "],\"force_read\":true}");
                     } else {
-                        // Дозагрузка старых — вставляем в начало списка
+                        // Дозагрузка старых — вставляем в начало, сохраняем позицию скролла
                         _loadingOlderHistory = false;
-                        if (gotCount > 0) {
+                        if (gotCount == 0) {
+                            _hasMoreHistory = false; // больше нечего грузить
+                            Log("no more history");
+                        } else {
+                            // Запоминаем высоту до вставки чтобы не прыгал скролл
+                            double oldHeight = _messagesScrollViewer?.ExtentHeight ?? 0;
+                            double oldOffset = _messagesScrollViewer?.VerticalOffset ?? 0;
                             int insertIdx = 0;
                             for (int i = msgs.Count - 1; i >= 0; i--) {
                                 var it = ParseMessage(msgs[i]);
                                 if (it != null) _messageItems.Insert(insertIdx++, it);
                             }
-                            // Перестраиваем разделители с учётом новых старых сообщений
                             RebuildDateSeparators();
                             Log("prepended " + gotCount + " older messages, total=" + _messageItems.Count);
+                            _hasMoreHistory = gotCount >= 50;
+                            // Восстанавливаем позицию скролла
+                            MessagesListView.UpdateLayout();
+                            if (_messagesScrollViewer != null) {
+                                double newHeight = _messagesScrollViewer.ExtentHeight;
+                                double diff = newHeight - oldHeight;
+                                _messagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                            }
                         }
                     }
-
-                    long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
-                    _isLoadingHistory = false;
-                    LoadingIndicator.Visibility = Visibility.Collapsed;
-                    MessagesListView.Visibility = Visibility.Visible;
-                    if (_messageItems.Count > 0) {
-                        MessagesListView.UpdateLayout();
-                        MessagesListView.ScrollIntoView(_messageItems[_messageItems.Count - 1]);
-                    }
-                    if (lastMsgId != 0)
-                        TdJson.SendUtf8(_client, "{\"@type\":\"viewMessages\",\"chat_id\":" + expectedChat + ",\"message_ids\":[" + lastMsgId + "],\"force_read\":true}");
                     break;
             }
         }
@@ -1228,6 +1250,27 @@ namespace TelegramWP10
                 if (result != null) return result;
             }
             return null;
+        }
+
+        private void MessagesScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e) {
+            if (e.IsIntermediate) return; // ещё скроллит
+            var sv = sender as ScrollViewer;
+            if (sv == null) return;
+            // Если долистали до самого верха — грузим ещё
+            if (sv.VerticalOffset < 200 && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0)
+                LoadOlderMessages();
+        }
+
+        private void LoadOlderMessages() {
+            // Берём самое старое сообщение (не разделитель дат)
+            var oldest = _messageItems.FirstOrDefault(m => !m.IsSeparator);
+            if (oldest == null) return;
+            _loadingOlderHistory = true;
+            Log("LoadOlder from_msg_id=" + oldest.Id);
+            string req = _threadMessageId != 0
+                ? "{\"@type\":\"getMessageThreadHistory\",\"chat_id\":" + _currentChatId + ",\"message_id\":" + _threadMessageId + ",\"from_message_id\":" + oldest.Id + ",\"offset\":0,\"limit\":50}"
+                : "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId + ",\"from_message_id\":" + oldest.Id + ",\"offset\":0,\"limit\":50}";
+            TdJson.SendUtf8(_client, req);
         }
 
         private void UpdateChatStatus(JToken status) {
@@ -1988,6 +2031,7 @@ namespace TelegramWP10
             _pendingHistoryChatId = chat.Id;
             _historyRetryCount = 0;
             _loadingOlderHistory = false;
+            _hasMoreHistory = true;
             _currentChatOutboxReadId = chat.OutboxReadId;
             _messageItems.Clear();
             _messagesDict.Clear();
