@@ -3000,19 +3000,30 @@ namespace TelegramWP10
 
         private void PlayNotificationSound() {
             try {
-                var mediaElement = new Windows.UI.Xaml.Controls.MediaElement {
-                    AudioCategory = Windows.UI.Xaml.Media.AudioCategory.Communications,
-                    Volume = 1.0
-                };
-                // Системный звук уведомления Windows
-                mediaElement.Source = new Uri("ms-winsoundevent:Notification.IM");
-                // Добавляем временно в визуальное дерево чтобы звук сработал
-                var rootGrid = Window.Current.Content as Windows.UI.Xaml.Controls.Grid;
-                if (rootGrid != null) {
-                    rootGrid.Children.Add(mediaElement);
-                    mediaElement.MediaEnded += (s, e) => rootGrid.Children.Remove(mediaElement);
-                    mediaElement.Play();
-                }
+                // Используем Toast уведомление — единственный надёжный способ
+                // воспроизвести системный звук в UWP/WP10
+                var toastXml = Windows.UI.Notifications.ToastNotificationManager
+                    .GetTemplateContent(Windows.UI.Notifications.ToastTemplateType.ToastText01);
+
+                // Убираем визуальный текст — нам нужен только звук
+                var toastNode = toastXml.DocumentElement;
+                var audioEl = toastXml.CreateElement("audio");
+                audioEl.SetAttribute("src", "ms-winsoundevent:Notification.IM");
+                audioEl.SetAttribute("loop", "false");
+                toastNode.AppendChild(audioEl);
+
+                // Делаем продолжительность короткой
+                toastNode.SetAttribute("duration", "short");
+                // Скрываем визуальную часть
+                var textNodes = toastXml.GetElementsByTagName("text");
+                if (textNodes.Length > 0)
+                    textNodes[0].InnerText = " "; // пустой текст
+
+                var toast = new Windows.UI.Notifications.ToastNotification(toastXml);
+                toast.ExpirationTime = DateTimeOffset.Now.AddSeconds(2);
+                Windows.UI.Notifications.ToastNotificationManager
+                    .CreateToastNotifier().Show(toast);
+                Log("Sound: played");
             } catch (Exception ex) { Log("Sound ERR: " + ex.Message); }
         }
 
