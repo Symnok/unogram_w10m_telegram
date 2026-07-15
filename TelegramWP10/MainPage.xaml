@@ -311,35 +311,12 @@
                 </StackPanel>
             </StackPanel>
 
-            <ScrollViewer x:Name="MessagesScrollViewer" Grid.Row="1"
+            <!-- Область сообщений: ScrollViewer + оверлеи в одном Grid -->
+            <Grid Grid.Row="1">
+            <ScrollViewer x:Name="MessagesScrollViewer"
                           VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                           ViewChanged="MessagesScrollViewer_ViewChanged">
-
-            <!-- Индикатор дозагрузки старых сообщений — поверх ScrollViewer сверху -->
-            <Grid Grid.Row="1" VerticalAlignment="Top" HorizontalAlignment="Center"
-                  Margin="0,8,0,0" IsHitTestVisible="False" Canvas.ZIndex="10">
-                <Border x:Name="OlderLoadingIndicator" Background="#CC000000" CornerRadius="16"
-                        Padding="12,6" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal">
-                        <ProgressRing x:Name="OlderProgressRing" IsActive="False"
-                                      Width="18" Height="18" Foreground="White" Margin="0,0,8,0"/>
-                        <TextBlock Text="Загрузка..." Foreground="White" FontSize="13" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
-
-            <!-- Кнопка скролла вниз -->
-            <Button x:Name="ScrollToBottomButton" Grid.Row="1"
-                    Click="ScrollToBottom_Click"
-                    VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                    Margin="0,0,12,12"
-                    Width="44" Height="44"
-                    Background="#CC0088cc" Foreground="White"
-                    FontSize="20" Padding="0"
-                    CornerRadius="22"
-                    Canvas.ZIndex="10"
-                    Visibility="Collapsed">↓</Button>
             <ListView x:Name="MessagesListView" SelectionMode="None" Padding="10" IsItemClickEnabled="True" ItemClick="MessagesListView_ItemClick" Visibility="Collapsed">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
@@ -574,6 +551,30 @@
                 </ListView.ItemTemplate>
             </ListView>
             </ScrollViewer>
+
+            <!-- Индикатор дозагрузки старых сообщений — поверх, сверху по центру -->
+            <Border x:Name="OlderLoadingIndicator" Background="#CC000000" CornerRadius="16"
+                    Padding="12,6" Margin="0,8,0,0"
+                    VerticalAlignment="Top" HorizontalAlignment="Center"
+                    IsHitTestVisible="False" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal">
+                    <ProgressRing x:Name="OlderProgressRing" IsActive="False"
+                                  Width="18" Height="18" Foreground="White" Margin="0,0,8,0"/>
+                    <TextBlock Text="Загрузка..." Foreground="White" FontSize="13" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Кнопка скролла вниз — правый нижний угол -->
+            <Button x:Name="ScrollToBottomButton"
+                    Click="ScrollToBottom_Click"
+                    VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                    Margin="0,0,12,12"
+                    Width="44" Height="44"
+                    Background="#CC0088cc" Foreground="White"
+                    FontSize="20" Padding="0"
+                    Visibility="Collapsed">↓</Button>
+
+            </Grid><!-- конец обёрточного Grid Row=1 -->
 
             <Grid Grid.Row="1" x:Name="LoadingIndicator" Visibility="Collapsed">
                 <ProgressRing IsActive="True" Width="60" Height="60" Foreground="#0088cc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
