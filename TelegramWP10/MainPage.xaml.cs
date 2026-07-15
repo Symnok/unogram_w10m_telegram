@@ -1287,27 +1287,53 @@ namespace TelegramWP10
         }
 
         private void ScrollToBottomDelayed() {
-            // SizeChanged гарантирует что ListView прошёл layout pass
+            Log("ScrollToBottomDelayed called, items=" + _messageItems.Count
+                + " scrollable=" + MessagesScrollViewer.ScrollableHeight
+                + " listVisible=" + MessagesListView.Visibility);
+
+            // Подход 1 — сразу если уже есть размер
+            if (MessagesScrollViewer.ScrollableHeight > 0) {
+                MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, true);
+                Log("ScrollToBottom immediate ok");
+                return;
+            }
+
+            // Подход 2 — SizeChanged
             SizeChangedEventHandler handler = null;
-            int fallbackCount = 0;
             handler = (s2, e2) => {
                 double sh = MessagesScrollViewer.ScrollableHeight;
-                Log("SizeChanged scrollable=" + sh);
+                Log("SizeChanged scrollable=" + sh + " extent=" + MessagesScrollViewer.ExtentHeight);
                 if (sh > 0) {
                     MessagesListView.SizeChanged -= handler;
                     MessagesScrollViewer.ChangeView(null, sh, null, true);
                     Log("ScrollToBottom via SizeChanged ok");
-                } else {
-                    fallbackCount++;
-                    if (fallbackCount >= 3) {
-                        MessagesListView.SizeChanged -= handler;
-                        // Последний шанс — ScrollIntoView
-                        if (_messageItems.Count > 0)
-                            MessagesListView.ScrollIntoView(_messageItems[_messageItems.Count - 1]);
-                    }
                 }
             };
             MessagesListView.SizeChanged += handler;
+
+            // Подход 3 — таймер-страховка каждые 200мс до 2 сек
+            int ticks = 0;
+            var timer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            timer.Tick += (s2, e2) => {
+                ticks++;
+                double sh = MessagesScrollViewer.ScrollableHeight;
+                Log("Timer tick=" + ticks + " scrollable=" + sh + " extent=" + MessagesScrollViewer.ExtentHeight);
+                if (sh > 0) {
+                    timer.Stop();
+                    MessagesListView.SizeChanged -= handler;
+                    MessagesScrollViewer.ChangeView(null, sh, null, true);
+                    Log("ScrollToBottom via timer ok tick=" + ticks);
+                } else if (ticks >= 10) {
+                    timer.Stop();
+                    MessagesListView.SizeChanged -= handler;
+                    // Последний шанс
+                    if (_messageItems.Count > 0) {
+                        MessagesListView.ScrollIntoView(_messageItems[_messageItems.Count - 1]);
+                        Log("ScrollToBottom via ScrollIntoView fallback");
+                    }
+                }
+            };
+            timer.Start();
         }
 
         private void ScrollToBottom_Click(object sender, RoutedEventArgs e) {
