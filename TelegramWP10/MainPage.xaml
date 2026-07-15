@@ -80,7 +80,11 @@
                             <StackPanel Orientation="Horizontal" Margin="15,0,15,10">
                                 <TextBlock Text="Чатов: " Foreground="#888888" FontSize="13"/>
                                 <TextBlock x:Name="ChatCountText" Text="0" Foreground="#888888" FontSize="13"/>
-                                <TextBlock x:Name="ConnectionStatusText" Text="" Foreground="#FF6666" FontSize="13" Margin="8,0,0,0"/>
+                                <ProgressRing x:Name="ConnectionProgressRing" IsActive="False"
+                                              Width="14" Height="14" Foreground="#FF6666"
+                                              Margin="8,0,4,0" VerticalAlignment="Center"
+                                              Visibility="Collapsed"/>
+                                <TextBlock x:Name="ConnectionStatusText" Text="" Foreground="#FF6666" FontSize="13" Margin="0,0,0,0"/>
                             </StackPanel>
                         </StackPanel>
                         <!-- Шапка архива -->

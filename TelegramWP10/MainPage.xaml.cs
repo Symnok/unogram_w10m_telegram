@@ -760,18 +760,25 @@ namespace TelegramWP10
                         _proxyTimer?.Stop();
                         _connectingTimer?.Stop();
                         ConnectionStatusText.Text = "";
+                        ConnectionProgressRing.IsActive = false;
+                        ConnectionProgressRing.Visibility = Visibility.Collapsed;
                         if (_currentProxyId != 0) {
                             ProxyStatusText.Text = ProxyStatusText.Text.Replace("[..] ", "[ok] ");
                             ProxyStatusText.Visibility = Visibility.Visible;
                         }
                     } else {
                         _connectionReady = false;
-                        string connText = connState == "connectionStateConnecting"     ? "· подключение..."
-                            : connState == "connectionStateConnectingToProxy"          ? "· подключение к прокси..."
-                            : connState == "connectionStateUpdating"                   ? "· обновление..."
-                            : connState == "connectionStateWaitingForNetwork"          ? "· нет сети"
+                        bool spinning = connState == "connectionStateConnecting"
+                                     || connState == "connectionStateConnectingToProxy"
+                                     || connState == "connectionStateUpdating";
+                        string connText = connState == "connectionStateConnecting"          ? "подключение..."
+                            : connState == "connectionStateConnectingToProxy"               ? "подключение к прокси..."
+                            : connState == "connectionStateUpdating"                        ? "обновление..."
+                            : connState == "connectionStateWaitingForNetwork"               ? "· нет сети"
                             : "...";
                         ConnectionStatusText.Text = connText;
+                        ConnectionProgressRing.IsActive = spinning;
+                        ConnectionProgressRing.Visibility = spinning ? Visibility.Visible : Visibility.Collapsed;
                         // Если подключение через прокси зависло — через 10с пробуем следующий
                         if ((connState == "connectionStateConnecting" ||
                              connState == "connectionStateConnectingToProxy") &&
