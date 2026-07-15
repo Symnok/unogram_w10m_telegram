@@ -1205,8 +1205,6 @@ namespace TelegramWP10
                         LoadingIndicator.Visibility = Visibility.Collapsed;
                         MessagesListView.Visibility = Visibility.Visible;
                         if (_messageItems.Count > 0) {
-                            // Убираем подписку LayoutUpdated если была
-                            MessagesListView.LayoutUpdated -= handler;
                             ScrollToBottomDelayed();
                         }
                         long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
