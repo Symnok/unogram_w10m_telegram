@@ -121,8 +121,13 @@ namespace TelegramWP10
             // Подписываемся на ScrollViewer внутри MessagesListView для бесконечной прокрутки
             MessagesListView.Loaded += (s, e) => {
                 _messagesScrollViewer = FindScrollViewer(MessagesListView);
-                if (_messagesScrollViewer != null)
+                if (_messagesScrollViewer != null) {
+                    _messagesScrollViewer.ViewChanged -= MessagesScrollViewer_ViewChanged;
                     _messagesScrollViewer.ViewChanged += MessagesScrollViewer_ViewChanged;
+                    Log("ScrollViewer hooked");
+                } else {
+                    Log("ScrollViewer NOT FOUND");
+                }
             };
             // Сбрасываем UI в начальное состояние (на случай restore после suspend)
             LoginPanel.Visibility = Visibility.Visible;
@@ -1253,11 +1258,14 @@ namespace TelegramWP10
         }
 
         private void MessagesScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e) {
-            if (e.IsIntermediate) return; // ещё скроллит
             var sv = sender as ScrollViewer;
             if (sv == null) return;
-            // Если долистали до самого верха — грузим ещё
-            if (sv.VerticalOffset < 200 && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0)
+            double offset = sv.VerticalOffset;
+            double extent = sv.ExtentHeight;
+            // Триггерим когда в верхних 30% контента
+            bool nearTop = offset < sv.ViewportHeight * 0.5;
+            Log("Scroll offset=" + offset + " nearTop=" + nearTop + " loading=" + _loadingOlderHistory + " hasMore=" + _hasMoreHistory);
+            if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0)
                 LoadOlderMessages();
         }
 
