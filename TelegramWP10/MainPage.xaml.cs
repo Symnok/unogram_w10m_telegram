@@ -1208,6 +1208,8 @@ namespace TelegramWP10
                     } else {
                         // Дозагрузка старых — вставляем в начало, сохраняем позицию скролла
                         _loadingOlderHistory = false;
+                        OlderLoadingIndicator.Visibility = Visibility.Collapsed;
+                        OlderProgressRing.IsActive = false;
                         if (gotCount == 0) {
                             _hasMoreHistory = false; // больше нечего грузить
                             Log("no more history");
@@ -1247,6 +1249,11 @@ namespace TelegramWP10
         private void MessagesScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e) {
             double offset   = MessagesScrollViewer.VerticalOffset;
             double viewport = MessagesScrollViewer.ViewportHeight;
+            double scrollable = MessagesScrollViewer.ScrollableHeight;
+            // Кнопка скролла вниз — показываем если не у самого низа
+            bool atBottom = scrollable <= 0 || (scrollable - offset) < viewport * 0.3;
+            ScrollToBottomButton.Visibility = atBottom ? Visibility.Collapsed : Visibility.Visible;
+            // Дозагрузка истории вверху
             bool nearTop = offset < viewport * 0.5;
             if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0) {
                 Log("Scroll nearTop — LoadOlder offset=" + offset);
@@ -1254,11 +1261,17 @@ namespace TelegramWP10
             }
         }
 
+        private void ScrollToBottom_Click(object sender, RoutedEventArgs e) {
+            MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
+        }
+
         private void LoadOlderMessages() {
             // Берём самое старое сообщение (не разделитель дат)
             var oldest = _messageItems.FirstOrDefault(m => !m.IsSeparator);
             if (oldest == null) return;
             _loadingOlderHistory = true;
+            OlderLoadingIndicator.Visibility = Visibility.Visible;
+            OlderProgressRing.IsActive = true;
             Log("LoadOlder from_msg_id=" + oldest.Id);
             string req = _threadMessageId != 0
                 ? "{\"@type\":\"getMessageThreadHistory\",\"chat_id\":" + _currentChatId + ",\"message_id\":" + _threadMessageId + ",\"from_message_id\":" + oldest.Id + ",\"offset\":0,\"limit\":50}"
@@ -2025,6 +2038,12 @@ namespace TelegramWP10
             _historyRetryCount = 0;
             _loadingOlderHistory = false;
             _hasMoreHistory = true;
+            if (OlderLoadingIndicator != null) {
+                OlderLoadingIndicator.Visibility = Visibility.Collapsed;
+                OlderProgressRing.IsActive = false;
+            }
+            if (ScrollToBottomButton != null)
+                ScrollToBottomButton.Visibility = Visibility.Collapsed;
             _currentChatOutboxReadId = chat.OutboxReadId;
             _messageItems.Clear();
             _messagesDict.Clear();
