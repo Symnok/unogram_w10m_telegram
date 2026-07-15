@@ -322,6 +322,11 @@
                           HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                           ViewChanged="MessagesScrollViewer_ViewChanged">
             <ListView x:Name="MessagesListView" SelectionMode="None" Padding="10" IsItemClickEnabled="True" ItemClick="MessagesListView_ItemClick" Visibility="Collapsed">
+                <ListView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsStackPanel ItemsUpdatingScrollMode="KeepLastItemInView"/>
+                    </ItemsPanelTemplate>
+                </ListView.ItemsPanel>
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>

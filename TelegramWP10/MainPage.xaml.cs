@@ -1219,7 +1219,8 @@ namespace TelegramWP10
                             _hasMoreHistory = false; // больше нечего грузить
                             Log("no more history");
                         } else {
-                            // Запоминаем высоту до вставки чтобы не прыгал скролл
+                            // Переключаем режим чтобы скролл не прыгал при вставке вверху
+                            SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
                             double oldHeight = MessagesScrollViewer.ExtentHeight;
                             double oldOffset = MessagesScrollViewer.VerticalOffset;
                             int insertIdx = 0;
@@ -1266,19 +1267,41 @@ namespace TelegramWP10
             }
         }
 
+        private ItemsStackPanel GetItemsStackPanel() {
+            return FindVisualChild<ItemsStackPanel>(MessagesListView);
+        }
+
+        private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject {
+            int count = Windows.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++) {
+                var child = Windows.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is T t) return t;
+                var result = FindVisualChild<T>(child);
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        private void SetScrollMode(ItemsUpdatingScrollMode mode) {
+            var panel = GetItemsStackPanel();
+            if (panel != null) panel.ItemsUpdatingScrollMode = mode;
+        }
+
         private void ScrollToBottomDelayed() {
-            // Пробуем несколько раз — ListView рендерится асинхронно
             int attempts = 0;
             var timer = new Windows.UI.Xaml.DispatcherTimer();
-            timer.Interval = TimeSpan.FromMilliseconds(100);
+            timer.Interval = TimeSpan.FromMilliseconds(150);
             timer.Tick += (s2, e2) => {
                 attempts++;
-                var last = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1] : null;
-                if (last != null) {
-                    MessagesListView.ScrollIntoView(last);
-                    Log("ScrollIntoView attempt=" + attempts + " scrollable=" + MessagesScrollViewer.ScrollableHeight);
+                // Переключаем в KeepLastItemInView чтобы ListView сам прокрутился вниз
+                SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
+                if (MessagesScrollViewer.ScrollableHeight > 0) {
+                    MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, true);
+                    Log("ScrollToBottom ok attempt=" + attempts);
+                    timer.Stop();
+                } else if (attempts >= 8) {
+                    timer.Stop();
                 }
-                if (attempts >= 5) timer.Stop(); // максимум 5 попыток за 500мс
             };
             timer.Start();
         }
