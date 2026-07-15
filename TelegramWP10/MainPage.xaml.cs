@@ -1205,9 +1205,22 @@ namespace TelegramWP10
                         LoadingIndicator.Visibility = Visibility.Collapsed;
                         MessagesListView.Visibility = Visibility.Visible;
                         if (_messageItems.Count > 0) {
-                            MessagesListView.UpdateLayout();
-                            // Скроллим вниз через ScrollViewer
-                            MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, true);
+                            // Ждём пока ListView отрисует элементы — ScrollableHeight будет > 0
+                            EventHandler<object> handler = null;
+                            handler = (s2, e2) => {
+                                if (MessagesScrollViewer.ScrollableHeight > 0) {
+                                    MessagesListView.LayoutUpdated -= handler;
+                                    MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, true);
+                                }
+                            };
+                            MessagesListView.LayoutUpdated += handler;
+                            // Страховка — если LayoutUpdated не сработал за 1 сек
+                            Task.Delay(1000).ContinueWith(_ =>
+                                Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                                    MessagesListView.LayoutUpdated -= handler;
+                                    if (MessagesScrollViewer.ScrollableHeight > 0)
+                                        MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, true);
+                                }));
                         }
                         long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
                         if (lastMsgId != 0)
