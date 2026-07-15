@@ -311,7 +311,11 @@
                 </StackPanel>
             </StackPanel>
 
-            <ListView x:Name="MessagesListView" Grid.Row="1" SelectionMode="None" Padding="10" IsItemClickEnabled="True" ItemClick="MessagesListView_ItemClick" Visibility="Collapsed">
+            <ScrollViewer x:Name="MessagesScrollViewer" Grid.Row="1"
+                          VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                          ViewChanged="MessagesScrollViewer_ViewChanged">
+            <ListView x:Name="MessagesListView" SelectionMode="None" Padding="10" IsItemClickEnabled="True" ItemClick="MessagesListView_ItemClick" Visibility="Collapsed">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -544,6 +548,7 @@
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
+            </ScrollViewer>
 
             <Grid Grid.Row="1" x:Name="LoadingIndicator" Visibility="Collapsed">
                 <ProgressRing IsActive="True" Width="60" Height="60" Foreground="#0088cc" HorizontalAlignment="Center" VerticalAlignment="Center"/>

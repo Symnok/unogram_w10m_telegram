@@ -41,8 +41,7 @@ namespace TelegramWP10
         private long _pendingHistoryChatId = 0;
         private int _historyRetryCount = 0;
         private bool _loadingOlderHistory = false;
-        private bool _hasMoreHistory = true;       // есть ли ещё старые сообщения
-        private ScrollViewer _messagesScrollViewer = null; // кэш ScrollViewer // true = дозагрузка старых, false = начальная загрузка
+        private bool _hasMoreHistory = true; // true = дозагрузка старых, false = начальная загрузка
         private long _currentChatOutboxReadId = 0;
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
@@ -111,24 +110,13 @@ namespace TelegramWP10
                 _isLightTheme = (bool)ls.Values["light_theme"];
             if (ls.Values.ContainsKey("sound_enabled"))
                 _soundEnabled = (bool)ls.Values["sound_enabled"];
-            // Текст кнопки звука обновляется в Loaded
-            this.Loaded += (s2, e2) => {
+            // Подписка на скролл идёт через x:Name="MessagesScrollViewer" в XAML — ViewChanged там же
+            this.Loaded += (s, e2) => {
                 if (SoundToggleItem != null)
                     SoundToggleItem.Text = _soundEnabled ? "🔔 Звук: Вкл" : "🔕 Звук: Выкл";
             };
             // ApplyTheme вызывается в Loaded когда все элементы готовы
             this.Loaded += (s, e) => ApplyTheme();
-            // Подписываемся на ScrollViewer внутри MessagesListView для бесконечной прокрутки
-            MessagesListView.Loaded += (s, e) => {
-                _messagesScrollViewer = FindScrollViewer(MessagesListView);
-                if (_messagesScrollViewer != null) {
-                    _messagesScrollViewer.ViewChanged -= MessagesScrollViewer_ViewChanged;
-                    _messagesScrollViewer.ViewChanged += MessagesScrollViewer_ViewChanged;
-                    Log("ScrollViewer hooked");
-                } else {
-                    Log("ScrollViewer NOT FOUND");
-                }
-            };
             // Сбрасываем UI в начальное состояние (на случай restore после suspend)
             LoginPanel.Visibility = Visibility.Visible;
             ChatListView.Visibility = Visibility.Collapsed;
@@ -1211,7 +1199,8 @@ namespace TelegramWP10
                         MessagesListView.Visibility = Visibility.Visible;
                         if (_messageItems.Count > 0) {
                             MessagesListView.UpdateLayout();
-                            MessagesListView.ScrollIntoView(_messageItems[_messageItems.Count - 1]);
+                            // Скроллим вниз через ScrollViewer
+                            MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, true);
                         }
                         long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
                         if (lastMsgId != 0)
@@ -1224,8 +1213,8 @@ namespace TelegramWP10
                             Log("no more history");
                         } else {
                             // Запоминаем высоту до вставки чтобы не прыгал скролл
-                            double oldHeight = _messagesScrollViewer?.ExtentHeight ?? 0;
-                            double oldOffset = _messagesScrollViewer?.VerticalOffset ?? 0;
+                            double oldHeight = MessagesScrollViewer.ExtentHeight;
+                            double oldOffset = MessagesScrollViewer.VerticalOffset;
                             int insertIdx = 0;
                             for (int i = msgs.Count - 1; i >= 0; i--) {
                                 var it = ParseMessage(msgs[i]);
@@ -1236,11 +1225,9 @@ namespace TelegramWP10
                             _hasMoreHistory = gotCount >= 50;
                             // Восстанавливаем позицию скролла
                             MessagesListView.UpdateLayout();
-                            if (_messagesScrollViewer != null) {
-                                double newHeight = _messagesScrollViewer.ExtentHeight;
-                                double diff = newHeight - oldHeight;
-                                _messagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
-                            }
+                            double newHeight = MessagesScrollViewer.ExtentHeight;
+                            double diff = newHeight - oldHeight;
+                            MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
                         }
                     }
                     break;
@@ -1258,15 +1245,13 @@ namespace TelegramWP10
         }
 
         private void MessagesScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e) {
-            var sv = sender as ScrollViewer;
-            if (sv == null) return;
-            double offset = sv.VerticalOffset;
-            double extent = sv.ExtentHeight;
-            // Триггерим когда в верхних 30% контента
-            bool nearTop = offset < sv.ViewportHeight * 0.5;
-            Log("Scroll offset=" + offset + " nearTop=" + nearTop + " loading=" + _loadingOlderHistory + " hasMore=" + _hasMoreHistory);
-            if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0)
+            double offset   = MessagesScrollViewer.VerticalOffset;
+            double viewport = MessagesScrollViewer.ViewportHeight;
+            bool nearTop = offset < viewport * 0.5;
+            if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0) {
+                Log("Scroll nearTop — LoadOlder offset=" + offset);
                 LoadOlderMessages();
+            }
         }
 
         private void LoadOlderMessages() {
