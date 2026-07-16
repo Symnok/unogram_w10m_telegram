@@ -2482,15 +2482,14 @@ namespace TelegramWP10
             // Копируем файл в папку приложения чтобы TDLib мог его прочитать
             var copy = await file.CopyAsync(_filesFolder, file.Name, Windows.Storage.NameCollisionOption.ReplaceExisting);
             string path = copy.Path.Replace("\\", "/");
-            // Сначала загружаем файл в TDLib, потом отправляем через file_id
-            _pendingUploadType = "doc";
-            _pendingUploadChatId = _currentChatId;
-            string uploadReq = "{\"@type\":\"preliminaryUploadFile\"" +
-                ",\"file\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
-                ",\"file_type\":{\"@type\":\"fileTypeDocument\"}" +
-                ",\"priority\":1}";
-            Log("UPLOAD DOC path=" + path);
-            TdJson.SendUtf8(_client, uploadReq);
+            string docReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
+                ",\"document\":{\"@type\":\"inputDocument\"" +
+                ",\"document\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
+                ",\"disable_content_type_detection\":false}" +
+                ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+            Log("SEND DOC json=" + docReq);
+            TdJson.SendUtf8(_client, docReq);
         }
 
         private void AudioSlider_ManipulationStarted(object sender, Windows.UI.Xaml.Input.ManipulationStartedRoutedEventArgs e) {
@@ -2667,14 +2666,15 @@ namespace TelegramWP10
                 int durationSec = (int)props.Duration.TotalSeconds;
                 Log("MIC duration: " + durationSec + " sec");
                 string voicePath = _recordingFile.Path.Replace("\\", "/");
-                _pendingUploadType = "voice_" + durationSec;
-                _pendingUploadChatId = _currentChatId;
-                string uploadVoiceReq = "{\"@type\":\"preliminaryUploadFile\"" +
-                    ",\"file\":{\"@type\":\"inputFileLocal\",\"path\":\"" + voicePath.Replace("\"","\\\"") + "\"}" +
-                    ",\"file_type\":{\"@type\":\"fileTypeVoiceNote\"}" +
-                    ",\"priority\":1}";
-                Log("UPLOAD VOICE path=" + voicePath);
-                TdJson.SendUtf8(_client, uploadVoiceReq);
+                string voiceReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                    ",\"input_message_content\":{\"@type\":\"inputMessageVoiceNote\"" +
+                    ",\"voice_note\":{\"@type\":\"inputVoiceNote\"" +
+                    ",\"voice_note\":{\"@type\":\"inputFileLocal\",\"path\":\"" + voicePath.Replace("\"","\\\"") + "\"}" +
+                    ",\"duration\":" + durationSec +
+                    ",\"waveform\":\"\"}" +
+                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+                Log("MIC voice json=" + voiceReq);
+                TdJson.SendUtf8(_client, voiceReq);
                 Log("MIC sent voice note");
             } catch (Exception ex) {
                 Log("MIC STOP ERR: " + ex.GetType().Name + " — " + ex.Message);
