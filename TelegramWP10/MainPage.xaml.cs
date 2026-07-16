@@ -1388,7 +1388,7 @@ namespace TelegramWP10
             }
         }
 
-        // Polling таймер — проверяем nearTop каждые 500мс пока пользователь у верха
+        private void ScrollToBottom_Click(object sender, RoutedEventArgs e) {
             if (_hasMoreBottom) {
                 // Перезагружаем последние сообщения
                 _hasMoreBottom = false;
