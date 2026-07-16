@@ -271,8 +271,8 @@ namespace TelegramWP10
 
         private async void InitAsync() {
             try {
-                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
-                var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
+                var localFolder = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Music);
+                var appFolder = await localFolder.SaveFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
@@ -998,11 +998,25 @@ namespace TelegramWP10
                     long ucriId = update["chat_id"]?.ToObject<long>() ?? 0;
                     if (ucriId != 0 && _chatsDict.ContainsKey(ucriId)) {
                         _chatsDict[ucriId].UnreadCount = update["unread_count"]?.ToObject<int>() ?? 0;
-                        // Снимаем флаг IsMarkedUnread когда пришли реальные прочтения
                         if (_chatsDict[ucriId].UnreadCount == 0)
                             _chatsDict[ucriId].IsMarkedUnread = false;
                         if (_archiveChatItems.Any(ch => ch.Id == ucriId))
                             UpdateArchiveUnreadBadge();
+                        // Убираем разделитель "Новые сообщения" если это текущий чат
+                        if (ucriId == _currentChatId) {
+                            long newLastRead = update["last_read_inbox_message_id"]?.ToObject<long>() ?? 0;
+                            if (newLastRead > _lastReadInboxMsgId) {
+                                _lastReadInboxMsgId = newLastRead;
+                                var sepIdx = -1;
+                                for (int si = 0; si < _messageItems.Count; si++) {
+                                    if (_messageItems[si].IsUnreadSeparator) { sepIdx = si; break; }
+                                }
+                                if (sepIdx >= 0) {
+                                    _messageItems.RemoveAt(sepIdx);
+                                    Log("UnreadSeparator removed after ReadInbox");
+                                }
+                            }
+                        }
                     }
                     break;
 
@@ -1273,7 +1287,12 @@ namespace TelegramWP10
                         LoadingIndicator.Visibility = Visibility.Collapsed;
                         MessagesListView.Visibility = Visibility.Visible;
                         if (_messageItems.Count > 0) {
-                            ScrollToBottomDelayed();
+                            // Если есть разделитель непрочитанных — скроллим к нему
+                            var unreadSep = _messageItems.FirstOrDefault(m => m.IsUnreadSeparator);
+                            if (unreadSep != null)
+                                ScrollToItemDelayed(unreadSep);
+                            else
+                                ScrollToBottomDelayed();
                         }
                         long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
                         if (lastMsgId != 0)
@@ -1341,6 +1360,37 @@ namespace TelegramWP10
             }
         }
 
+
+        private void ScrollToItemDelayed(MessageItem target) {
+            _scrollTimer?.Stop();
+            _autoScrolling = true;
+            int ticks = 0;
+            double prevHeight = -1;
+            int stableTicks = 0;
+            _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _scrollTimer.Tick += (s2, e2) => {
+                ticks++;
+                double sh = MessagesScrollViewer.ScrollableHeight;
+                if (sh > 0 && sh == prevHeight) {
+                    stableTicks++;
+                    if (stableTicks >= 2) {
+                        _scrollTimer.Stop();
+                        MessagesListView.ScrollIntoView(target, ScrollIntoViewAlignment.Leading);
+                        _autoScrolling = false;
+                        Log("ScrollToUnreadSep done tick=" + ticks);
+                    }
+                } else {
+                    stableTicks = 0;
+                    prevHeight = sh;
+                }
+                if (ticks >= 30) {
+                    _scrollTimer.Stop();
+                    MessagesListView.ScrollIntoView(target, ScrollIntoViewAlignment.Leading);
+                    _autoScrolling = false;
+                }
+            };
+            _scrollTimer.Start();
+        }
 
         private void ScrollToBottomDelayed() {
             _scrollTimer?.Stop();
