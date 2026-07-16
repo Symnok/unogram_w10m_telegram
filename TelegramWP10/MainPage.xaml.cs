@@ -1972,6 +1972,28 @@ namespace TelegramWP10
                             item.DownloadStatus = "📂 Открыть";
                         }
                     }
+                } else if (type == "messageVoiceNote") {
+                    var voiceNote = content["voice_note"];
+                    var voiceFile = voiceNote?["voice"] as JObject;
+                    int dur = voiceNote?["duration"]?.ToObject<int>() ?? 0;
+                    item.IsAudio = true;
+                    item.AudioTitle = "🎤 Голосовое";
+                    item.AudioDuration = dur > 0 ? FormatCallDuration(dur) : "";
+                    item.AudioPlayStatus = "▶";
+                    if (voiceFile != null) {
+                        long vfid = (long)voiceFile["id"];
+                        _fileToMsgId[vfid] = msgId;
+                        _messagesDict[msgId] = item;
+                        string vPath = voiceFile["local"]?["path"]?.ToString();
+                        Log("VOICE msg=" + msgId + " file_id=" + vfid + " path=" + vPath);
+                        if (!string.IsNullOrEmpty(vPath)) {
+                            item.FilePath = vPath;
+                            item.DownloadStatus = "ready";
+                        } else {
+                            item.AudioPlayStatus = "⏳";
+                            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + vfid + ",\"priority\":10,\"synchronous\":false}");
+                        }
+                    }
                 } else if (type == "messageAudio") {
                     var audio = content["audio"];
                     var audioFile = audio?["audio"] as JObject;
@@ -1998,7 +2020,7 @@ namespace TelegramWP10
                         }
                     }
                 }
-                if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio" && type != "messageSticker" && type != "messagePoll") {
+                if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio" && type != "messageVoiceNote" && type != "messageSticker" && type != "messagePoll") {
                     if (type == "messageCall") {
                         var callContent = content;
                         bool isVideo = callContent["is_video"]?.ToObject<bool>() ?? false;
