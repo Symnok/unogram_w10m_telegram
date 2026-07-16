@@ -1218,8 +1218,6 @@ namespace TelegramWP10
                             _hasMoreHistory = false; // больше нечего грузить
                             Log("no more history");
                         } else {
-                            // Переключаем режим чтобы скролл не прыгал при вставке вверху
-                            SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
                             double oldHeight = MessagesScrollViewer.ExtentHeight;
                             double oldOffset = MessagesScrollViewer.VerticalOffset;
                             int insertIdx = 0;
@@ -1266,67 +1264,33 @@ namespace TelegramWP10
             }
         }
 
-        private ItemsStackPanel GetItemsStackPanel() {
-            return FindVisualChild<ItemsStackPanel>(MessagesListView);
-        }
-
-        private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject {
-            int count = Windows.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
-            for (int i = 0; i < count; i++) {
-                var child = Windows.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
-                if (child is T t) return t;
-                var result = FindVisualChild<T>(child);
-                if (result != null) return result;
-            }
-            return null;
-        }
-
-        private void SetScrollMode(ItemsUpdatingScrollMode mode) {
-            var panel = GetItemsStackPanel();
-            if (panel != null) panel.ItemsUpdatingScrollMode = mode;
-        }
-
-        private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
 
         private void ScrollToBottomDelayed() {
-            // Останавливаем предыдущий таймер если был
             _scrollTimer?.Stop();
 
-            if (MessagesScrollViewer.ScrollableHeight > 0) {
-                MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
-                Log("ScrollToBottom immediate");
-                return;
+            // ScrollIntoView на последний элемент — самый надёжный способ на WP10
+            void DoScroll() {
+                if (_messageItems.Count > 0) {
+                    var last = _messageItems[_messageItems.Count - 1];
+                    MessagesListView.ScrollIntoView(last, ScrollIntoViewAlignment.Leading);
+                    // Leading = элемент сверху, но для последнего это означает самый низ
+                    // Дополнительно ChangeView для гарантии
+                    if (MessagesScrollViewer.ScrollableHeight > 0)
+                        MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
+                }
             }
 
-            SizeChangedEventHandler handler = null;
-            handler = (s2, e2) => {
-                double sh = MessagesScrollViewer.ScrollableHeight;
-                if (sh > 0) {
-                    MessagesListView.SizeChanged -= handler;
-                    _scrollTimer?.Stop();
-                    MessagesScrollViewer.ChangeView(null, sh, null, false);
-                    Log("ScrollToBottom SizeChanged ok sh=" + sh);
-                }
-            };
-            MessagesListView.SizeChanged += handler;
+            if (MessagesListView.Visibility == Visibility.Visible && _messageItems.Count > 0) {
+                DoScroll();
+            }
 
+            // Таймер — повторяем несколько раз пока список рендерится
             int ticks = 0;
-            _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
             _scrollTimer.Tick += (s2, e2) => {
                 ticks++;
-                double sh = MessagesScrollViewer.ScrollableHeight;
-                if (sh > 0) {
-                    _scrollTimer.Stop();
-                    MessagesListView.SizeChanged -= handler;
-                    MessagesScrollViewer.ChangeView(null, sh, null, false);
-                    Log("ScrollToBottom timer ok tick=" + ticks);
-                } else if (ticks >= 10) {
-                    _scrollTimer.Stop();
-                    MessagesListView.SizeChanged -= handler;
-                    if (_messageItems.Count > 0)
-                        MessagesListView.ScrollIntoView(_messageItems[_messageItems.Count - 1]);
-                    Log("ScrollToBottom ScrollIntoView fallback");
-                }
+                DoScroll();
+                if (ticks >= 6) _scrollTimer.Stop();
             };
             _scrollTimer.Start();
         }
