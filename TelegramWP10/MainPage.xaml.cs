@@ -1307,12 +1307,14 @@ namespace TelegramWP10
                         } else {
                             double oldHeight = MessagesScrollViewer.ExtentHeight;
                             double oldOffset = MessagesScrollViewer.VerticalOffset;
+                            // Вставляем новые сообщения в начало
                             int insertIdx = 0;
                             for (int i = msgs.Count - 1; i >= 0; i--) {
                                 var it = ParseMessage(msgs[i]);
                                 if (it != null) _messageItems.Insert(insertIdx++, it);
                             }
-                            RebuildDateSeparators();
+                            // Вставляем только разделители для новых сообщений — не перестраиваем всё
+                            InsertDateSeparatorsForRange(0, insertIdx);
                             Log("prepended " + gotCount + " older messages, total=" + _messageItems.Count);
                             _hasMoreHistory = gotCount >= 50;
                             // Восстанавливаем позицию скролла
@@ -1563,6 +1565,45 @@ namespace TelegramWP10
         }
 
         // Удаляет все разделители и вставляет заново (после дозагрузки старых сообщений)
+        // Вставляет разделители дат только для диапазона [0..count] новых сообщений
+        // Не трогает остальной список
+        private void InsertDateSeparatorsForRange(int start, int count) {
+            var today = DateTime.Today;
+            // Обрабатываем только новые сообщения + первое старое для проверки границы
+            int end = start + count;
+            // Идём с конца диапазона к началу чтобы вставка не сбивала индексы
+            DateTime? prevDay = null;
+            // Узнаём день первого сообщения после нашего диапазона
+            for (int i = end; i < _messageItems.Count; i++) {
+                if (!_messageItems[i].IsSeparator) { prevDay = _messageItems[i].RawDate.Date; break; }
+            }
+            // Вставляем разделители для новых сообщений
+            int i2 = end - 1;
+            while (i2 >= start) {
+                var item = _messageItems[i2];
+                if (item.IsSeparator) { i2--; continue; }
+                var day = item.RawDate.Date;
+                if (prevDay == null || day != prevDay.Value) {
+                    // Нужен разделитель перед следующим сообщением с другим днём
+                    // Ищем следующее не-сепаратор после i2
+                    bool needSep = prevDay == null || day != prevDay.Value;
+                    if (needSep && i2 + 1 < _messageItems.Count) {
+                        var next = _messageItems[i2 + 1];
+                        if (!next.IsSeparator || !next.SeparatorLabel.Equals(MakeSeparator(day, today).SeparatorLabel))
+                            _messageItems.Insert(i2 + 1, MakeSeparator(day, today));
+                    }
+                }
+                prevDay = day;
+                i2--;
+            }
+            // Проверяем нужен ли разделитель в самом начале
+            if (_messageItems.Count > 0) {
+                var first = _messageItems[0];
+                if (!first.IsSeparator)
+                    _messageItems.Insert(0, MakeSeparator(first.RawDate.Date, today));
+            }
+        }
+
         private void RebuildDateSeparators() {
             for (int i = _messageItems.Count - 1; i >= 0; i--)
                 if (_messageItems[i].IsSeparator) _messageItems.RemoveAt(i);
