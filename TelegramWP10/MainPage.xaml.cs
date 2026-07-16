@@ -1005,19 +1005,17 @@ namespace TelegramWP10
                         // Убираем разделитель "Новые сообщения" если это текущий чат
                         if (ucriId == _currentChatId) {
                             long newLastRead = update["last_read_inbox_message_id"]?.ToObject<long>() ?? 0;
-                            if (newLastRead > _lastReadInboxMsgId) {
-                                _lastReadInboxMsgId = newLastRead;
-                                var sepIdx = -1;
-                                for (int si = 0; si < _messageItems.Count; si++) {
-                                    if (_messageItems[si].IsUnreadSeparator) { sepIdx = si; break; }
-                                }
-                                if (sepIdx >= 0) {
-                                    _messageItems.RemoveAt(sepIdx);
-                                    Log("UnreadSeparator removed after ReadInbox");
-                                }
+                            // Ищем и удаляем разделитель если сообщения прочитаны
+                            var sepIdx = -1;
+                            for (int si = 0; si < _messageItems.Count; si++) {
+                                if (_messageItems[si].IsUnreadSeparator) { sepIdx = si; break; }
+                            }
+                            if (sepIdx >= 0 && newLastRead > 0) {
+                                _messageItems.RemoveAt(sepIdx);
+                                Log("UnreadSeparator removed after ReadInbox");
                             }
                         }
-                        // Обновляем rawChatsDict чтобы при повторном открытии чата был актуальный last_read
+                        // Обновляем rawChatsDict для следующего открытия чата
                         if (_rawChatsDict.ContainsKey(ucriId)) {
                             var raw = _rawChatsDict[ucriId] as JObject;
                             if (raw != null)
