@@ -167,9 +167,13 @@ namespace TelegramWP10
 
         // Разделитель дат между сообщениями разных дней
         public bool IsSeparator { get; set; } = false;
+        public bool IsUnreadSeparator { get; set; } = false;
         public string SeparatorLabel { get; set; } = "";
         public Visibility SeparatorVisibility => IsSeparator ? Visibility.Visible : Visibility.Collapsed;
         public Visibility MessageVisibility => IsSeparator ? Visibility.Collapsed : Visibility.Visible;
+        // Разделитель непрочитанных — другой цвет фона
+        public string SeparatorBackground => IsUnreadSeparator ? "#CC2AABEE" : "#AA333333";
+        public string SeparatorTextColor => "#FFFFFF";
 
         // Пересланное сообщение — имя оригинального отправителя
         private string _forwardedFrom = "";

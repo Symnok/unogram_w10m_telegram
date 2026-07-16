@@ -334,8 +334,8 @@
                             <!-- Разделитель дат -->
                             <Border Visibility="{Binding SeparatorVisibility}" HorizontalAlignment="Stretch" Margin="0,6,0,6">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <Border Background="#44FFFFFF" CornerRadius="10" Padding="12,4">
-                                        <TextBlock Text="{Binding SeparatorLabel}" FontSize="12" Foreground="#CCFFFFFF" FontWeight="SemiBold"/>
+                                    <Border Background="{Binding SeparatorBackground}" CornerRadius="10" Padding="12,4">
+                                        <TextBlock Text="{Binding SeparatorLabel}" FontSize="12" Foreground="{Binding SeparatorTextColor}" FontWeight="SemiBold"/>
                                     </Border>
                                 </StackPanel>
                             </Border>

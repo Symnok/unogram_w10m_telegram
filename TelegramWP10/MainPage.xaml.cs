@@ -21,6 +21,7 @@ namespace TelegramWP10
         private ObservableCollection<ChatItem> _chatListItems = new ObservableCollection<ChatItem>();
         private ObservableCollection<MessageItem> _messageItems = new ObservableCollection<MessageItem>();
         private Dictionary<long, ChatItem> _chatsDict = new Dictionary<long, ChatItem>();
+        private Dictionary<long, JToken> _rawChatsDict = new Dictionary<long, JToken>(); // сырой JSON чата
         private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>(); // userId → user object
         private Dictionary<long, long> _fileToChatId = new Dictionary<long, long>();
         private Dictionary<long, long> _fileToMsgId = new Dictionary<long, long>();
@@ -50,6 +51,7 @@ namespace TelegramWP10
         private string _pendingUploadType = ""; // "doc" или "voice"
         private long   _pendingUploadChatId = 0; // true пока идёт автоскролл вниз после загрузки
         private long _currentChatOutboxReadId = 0;
+        private long _lastReadInboxMsgId = 0; // последнее прочитанное входящее при открытии чата
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
         private string _dbPath = "";
@@ -559,6 +561,7 @@ namespace TelegramWP10
                 case "updateNewChat":
                     var c = update["chat"];
                     long chatId = (long)c["id"];
+                    _rawChatsDict[chatId] = c; // сохраняем сырой JSON для last_read_inbox_message_id
                     Log("updateNewChat id=" + chatId + " _isAuthorized=" + _isAuthorized
                         + " LoginPanel=" + LoginPanel.Visibility
                         + " ChatListView=" + ChatListView.Visibility
@@ -1478,6 +1481,28 @@ namespace TelegramWP10
                 }
                 lastDate = msgDay;
             }
+            InsertUnreadSeparator();
+        }
+
+        private void InsertUnreadSeparator() {
+            if (_lastReadInboxMsgId <= 0) return;
+            // Ищем первое входящее сообщение после _lastReadInboxMsgId
+            for (int i = 0; i < _messageItems.Count; i++) {
+                var item = _messageItems[i];
+                if (item.IsSeparator) continue;
+                if (!item.IsOutgoing && item.Id > _lastReadInboxMsgId) {
+                    // Вставляем разделитель перед этим сообщением
+                    var sep = new MessageItem {
+                        IsSeparator = true,
+                        SeparatorLabel = "Новые сообщения",
+                        IsUnreadSeparator = true,
+                        Background = "#00000000"
+                    };
+                    _messageItems.Insert(i, sep);
+                    Log("UnreadSeparator inserted before msg=" + item.Id);
+                    return;
+                }
+            }
         }
 
         // Удаляет все разделители и вставляет заново (после дозагрузки старых сообщений)
@@ -2179,6 +2204,14 @@ namespace TelegramWP10
             if (ScrollToBottomButton != null)
                 ScrollToBottomButton.Visibility = Visibility.Collapsed;
             _currentChatOutboxReadId = chat.OutboxReadId;
+            // Сохраняем последнее прочитанное входящее — для разделителя "Новые сообщения"
+            _lastReadInboxMsgId = 0;
+            if (_chatsDict.ContainsKey(chat.Id)) {
+                // Берём из TDLib — last_read_inbox_message_id хранится в chat объекте
+                var rawChat = _rawChatsDict.ContainsKey(chat.Id) ? _rawChatsDict[chat.Id] : null;
+                if (rawChat != null)
+                    _lastReadInboxMsgId = rawChat["last_read_inbox_message_id"]?.ToObject<long>() ?? 0;
+            }
             _messageItems.Clear();
             _messagesDict.Clear();
             _fileToMsgId.Clear();
