@@ -639,16 +639,16 @@ namespace TelegramWP10
 
                             // Отправка стикера — ждём пока файл скачается
                             if (isCompleted && fid == _pendingStickerFileId && _pendingStickerChatId != 0) {
-                                long chatId = _pendingStickerChatId;
-                                long fileId = _pendingStickerFileId;
-                                long threadId = _threadMessageId;
+                                long sChatId   = _pendingStickerChatId;
+                                long sFileId   = _pendingStickerFileId;
+                                long sThreadId = _threadMessageId;
                                 _pendingStickerFileId = 0;
                                 _pendingStickerChatId = 0;
-                                string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + chatId +
-                                    (threadId != 0 ? ",\"message_thread_id\":" + threadId : "") +
+                                string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + sChatId +
+                                    (sThreadId != 0 ? ",\"message_thread_id\":" + sThreadId : "") +
                                     ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
-                                    ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + fileId + "}}}";
-                                Log("SEND STICKER (after download) file_id=" + fileId);
+                                    ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + sFileId + "}}}";
+                                Log("SEND STICKER (after download) file_id=" + sFileId);
                                 TdJson.SendUtf8(_client, sReq);
                             }
 
