@@ -1360,6 +1360,46 @@ namespace TelegramWP10
             MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
         }
 
+        private void ScrollToBottomDelayed() {
+            _scrollTimer?.Stop();
+            _autoScrolling = true;
+            double prevHeight = -1;
+            int stableTicks = 0;
+            int totalTicks = 0;
+            _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _scrollTimer.Tick += (s2, e2) => {
+                totalTicks++;
+                double sh = MessagesScrollViewer.ScrollableHeight;
+                if (sh > 0 && sh == prevHeight) {
+                    stableTicks++;
+                    if (stableTicks >= 2) {
+                        _scrollTimer.Stop();
+                        var unreadSep = _messageItems.FirstOrDefault(m => m.IsUnreadSeparator);
+                        if (unreadSep != null) {
+                            MessagesListView.ScrollIntoView(unreadSep, ScrollIntoViewAlignment.Leading);
+                            Log("ScrollToUnreadSep tick=" + totalTicks);
+                        } else {
+                            MessagesScrollViewer.ChangeView(null, sh, null, false);
+                            Log("ScrollToBottom stable tick=" + totalTicks + " sh=" + sh);
+                        }
+                    }
+                } else {
+                    stableTicks = 0;
+                    prevHeight = sh;
+                }
+                if (totalTicks >= 30) {
+                    _scrollTimer.Stop();
+                    var unreadSep2 = _messageItems.FirstOrDefault(m => m.IsUnreadSeparator);
+                    if (unreadSep2 != null)
+                        MessagesListView.ScrollIntoView(unreadSep2, ScrollIntoViewAlignment.Leading);
+                    else if (MessagesScrollViewer.ScrollableHeight > 0)
+                        MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
+                    _autoScrolling = false;
+                }
+            };
+            _scrollTimer.Start();
+        }
+
         private void LoadOlderMessages() {
             // Берём самое старое сообщение (не разделитель дат)
             var oldest = _messageItems.FirstOrDefault(m => !m.IsSeparator);
