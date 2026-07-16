@@ -1287,12 +1287,7 @@ namespace TelegramWP10
                         LoadingIndicator.Visibility = Visibility.Collapsed;
                         MessagesListView.Visibility = Visibility.Visible;
                         if (_messageItems.Count > 0) {
-                            // Если есть разделитель непрочитанных — скроллим к нему
-                            var unreadSep = _messageItems.FirstOrDefault(m => m.IsUnreadSeparator);
-                            if (unreadSep != null)
-                                ScrollToItemDelayed(unreadSep);
-                            else
-                                ScrollToBottomDelayed();
+                            ScrollToBottomDelayed();
                         }
                         long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
                         if (lastMsgId != 0)
@@ -1360,69 +1355,6 @@ namespace TelegramWP10
             }
         }
 
-
-        private void ScrollToItemDelayed(MessageItem target) {
-            _scrollTimer?.Stop();
-            _autoScrolling = true;
-            int ticks = 0;
-            double prevHeight = -1;
-            int stableTicks = 0;
-            _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-            _scrollTimer.Tick += (s2, e2) => {
-                ticks++;
-                double sh = MessagesScrollViewer.ScrollableHeight;
-                if (sh > 0 && sh == prevHeight) {
-                    stableTicks++;
-                    if (stableTicks >= 2) {
-                        _scrollTimer.Stop();
-                        MessagesListView.ScrollIntoView(target, ScrollIntoViewAlignment.Leading);
-                        _autoScrolling = false;
-                        Log("ScrollToUnreadSep done tick=" + ticks);
-                    }
-                } else {
-                    stableTicks = 0;
-                    prevHeight = sh;
-                }
-                if (ticks >= 30) {
-                    _scrollTimer.Stop();
-                    MessagesListView.ScrollIntoView(target, ScrollIntoViewAlignment.Leading);
-                    _autoScrolling = false;
-                }
-            };
-            _scrollTimer.Start();
-        }
-
-        private void ScrollToBottomDelayed() {
-            _scrollTimer?.Stop();
-            _autoScrolling = true;
-            double prevHeight = -1;
-            int stableTicks = 0;
-            int totalTicks = 0;
-            _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-            _scrollTimer.Tick += (s2, e2) => {
-                totalTicks++;
-                double sh = MessagesScrollViewer.ScrollableHeight;
-                if (sh > 0 && sh == prevHeight) {
-                    stableTicks++;
-                    if (stableTicks >= 2) {
-                        _scrollTimer.Stop();
-                        MessagesScrollViewer.ChangeView(null, sh, null, false);
-                        Log("ScrollToBottom stable tick=" + totalTicks + " sh=" + sh);
-                        // Снимаем флаг когда скролл дойдёт до низа — отслеживаем в ViewChanged
-                    }
-                } else {
-                    stableTicks = 0;
-                    prevHeight = sh;
-                }
-                if (totalTicks >= 30) {
-                    _scrollTimer.Stop();
-                    if (MessagesScrollViewer.ScrollableHeight > 0)
-                        MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
-                    _autoScrolling = false;
-                }
-            };
-            _scrollTimer.Start();
-        }
 
         private void ScrollToBottom_Click(object sender, RoutedEventArgs e) {
             MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
