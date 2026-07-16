@@ -1017,6 +1017,12 @@ namespace TelegramWP10
                                 }
                             }
                         }
+                        // Обновляем rawChatsDict чтобы при повторном открытии чата был актуальный last_read
+                        if (_rawChatsDict.ContainsKey(ucriId)) {
+                            var raw = _rawChatsDict[ucriId] as JObject;
+                            if (raw != null)
+                                raw["last_read_inbox_message_id"] = update["last_read_inbox_message_id"];
+                        }
                     }
                     break;
 
@@ -1376,8 +1382,12 @@ namespace TelegramWP10
                         _scrollTimer.Stop();
                         var unreadSep = _messageItems.FirstOrDefault(m => m.IsUnreadSeparator);
                         if (unreadSep != null) {
-                            MessagesListView.ScrollIntoView(unreadSep, ScrollIntoViewAlignment.Leading);
-                            Log("ScrollToUnreadSep tick=" + totalTicks);
+                            // Вычисляем позицию разделителя через его индекс
+                            int sepIdx = _messageItems.IndexOf(unreadSep);
+                            double itemAvgHeight = sh / Math.Max(_messageItems.Count, 1);
+                            double targetOffset = Math.Max(0, sepIdx * itemAvgHeight - 20);
+                            MessagesScrollViewer.ChangeView(null, targetOffset, null, false);
+                            Log("ScrollToUnreadSep tick=" + totalTicks + " idx=" + sepIdx + " offset=" + targetOffset);
                         } else {
                             MessagesScrollViewer.ChangeView(null, sh, null, false);
                             Log("ScrollToBottom stable tick=" + totalTicks + " sh=" + sh);
@@ -1390,9 +1400,12 @@ namespace TelegramWP10
                 if (totalTicks >= 30) {
                     _scrollTimer.Stop();
                     var unreadSep2 = _messageItems.FirstOrDefault(m => m.IsUnreadSeparator);
-                    if (unreadSep2 != null)
-                        MessagesListView.ScrollIntoView(unreadSep2, ScrollIntoViewAlignment.Leading);
-                    else if (MessagesScrollViewer.ScrollableHeight > 0)
+                    if (unreadSep2 != null) {
+                        int sepIdx2 = _messageItems.IndexOf(unreadSep2);
+                        double sh2 = MessagesScrollViewer.ScrollableHeight;
+                        double itemH = sh2 / Math.Max(_messageItems.Count, 1);
+                        MessagesScrollViewer.ChangeView(null, Math.Max(0, sepIdx2 * itemH - 20), null, false);
+                    } else if (MessagesScrollViewer.ScrollableHeight > 0)
                         MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
                     _autoScrolling = false;
                 }
@@ -1507,6 +1520,7 @@ namespace TelegramWP10
         }
 
         private void InsertUnreadSeparator() {
+            Log("InsertUnreadSeparator lastRead=" + _lastReadInboxMsgId + " items=" + _messageItems.Count);
             if (_lastReadInboxMsgId <= 0) return;
             // Ищем первое входящее сообщение после _lastReadInboxMsgId
             for (int i = 0; i < _messageItems.Count; i++) {
@@ -2229,11 +2243,11 @@ namespace TelegramWP10
             // Сохраняем последнее прочитанное входящее — для разделителя "Новые сообщения"
             _lastReadInboxMsgId = 0;
             if (_chatsDict.ContainsKey(chat.Id)) {
-                // Берём из TDLib — last_read_inbox_message_id хранится в chat объекте
                 var rawChat = _rawChatsDict.ContainsKey(chat.Id) ? _rawChatsDict[chat.Id] : null;
                 if (rawChat != null)
                     _lastReadInboxMsgId = rawChat["last_read_inbox_message_id"]?.ToObject<long>() ?? 0;
             }
+            Log("OpenChat lastReadInbox=" + _lastReadInboxMsgId + " unread=" + (_chatsDict.ContainsKey(chat.Id) ? _chatsDict[chat.Id].UnreadCount : 0));
             _messageItems.Clear();
             _messagesDict.Clear();
             _fileToMsgId.Clear();
