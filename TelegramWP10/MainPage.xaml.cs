@@ -2263,18 +2263,17 @@ namespace TelegramWP10
 
         private void React_Click(object sender, RoutedEventArgs e) {
             var item = sender as MenuFlyoutItem;
-            if (item == null || _selectedMessage == null) return;
+            if (item == null || _selectedMessageForCopy == null) return;
             string emoji = item.Tag?.ToString() ?? "";
             if (string.IsNullOrEmpty(emoji)) return;
-            // Проверяем есть ли уже такая реакция от нас — если да, убираем
-            bool alreadyReacted = _selectedMessage.Reactions != null &&
-                                  _selectedMessage.Reactions.Contains(emoji);
+            bool alreadyReacted = _selectedMessageForCopy.Reactions != null &&
+                                  _selectedMessageForCopy.Reactions.Contains(emoji);
             string req = "{\"@type\":\"" + (alreadyReacted ? "removeMessageReaction" : "addMessageReaction") + "\"" +
                 ",\"chat_id\":" + _currentChatId +
-                ",\"message_id\":" + _selectedMessage.Id +
+                ",\"message_id\":" + _selectedMessageForCopy.Id +
                 ",\"reaction_type\":{\"@type\":\"reactionTypeEmoji\",\"emoji\":\"" + emoji + "\"}" +
                 (alreadyReacted ? "" : ",\"is_big\":false") + "}";
-            Log("REACT " + (alreadyReacted ? "remove" : "add") + " emoji=" + emoji + " msg=" + _selectedMessage.Id);
+            Log("REACT " + (alreadyReacted ? "remove" : "add") + " emoji=" + emoji + " msg=" + _selectedMessageForCopy.Id);
             TdJson.SendUtf8(_client, req);
         }
 
