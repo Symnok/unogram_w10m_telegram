@@ -1268,30 +1268,30 @@ namespace TelegramWP10
 
         private void ScrollToBottomDelayed() {
             _scrollTimer?.Stop();
-
-            // ScrollIntoView на последний элемент — самый надёжный способ на WP10
-            void DoScroll() {
-                if (_messageItems.Count > 0) {
-                    var last = _messageItems[_messageItems.Count - 1];
-                    MessagesListView.ScrollIntoView(last, ScrollIntoViewAlignment.Leading);
-                    // Leading = элемент сверху, но для последнего это означает самый низ
-                    // Дополнительно ChangeView для гарантии
+            double prevHeight = -1;
+            int stableTicks = 0;
+            int totalTicks = 0;
+            _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _scrollTimer.Tick += (s2, e2) => {
+                totalTicks++;
+                double sh = MessagesScrollViewer.ScrollableHeight;
+                if (sh > 0 && sh == prevHeight) {
+                    stableTicks++;
+                    if (stableTicks >= 2) {
+                        // Высота не менялась 2 тика подряд — рендер завершён
+                        _scrollTimer.Stop();
+                        MessagesScrollViewer.ChangeView(null, sh, null, false);
+                        Log("ScrollToBottom stable tick=" + totalTicks + " sh=" + sh);
+                    }
+                } else {
+                    stableTicks = 0;
+                    prevHeight = sh;
+                }
+                if (totalTicks >= 30) { // страховка 3 сек
+                    _scrollTimer.Stop();
                     if (MessagesScrollViewer.ScrollableHeight > 0)
                         MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
                 }
-            }
-
-            if (MessagesListView.Visibility == Visibility.Visible && _messageItems.Count > 0) {
-                DoScroll();
-            }
-
-            // Таймер — повторяем несколько раз пока список рендерится
-            int ticks = 0;
-            _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
-            _scrollTimer.Tick += (s2, e2) => {
-                ticks++;
-                DoScroll();
-                if (ticks >= 6) _scrollTimer.Stop();
             };
             _scrollTimer.Start();
         }
