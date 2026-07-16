@@ -349,7 +349,7 @@
                                     <MenuFlyoutItem Text="👍 Нравится" Click="React_Click" Tag="👍"/>
                                     <MenuFlyoutItem Text="❤ Сердце" Click="React_Click" Tag="❤"/>
                                     <MenuFlyoutItem Text="🔥 Огонь" Click="React_Click" Tag="🔥"/>
-                                    <MenuFlyoutItem Text="😂 Смех" Click="React_Click" Tag="😂"/>
+                                    <MenuFlyoutItem Text="🤣 Смех" Click="React_Click" Tag="🤣"/>
                                     <MenuFlyoutItem Text="😢 Грусть" Click="React_Click" Tag="😢"/>
                                     <MenuFlyoutItem Text="👎 Не нравится" Click="React_Click" Tag="👎"/>
                                     <MenuFlyoutSeparator/>
