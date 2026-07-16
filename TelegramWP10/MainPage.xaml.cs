@@ -1259,7 +1259,9 @@ namespace TelegramWP10
             ScrollToBottomButton.Visibility = atBottom ? Visibility.Collapsed : Visibility.Visible;
             // Дозагрузка истории вверху
             bool nearTop = offset < viewport * 0.5;
-            if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0) {
+            // Не триггерим дозагрузку пока идёт автоскролл вниз после загрузки чата
+            bool scrollingToBottom = _scrollTimer != null && _scrollTimer.IsEnabled;
+            if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0 && !scrollingToBottom) {
                 Log("Scroll nearTop — LoadOlder offset=" + offset);
                 LoadOlderMessages();
             }
