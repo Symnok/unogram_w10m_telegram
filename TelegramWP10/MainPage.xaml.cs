@@ -647,7 +647,8 @@ namespace TelegramWP10
                                 string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + sChatId +
                                     (sThreadId != 0 ? ",\"message_thread_id\":" + sThreadId : "") +
                                     ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
-                                    ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + sFileId + "}}}";
+                                    ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + sFileId + "}" +
+                                    ",\"width\":512,\"height\":512,\"emoji\":\"\"}}";
                                 Log("SEND STICKER (after download) file_id=" + sFileId);
                                 TdJson.SendUtf8(_client, sReq);
                             }
@@ -2446,23 +2447,12 @@ namespace TelegramWP10
             // Копируем файл в папку приложения чтобы TDLib мог его прочитать
             var copy = await file.CopyAsync(_filesFolder, file.Name, Windows.Storage.NameCollisionOption.ReplaceExisting);
             string path = copy.Path.Replace("\\", "/");
-            // Отправляем как документ
-            var req = new Newtonsoft.Json.Linq.JObject {
-                ["@type"] = "sendMessage",
-                ["chat_id"] = _currentChatId,
-                ["input_message_content"] = new Newtonsoft.Json.Linq.JObject {
-                    ["@type"] = "inputMessageDocument",
-                    ["document"] = new Newtonsoft.Json.Linq.JObject {
-                        ["@type"] = "inputFileLocal",
-                        ["path"] = path
-                    },
-                    ["caption"] = new Newtonsoft.Json.Linq.JObject {
-                        ["@type"] = "formattedText",
-                        ["text"] = ""
-                    }
-                }
-            };
-            TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
+            // Отправляем как документ — используем JSON строку напрямую
+            string docReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
+                ",\"document\":{\"@type\":\"inputFileGenerated\",\"original_path\":\"" + path.Replace("\"","\\\"") + "\",\"conversion\":\"\",\"expected_size\":0}" +
+                ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+            TdJson.SendUtf8(_client, docReq);
             Log("SEND DOC path=" + path);
         }
 
@@ -2639,24 +2629,14 @@ namespace TelegramWP10
                 var props = await _recordingFile.Properties.GetMusicPropertiesAsync();
                 int durationSec = (int)props.Duration.TotalSeconds;
                 Log("MIC duration: " + durationSec + " sec");
-                var req = new Newtonsoft.Json.Linq.JObject {
-                    ["@type"] = "sendMessage",
-                    ["chat_id"] = _currentChatId,
-                    ["input_message_content"] = new Newtonsoft.Json.Linq.JObject {
-                        ["@type"] = "inputMessageVoiceNote",
-                        ["voice_note"] = new Newtonsoft.Json.Linq.JObject {
-                            ["@type"] = "inputFileLocal",
-                            ["path"] = _recordingFile.Path.Replace("\\", "/")
-                        },
-                        ["duration"] = durationSec,
-                        ["caption"] = new Newtonsoft.Json.Linq.JObject {
-                            ["@type"] = "formattedText",
-                            ["text"] = ""
-                        }
-                    }
-                };
-                TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
-                Log("MIC sent audio message");
+                string voicePath = _recordingFile.Path.Replace("\\", "/");
+                string voiceReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                    ",\"input_message_content\":{\"@type\":\"inputMessageVoiceNote\"" +
+                    ",\"voice_note\":{\"@type\":\"inputFileGenerated\",\"original_path\":\"" + voicePath.Replace("\"","\\\"") + "\",\"conversion\":\"\",\"expected_size\":0}" +
+                    ",\"duration\":" + durationSec +
+                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+                TdJson.SendUtf8(_client, voiceReq);
+                Log("MIC sent voice note");
             } catch (Exception ex) {
                 Log("MIC STOP ERR: " + ex.GetType().Name + " — " + ex.Message);
                 _isRecording = false;
