@@ -721,11 +721,11 @@ namespace TelegramWP10
                                 _messageItems.Add(MakeSeparator(newItem.RawDate.Date, DateTime.Today));
                             _messageItems.Add(newItem);
                             // Скроллим вниз если пользователь был у самого низа
-                            double scrollable = MessagesScrollViewer.ScrollableHeight;
-                            double offset     = MessagesScrollViewer.VerticalOffset;
-                            bool wasAtBottom  = scrollable <= 0 || (scrollable - offset) < 200;
+                            double scrollable2 = MessagesScrollViewer.ScrollableHeight;
+                            double offset2     = MessagesScrollViewer.VerticalOffset;
+                            bool wasAtBottom   = scrollable2 <= 0 || (scrollable2 - offset2) < 200;
                             if (wasAtBottom)
-                                MessagesScrollViewer.ChangeView(null, double.MaxValue, null, false);
+                                MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight + 10000, null, false);
                         }
                         // Помечаем как прочитанное если чат открыт
                         long newMsgId = newMsg["id"]?.ToObject<long>() ?? 0;
