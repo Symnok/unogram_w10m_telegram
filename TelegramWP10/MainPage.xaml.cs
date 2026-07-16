@@ -271,8 +271,8 @@ namespace TelegramWP10
 
         private async void InitAsync() {
             try {
-                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
-                var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
+                var localFolder = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Music);
+                var appFolder = await localFolder.SaveFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
@@ -1356,7 +1356,30 @@ namespace TelegramWP10
             if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0 && !_autoScrolling) {
                 Log("Scroll nearTop — LoadOlder offset=" + offset);
                 LoadOlderMessages();
+                StartNearTopPolling();
             }
+        }
+
+        // Polling таймер — проверяем nearTop каждые 500мс пока пользователь у верха
+        private Windows.UI.Xaml.DispatcherTimer _nearTopTimer;
+
+        private void StartNearTopPolling() {
+            if (_nearTopTimer != null) return;
+            _nearTopTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            _nearTopTimer.Tick += (s, e) => {
+                if (_currentChatId == 0 || !_hasMoreHistory) { _nearTopTimer.Stop(); _nearTopTimer = null; return; }
+                double offset = MessagesScrollViewer.VerticalOffset;
+                double viewport = MessagesScrollViewer.ViewportHeight;
+                if (offset < viewport * 0.5 && !_loadingOlderHistory && !_isLoadingHistory && !_autoScrolling) {
+                    Log("NearTopPoll — LoadOlder offset=" + offset);
+                    LoadOlderMessages();
+                } else if (offset >= viewport) {
+                    // Пользователь ушёл от верха — останавливаем polling
+                    _nearTopTimer.Stop();
+                    _nearTopTimer = null;
+                }
+            };
+            _nearTopTimer.Start();
         }
 
 
@@ -2231,6 +2254,8 @@ namespace TelegramWP10
             _hasMoreHistory = true;
             _autoScrolling = false;
             _scrollTimer?.Stop();
+            _nearTopTimer?.Stop();
+            _nearTopTimer = null;
             if (OlderLoadingIndicator != null) {
                 OlderLoadingIndicator.Visibility = Visibility.Collapsed;
                 OlderProgressRing.IsActive = false;
