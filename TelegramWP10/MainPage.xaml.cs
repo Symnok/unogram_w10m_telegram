@@ -724,8 +724,15 @@ namespace TelegramWP10
                             double scrollable2 = MessagesScrollViewer.ScrollableHeight;
                             double offset2     = MessagesScrollViewer.VerticalOffset;
                             bool wasAtBottom   = scrollable2 <= 0 || (scrollable2 - offset2) < 200;
-                            if (wasAtBottom)
-                                MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight + 10000, null, false);
+                            if (wasAtBottom) {
+                                // Ждём один кадр чтобы новое сообщение отрисовалось
+                                var t = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+                                t.Tick += (ts, te) => {
+                                    t.Stop();
+                                    MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight + 1000, null, false);
+                                };
+                                t.Start();
+                            }
                         }
                         // Помечаем как прочитанное если чат открыт
                         long newMsgId = newMsg["id"]?.ToObject<long>() ?? 0;
