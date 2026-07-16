@@ -43,6 +43,9 @@ namespace TelegramWP10
         private int _historyRetryCount = 0;
         private bool _loadingOlderHistory = false;
         private bool _hasMoreHistory = true;
+        private bool _hasMoreBottom = false;
+        private const int MaxMessages = 150;
+        private const int TrimCount   = 50;
         private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
         private bool _autoScrolling = false;
         private long _pendingStickerFileId = 0;
@@ -1317,6 +1320,14 @@ namespace TelegramWP10
                             InsertDateSeparatorsForRange(0, insertIdx);
                             Log("prepended " + gotCount + " older messages, total=" + _messageItems.Count);
                             _hasMoreHistory = gotCount >= 50;
+                            // Обрезаем снизу если превысили лимит
+                            if (_messageItems.Count > MaxMessages) {
+                                int toRemove = _messageItems.Count - MaxMessages;
+                                for (int ri = _messageItems.Count - 1; ri >= _messageItems.Count - toRemove && ri >= 0; ri--)
+                                    _messageItems.RemoveAt(ri);
+                                _hasMoreBottom = true;
+                                Log("Trimmed " + toRemove + " from bottom, hasMoreBottom=true");
+                            }
                             // Восстанавливаем позицию скролла
                             MessagesListView.UpdateLayout();
                             double newHeight = MessagesScrollViewer.ExtentHeight;
@@ -1351,7 +1362,8 @@ namespace TelegramWP10
             }
 
             // Кнопка скролла вниз
-            ScrollToBottomButton.Visibility = atBottom ? Visibility.Collapsed : Visibility.Visible;
+            bool showBtn = !atBottom || _hasMoreBottom;
+            ScrollToBottomButton.Visibility = showBtn ? Visibility.Visible : Visibility.Collapsed;
 
             // Дозагрузка истории — блокируем пока идёт автоскролл
             bool nearTop = offset < viewport * 0.5;
@@ -1386,7 +1398,21 @@ namespace TelegramWP10
 
 
         private void ScrollToBottom_Click(object sender, RoutedEventArgs e) {
-            MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
+            if (_hasMoreBottom) {
+                // Перезагружаем последние сообщения
+                _hasMoreBottom = false;
+                _messageItems.Clear();
+                _messagesDict.Clear();
+                _loadingOlderHistory = false;
+                _hasMoreHistory = true;
+                LoadingIndicator.Visibility = Visibility.Visible;
+                MessagesListView.Visibility = Visibility.Collapsed;
+                _isLoadingHistory = true;
+                TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId + ",\"from_message_id\":0,\"offset\":0,\"limit\":50}");
+                Log("ScrollToBottom reload after trim");
+            } else {
+                MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
+            }
         }
 
         private void ScrollToBottomDelayed() {
@@ -2293,6 +2319,7 @@ namespace TelegramWP10
             _historyRetryCount = 0;
             _loadingOlderHistory = false;
             _hasMoreHistory = true;
+            _hasMoreBottom = false;
             _autoScrolling = false;
             _scrollTimer?.Stop();
             _nearTopTimer?.Stop();
