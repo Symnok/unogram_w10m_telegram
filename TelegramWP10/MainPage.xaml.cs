@@ -41,7 +41,8 @@ namespace TelegramWP10
         private long _pendingHistoryChatId = 0;
         private int _historyRetryCount = 0;
         private bool _loadingOlderHistory = false;
-        private bool _hasMoreHistory = true; // true = дозагрузка старых, false = начальная загрузка
+        private bool _hasMoreHistory = true;
+        private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
         private long _currentChatOutboxReadId = 0;
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
