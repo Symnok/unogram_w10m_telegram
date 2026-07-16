@@ -45,7 +45,10 @@ namespace TelegramWP10
         private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
         private bool _autoScrolling = false;
         private long _pendingStickerFileId = 0;
-        private long _pendingStickerChatId = 0; // true пока идёт автоскролл вниз после загрузки
+        private long _pendingStickerChatId = 0;
+        // uploadFile pending
+        private string _pendingUploadType = ""; // "doc" или "voice"
+        private long   _pendingUploadChatId = 0; // true пока идёт автоскролл вниз после загрузки
         private long _currentChatOutboxReadId = 0;
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
@@ -626,9 +629,36 @@ namespace TelegramWP10
                         long fid = fileObj["id"] != null ? (long)fileObj["id"] : 0;
                         string fpath = fileObj["local"]?["path"]?.ToString();
                         bool isCompleted = fileObj["local"]?["is_downloading_completed"]?.ToObject<bool>() ?? false;
+                        bool isUploaded  = fileObj["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
                         long downloaded = fileObj["local"]?["downloaded_size"]?.ToObject<long>() ?? 0;
                         long total = fileObj["size"]?.ToObject<long>() ?? 0;
-                        Log("FILE id=" + fid + " path=" + fpath);
+                        Log("FILE id=" + fid + " path=" + fpath + " uploaded=" + isUploaded);
+
+                        // Обработка uploadFile — отправляем сообщение когда файл загружен
+                        if (isUploaded && fid != 0 && !string.IsNullOrEmpty(_pendingUploadType) && _pendingUploadChatId != 0) {
+                            string uType = _pendingUploadType;
+                            long uChatId = _pendingUploadChatId;
+                            _pendingUploadType = "";
+                            _pendingUploadChatId = 0;
+                            string sendReq;
+                            if (uType == "doc") {
+                                sendReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + uChatId +
+                                    ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
+                                    ",\"document\":{\"@type\":\"inputFileId\",\"id\":" + fid + "}" +
+                                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+                            } else if (uType.StartsWith("voice_")) {
+                                int dur = int.TryParse(uType.Replace("voice_",""), out int d) ? d : 0;
+                                sendReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + uChatId +
+                                    ",\"input_message_content\":{\"@type\":\"inputMessageVoiceNote\"" +
+                                    ",\"voice_note\":{\"@type\":\"inputFileId\",\"id\":" + fid + "}" +
+                                    ",\"duration\":" + dur +
+                                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+                            } else sendReq = null;
+                            if (sendReq != null) {
+                                Log("SEND after upload type=" + uType + " file_id=" + fid);
+                                TdJson.SendUtf8(_client, sendReq);
+                            }
+                        }
                         if (fid != 0) {
                             if (_fileToChatId.ContainsKey(fid) && !string.IsNullOrEmpty(fpath))
                                 { var t = UpdateAvatar(_fileToChatId[fid], fpath); }
@@ -2447,12 +2477,15 @@ namespace TelegramWP10
             // Копируем файл в папку приложения чтобы TDLib мог его прочитать
             var copy = await file.CopyAsync(_filesFolder, file.Name, Windows.Storage.NameCollisionOption.ReplaceExisting);
             string path = copy.Path.Replace("\\", "/");
-            string docReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
-                ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
-                ",\"document\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
-                ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
-            Log("SEND DOC json=" + docReq);
-            TdJson.SendUtf8(_client, docReq);
+            // Сначала загружаем файл в TDLib, потом отправляем через file_id
+            _pendingUploadType = "doc";
+            _pendingUploadChatId = _currentChatId;
+            string uploadReq = "{\"@type\":\"uploadFile\"" +
+                ",\"file\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
+                ",\"file_type\":{\"@type\":\"fileTypeDocument\"}" +
+                ",\"priority\":1}";
+            Log("UPLOAD DOC path=" + path);
+            TdJson.SendUtf8(_client, uploadReq);
         }
 
         private void AudioSlider_ManipulationStarted(object sender, Windows.UI.Xaml.Input.ManipulationStartedRoutedEventArgs e) {
@@ -2629,13 +2662,14 @@ namespace TelegramWP10
                 int durationSec = (int)props.Duration.TotalSeconds;
                 Log("MIC duration: " + durationSec + " sec");
                 string voicePath = _recordingFile.Path.Replace("\\", "/");
-                string voiceReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
-                    ",\"input_message_content\":{\"@type\":\"inputMessageVoiceNote\"" +
-                    ",\"voice_note\":{\"@type\":\"inputFileLocal\",\"path\":\"" + voicePath.Replace("\"","\\\"") + "\"}" +
-                    ",\"duration\":" + durationSec +
-                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
-                Log("MIC voice json=" + voiceReq);
-                TdJson.SendUtf8(_client, voiceReq);
+                _pendingUploadType = "voice_" + durationSec;
+                _pendingUploadChatId = _currentChatId;
+                string uploadVoiceReq = "{\"@type\":\"uploadFile\"" +
+                    ",\"file\":{\"@type\":\"inputFileLocal\",\"path\":\"" + voicePath.Replace("\"","\\\"") + "\"}" +
+                    ",\"file_type\":{\"@type\":\"fileTypeVoiceNote\"}" +
+                    ",\"priority\":1}";
+                Log("UPLOAD VOICE path=" + voicePath);
+                TdJson.SendUtf8(_client, uploadVoiceReq);
                 Log("MIC sent voice note");
             } catch (Exception ex) {
                 Log("MIC STOP ERR: " + ex.GetType().Name + " — " + ex.Message);
