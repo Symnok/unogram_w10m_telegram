@@ -1275,7 +1275,7 @@ namespace TelegramWP10
                             break;
                         }
                         _messageItems.Clear();
-                        _hasMoreHistory = gotCount >= 50; // если меньше 50 — истории нет
+                        _hasMoreHistory = gotCount > 0;
                         for (int i = msgs.Count - 1; i >= 0; i--) {
                             var it = ParseMessage(msgs[i]);
                             if (it != null) _messageItems.Add(it);
@@ -1320,10 +1320,10 @@ namespace TelegramWP10
                             // Вставляем только разделители для новых сообщений — не перестраиваем всё
                             InsertDateSeparatorsForRange(0, insertIdx);
                             Log("prepended " + gotCount + " older messages, total=" + _messageItems.Count);
-                            _hasMoreHistory = gotCount >= 50;
-                            // Обрезаем снизу фиксированными TrimCount если превысили лимит
+                            _hasMoreHistory = gotCount > 0;
+                            // Обрезаем снизу если превысили лимит
+                            bool didTrim = false;
                             if (_messageItems.Count > MaxMessages) {
-                                // Удаляем TrimCount элементов с конца (с учётом сепараторов)
                                 int removed = 0;
                                 while (removed < TrimCount && _messageItems.Count > 0) {
                                     _messageItems.RemoveAt(_messageItems.Count - 1);
@@ -1331,17 +1331,19 @@ namespace TelegramWP10
                                 }
                                 _hasMoreBottom = true;
                                 _trimming = true;
+                                didTrim = true;
                                 Log("Trimmed " + removed + " from bottom total=" + _messageItems.Count);
-                                // Снимаем блокировку через 1 сек
                                 var tt = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
                                 tt.Tick += (ts, te) => { tt.Stop(); _trimming = false; };
                                 tt.Start();
                             }
-                            // Восстанавливаем позицию скролла
-                            MessagesListView.UpdateLayout();
-                            double newHeight = MessagesScrollViewer.ExtentHeight;
-                            double diff = newHeight - oldHeight;
-                            MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                            // Восстанавливаем позицию скролла только если не было обрезки
+                            if (!didTrim) {
+                                MessagesListView.UpdateLayout();
+                                double newHeight = MessagesScrollViewer.ExtentHeight;
+                                double diff = newHeight - oldHeight;
+                                MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                            }
                         }
                     }
                     break;
@@ -1383,34 +1385,10 @@ namespace TelegramWP10
             if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0 && !_autoScrolling && !_trimming) {
                 Log("Scroll nearTop — LoadOlder offset=" + offset);
                 LoadOlderMessages();
-                StartNearTopPolling();
             }
         }
 
         // Polling таймер — проверяем nearTop каждые 500мс пока пользователь у верха
-        private Windows.UI.Xaml.DispatcherTimer _nearTopTimer;
-
-        private void StartNearTopPolling() {
-            if (_nearTopTimer != null) return;
-            _nearTopTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            _nearTopTimer.Tick += (s, e) => {
-                if (_currentChatId == 0 || !_hasMoreHistory) { _nearTopTimer.Stop(); _nearTopTimer = null; return; }
-                double offset = MessagesScrollViewer.VerticalOffset;
-                double viewport = MessagesScrollViewer.ViewportHeight;
-                if (offset < viewport * 0.5 && !_loadingOlderHistory && !_isLoadingHistory && !_autoScrolling) {
-                    Log("NearTopPoll — LoadOlder offset=" + offset);
-                    LoadOlderMessages();
-                } else if (offset >= viewport) {
-                    // Пользователь ушёл от верха — останавливаем polling
-                    _nearTopTimer.Stop();
-                    _nearTopTimer = null;
-                }
-            };
-            _nearTopTimer.Start();
-        }
-
-
-        private void ScrollToBottom_Click(object sender, RoutedEventArgs e) {
             if (_hasMoreBottom) {
                 // Перезагружаем последние сообщения
                 _hasMoreBottom = false;
@@ -2335,8 +2313,6 @@ namespace TelegramWP10
             _hasMoreBottom = false;
             _autoScrolling = false;
             _scrollTimer?.Stop();
-            _nearTopTimer?.Stop();
-            _nearTopTimer = null;
             if (OlderLoadingIndicator != null) {
                 OlderLoadingIndicator.Visibility = Visibility.Collapsed;
                 OlderProgressRing.IsActive = false;
