@@ -644,14 +644,18 @@ namespace TelegramWP10
                             if (uType == "doc") {
                                 sendReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + uChatId +
                                     ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
+                                    ",\"document\":{\"@type\":\"inputDocument\"" +
                                     ",\"document\":{\"@type\":\"inputFileId\",\"id\":" + fid + "}" +
+                                    ",\"disable_content_type_detection\":false}" +
                                     ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
                             } else if (uType.StartsWith("voice_")) {
                                 int dur = int.TryParse(uType.Replace("voice_",""), out int d) ? d : 0;
                                 sendReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + uChatId +
                                     ",\"input_message_content\":{\"@type\":\"inputMessageVoiceNote\"" +
+                                    ",\"voice_note\":{\"@type\":\"inputVoiceNote\"" +
                                     ",\"voice_note\":{\"@type\":\"inputFileId\",\"id\":" + fid + "}" +
                                     ",\"duration\":" + dur +
+                                    ",\"waveform\":\"\"}" +
                                     ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
                             } else sendReq = null;
                             if (sendReq != null) {
@@ -677,8 +681,9 @@ namespace TelegramWP10
                                 string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + sChatId +
                                     (sThreadId != 0 ? ",\"message_thread_id\":" + sThreadId : "") +
                                     ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
+                                    ",\"sticker\":{\"@type\":\"inputSticker\"" +
                                     ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + sFileId + "}" +
-                                    ",\"width\":512,\"height\":512,\"emoji\":\"\"}}";
+                                    ",\"width\":512,\"height\":512}}}";
                                 Log("SEND STICKER (after download) file_id=" + sFileId);
                                 TdJson.SendUtf8(_client, sReq);
                             }
@@ -2480,7 +2485,7 @@ namespace TelegramWP10
             // Сначала загружаем файл в TDLib, потом отправляем через file_id
             _pendingUploadType = "doc";
             _pendingUploadChatId = _currentChatId;
-            string uploadReq = "{\"@type\":\"uploadFile\"" +
+            string uploadReq = "{\"@type\":\"preliminaryUploadFile\"" +
                 ",\"file\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
                 ",\"file_type\":{\"@type\":\"fileTypeDocument\"}" +
                 ",\"priority\":1}";
@@ -2664,7 +2669,7 @@ namespace TelegramWP10
                 string voicePath = _recordingFile.Path.Replace("\\", "/");
                 _pendingUploadType = "voice_" + durationSec;
                 _pendingUploadChatId = _currentChatId;
-                string uploadVoiceReq = "{\"@type\":\"uploadFile\"" +
+                string uploadVoiceReq = "{\"@type\":\"preliminaryUploadFile\"" +
                     ",\"file\":{\"@type\":\"inputFileLocal\",\"path\":\"" + voicePath.Replace("\"","\\\"") + "\"}" +
                     ",\"file_type\":{\"@type\":\"fileTypeVoiceNote\"}" +
                     ",\"priority\":1}";
@@ -3272,12 +3277,12 @@ namespace TelegramWP10
             _stickerPanelOpen = false;
 
             if (!string.IsNullOrEmpty(item.RemoteFileId)) {
-                // Используем remote id — не нужно скачивать файл
                 string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
                     (_threadMessageId != 0 ? ",\"message_thread_id\":" + _threadMessageId : "") +
                     ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
+                    ",\"sticker\":{\"@type\":\"inputSticker\"" +
                     ",\"sticker\":{\"@type\":\"inputFileRemote\",\"id\":\"" + item.RemoteFileId + "\"}" +
-                    ",\"width\":512,\"height\":512,\"emoji\":\"\"}}";
+                    ",\"width\":512,\"height\":512}}}";
                 Log("SEND STICKER remote_id=" + item.RemoteFileId);
                 TdJson.SendUtf8(_client, sReq);
             } else {
