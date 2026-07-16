@@ -321,7 +321,7 @@
                           VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                           ViewChanged="MessagesScrollViewer_ViewChanged">
-            <ListView x:Name="MessagesListView" SelectionMode="None" Padding="10" IsItemClickEnabled="True" ItemClick="MessagesListView_ItemClick" Visibility="Collapsed">
+            <ListView x:Name="MessagesListView" SelectionMode="None" Padding="10,10,10,70" IsItemClickEnabled="True" ItemClick="MessagesListView_ItemClick" Visibility="Collapsed">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
