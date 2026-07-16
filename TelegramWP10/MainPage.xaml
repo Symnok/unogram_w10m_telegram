@@ -345,6 +345,13 @@
                                     Holding="MessageBubble_Holding">
                             <FlyoutBase.AttachedFlyout>
                                 <MenuFlyout>
+                                    <!-- Быстрые реакции -->
+                                    <MenuFlyoutItem Text="👍 Нравится" Click="React_Click" Tag="👍"/>
+                                    <MenuFlyoutItem Text="❤ Сердце" Click="React_Click" Tag="❤"/>
+                                    <MenuFlyoutItem Text="🔥 Огонь" Click="React_Click" Tag="🔥"/>
+                                    <MenuFlyoutItem Text="😂 Смех" Click="React_Click" Tag="😂"/>
+                                    <MenuFlyoutItem Text="👎 Не нравится" Click="React_Click" Tag="👎"/>
+                                    <MenuFlyoutSeparator/>
                                     <MenuFlyoutItem Text="↩ Ответить" Click="ReplyMessage_Click"/>
                                     <MenuFlyoutItem Text="↪ Переслать" Click="ForwardMessage_Click"/>
                                     <MenuFlyoutItem Text="📋 Копировать текст" Click="CopyMessage_Click"/>

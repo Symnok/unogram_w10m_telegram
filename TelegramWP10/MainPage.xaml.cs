@@ -2261,6 +2261,23 @@ namespace TelegramWP10
             Log("FORWARD msgId=" + msgId + " from=" + fromChatId + " to=" + targetChat.Id);
         }
 
+        private void React_Click(object sender, RoutedEventArgs e) {
+            var item = sender as MenuFlyoutItem;
+            if (item == null || _selectedMessage == null) return;
+            string emoji = item.Tag?.ToString() ?? "";
+            if (string.IsNullOrEmpty(emoji)) return;
+            // Проверяем есть ли уже такая реакция от нас — если да, убираем
+            bool alreadyReacted = _selectedMessage.Reactions != null &&
+                                  _selectedMessage.Reactions.Contains(emoji);
+            string req = "{\"@type\":\"" + (alreadyReacted ? "removeMessageReaction" : "addMessageReaction") + "\"" +
+                ",\"chat_id\":" + _currentChatId +
+                ",\"message_id\":" + _selectedMessage.Id +
+                ",\"reaction_type\":{\"@type\":\"reactionTypeEmoji\",\"emoji\":\"" + emoji + "\"}" +
+                (alreadyReacted ? "" : ",\"is_big\":false") + "}";
+            Log("REACT " + (alreadyReacted ? "remove" : "add") + " emoji=" + emoji + " msg=" + _selectedMessage.Id);
+            TdJson.SendUtf8(_client, req);
+        }
+
         private void ReplyMessage_Click(object sender, RoutedEventArgs e) {
             var msg = _pendingContextMsg;
             if (msg == null) return;
