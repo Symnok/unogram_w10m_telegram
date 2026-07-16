@@ -266,8 +266,8 @@ namespace TelegramWP10
 
         private async void InitAsync() {
             try {
-                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
-                var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
+                var localFolder = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Music);
+                var appFolder = await localFolder.SaveFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
@@ -2447,13 +2447,12 @@ namespace TelegramWP10
             // Копируем файл в папку приложения чтобы TDLib мог его прочитать
             var copy = await file.CopyAsync(_filesFolder, file.Name, Windows.Storage.NameCollisionOption.ReplaceExisting);
             string path = copy.Path.Replace("\\", "/");
-            // Отправляем как документ — используем JSON строку напрямую
             string docReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
                 ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
-                ",\"document\":{\"@type\":\"inputFileGenerated\",\"original_path\":\"" + path.Replace("\"","\\\"") + "\",\"conversion\":\"\",\"expected_size\":0}" +
+                ",\"document\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
                 ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+            Log("SEND DOC json=" + docReq);
             TdJson.SendUtf8(_client, docReq);
-            Log("SEND DOC path=" + path);
         }
 
         private void AudioSlider_ManipulationStarted(object sender, Windows.UI.Xaml.Input.ManipulationStartedRoutedEventArgs e) {
@@ -2632,9 +2631,10 @@ namespace TelegramWP10
                 string voicePath = _recordingFile.Path.Replace("\\", "/");
                 string voiceReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
                     ",\"input_message_content\":{\"@type\":\"inputMessageVoiceNote\"" +
-                    ",\"voice_note\":{\"@type\":\"inputFileGenerated\",\"original_path\":\"" + voicePath.Replace("\"","\\\"") + "\",\"conversion\":\"\",\"expected_size\":0}" +
+                    ",\"voice_note\":{\"@type\":\"inputFileLocal\",\"path\":\"" + voicePath.Replace("\"","\\\"") + "\"}" +
                     ",\"duration\":" + durationSec +
                     ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+                Log("MIC voice json=" + voiceReq);
                 TdJson.SendUtf8(_client, voiceReq);
                 Log("MIC sent voice note");
             } catch (Exception ex) {
@@ -3236,13 +3236,23 @@ namespace TelegramWP10
             if (item == null) return;
             StickerPanel.Visibility = Visibility.Collapsed;
             _stickerPanelOpen = false;
-            // Сначала убеждаемся что файл стикера скачан
-            Log("SEND STICKER file_id=" + item.FileId);
-            // Регистрируем ожидание отправки стикера
-            _pendingStickerFileId = item.FileId;
-            _pendingStickerChatId = _currentChatId;
-            // Запрашиваем скачивание — если уже скачан, TDLib вернёт updateFile с is_downloading_completed=true
-            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + item.FileId + ",\"priority\":32,\"synchronous\":false}");
+
+            if (!string.IsNullOrEmpty(item.RemoteFileId)) {
+                // Используем remote id — не нужно скачивать файл
+                string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                    (_threadMessageId != 0 ? ",\"message_thread_id\":" + _threadMessageId : "") +
+                    ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
+                    ",\"sticker\":{\"@type\":\"inputFileRemote\",\"id\":\"" + item.RemoteFileId + "\"}" +
+                    ",\"width\":512,\"height\":512,\"emoji\":\"\"}}";
+                Log("SEND STICKER remote_id=" + item.RemoteFileId);
+                TdJson.SendUtf8(_client, sReq);
+            } else {
+                // Нет remote id — скачиваем и отправляем по file_id
+                Log("SEND STICKER file_id=" + item.FileId);
+                _pendingStickerFileId = item.FileId;
+                _pendingStickerChatId = _currentChatId;
+                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + item.FileId + ",\"priority\":32,\"synchronous\":false}");
+            }
         }
 
         private void LoadStickerSet(long setId) {
@@ -3319,7 +3329,8 @@ namespace TelegramWP10
                 var stickerFile = st["sticker"] as JObject;
                 if (stickerFile == null) continue;
                 long fid = stickerFile["id"]?.ToObject<long>() ?? 0;
-                var item = new StickerItem { SetId = setId, FileId = fid };
+                string remoteId = stickerFile["remote"]?["id"]?.ToString() ?? "";
+                var item = new StickerItem { SetId = setId, FileId = fid, RemoteFileId = remoteId };
                 items.Add(item);
 
                 var thumb = st["thumbnail"];
