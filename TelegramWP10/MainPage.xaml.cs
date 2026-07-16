@@ -43,6 +43,7 @@ namespace TelegramWP10
         private bool _loadingOlderHistory = false;
         private bool _hasMoreHistory = true;
         private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
+        private bool _autoScrolling = false; // true пока идёт автоскролл вниз после загрузки
         private long _currentChatOutboxReadId = 0;
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
@@ -1258,14 +1259,20 @@ namespace TelegramWP10
             double offset   = MessagesScrollViewer.VerticalOffset;
             double viewport = MessagesScrollViewer.ViewportHeight;
             double scrollable = MessagesScrollViewer.ScrollableHeight;
-            // Кнопка скролла вниз — показываем если не у самого низа
-            bool atBottom = scrollable <= 0 || (scrollable - offset) < viewport * 0.3;
+            bool atBottom = scrollable <= 0 || (scrollable - offset) < 50;
+
+            // Снимаем флаг автоскролла когда реально достигли низа
+            if (_autoScrolling && atBottom) {
+                _autoScrolling = false;
+                Log("AutoScrolling done — at bottom");
+            }
+
+            // Кнопка скролла вниз
             ScrollToBottomButton.Visibility = atBottom ? Visibility.Collapsed : Visibility.Visible;
-            // Дозагрузка истории вверху
+
+            // Дозагрузка истории — блокируем пока идёт автоскролл
             bool nearTop = offset < viewport * 0.5;
-            // Не триггерим дозагрузку пока идёт автоскролл вниз после загрузки чата
-            bool scrollingToBottom = _scrollTimer != null && _scrollTimer.IsEnabled;
-            if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0 && !scrollingToBottom) {
+            if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0 && !_autoScrolling) {
                 Log("Scroll nearTop — LoadOlder offset=" + offset);
                 LoadOlderMessages();
             }
@@ -1274,6 +1281,7 @@ namespace TelegramWP10
 
         private void ScrollToBottomDelayed() {
             _scrollTimer?.Stop();
+            _autoScrolling = true;
             double prevHeight = -1;
             int stableTicks = 0;
             int totalTicks = 0;
@@ -1284,19 +1292,20 @@ namespace TelegramWP10
                 if (sh > 0 && sh == prevHeight) {
                     stableTicks++;
                     if (stableTicks >= 2) {
-                        // Высота не менялась 2 тика подряд — рендер завершён
                         _scrollTimer.Stop();
                         MessagesScrollViewer.ChangeView(null, sh, null, false);
                         Log("ScrollToBottom stable tick=" + totalTicks + " sh=" + sh);
+                        // Снимаем флаг когда скролл дойдёт до низа — отслеживаем в ViewChanged
                     }
                 } else {
                     stableTicks = 0;
                     prevHeight = sh;
                 }
-                if (totalTicks >= 30) { // страховка 3 сек
+                if (totalTicks >= 30) {
                     _scrollTimer.Stop();
                     if (MessagesScrollViewer.ScrollableHeight > 0)
                         MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
+                    _autoScrolling = false;
                 }
             };
             _scrollTimer.Start();
@@ -2079,6 +2088,7 @@ namespace TelegramWP10
             _historyRetryCount = 0;
             _loadingOlderHistory = false;
             _hasMoreHistory = true;
+            _autoScrolling = false;
             _scrollTimer?.Stop();
             if (OlderLoadingIndicator != null) {
                 OlderLoadingIndicator.Visibility = Visibility.Collapsed;
