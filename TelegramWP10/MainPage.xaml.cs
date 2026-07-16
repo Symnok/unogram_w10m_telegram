@@ -43,7 +43,9 @@ namespace TelegramWP10
         private bool _loadingOlderHistory = false;
         private bool _hasMoreHistory = true;
         private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
-        private bool _autoScrolling = false; // true пока идёт автоскролл вниз после загрузки
+        private bool _autoScrolling = false;
+        private long _pendingStickerFileId = 0;
+        private long _pendingStickerChatId = 0; // true пока идёт автоскролл вниз после загрузки
         private long _currentChatOutboxReadId = 0;
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
@@ -634,6 +636,21 @@ namespace TelegramWP10
                             // Thumbnail для панели стикеров
                             if (isCompleted && !string.IsNullOrEmpty(fpath) && _stickerThumbToItem.ContainsKey(fid))
                                 HandleStickerThumbDownloaded(fid, fpath);
+
+                            // Отправка стикера — ждём пока файл скачается
+                            if (isCompleted && fid == _pendingStickerFileId && _pendingStickerChatId != 0) {
+                                long chatId = _pendingStickerChatId;
+                                long fileId = _pendingStickerFileId;
+                                long threadId = _threadMessageId;
+                                _pendingStickerFileId = 0;
+                                _pendingStickerChatId = 0;
+                                string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + chatId +
+                                    (threadId != 0 ? ",\"message_thread_id\":" + threadId : "") +
+                                    ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
+                                    ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + fileId + "}}}";
+                                Log("SEND STICKER (after download) file_id=" + fileId);
+                                TdJson.SendUtf8(_client, sReq);
+                            }
 
                             // Фолбэк для стикеров: TDLib может вернуть новый file_id при скачивании.
                             if (!_fileToMsgId.ContainsKey(fid) && isCompleted && !string.IsNullOrEmpty(fpath)
@@ -2428,7 +2445,7 @@ namespace TelegramWP10
             Log("ATTACH file=" + file.Path + " name=" + file.Name);
             // Копируем файл в папку приложения чтобы TDLib мог его прочитать
             var copy = await file.CopyAsync(_filesFolder, file.Name, Windows.Storage.NameCollisionOption.ReplaceExisting);
-            string path = copy.Path;
+            string path = copy.Path.Replace("\\", "/");
             // Отправляем как документ
             var req = new Newtonsoft.Json.Linq.JObject {
                 ["@type"] = "sendMessage",
@@ -2626,13 +2643,12 @@ namespace TelegramWP10
                     ["@type"] = "sendMessage",
                     ["chat_id"] = _currentChatId,
                     ["input_message_content"] = new Newtonsoft.Json.Linq.JObject {
-                        ["@type"] = "inputMessageAudio",
-                        ["audio"] = new Newtonsoft.Json.Linq.JObject {
+                        ["@type"] = "inputMessageVoiceNote",
+                        ["voice_note"] = new Newtonsoft.Json.Linq.JObject {
                             ["@type"] = "inputFileLocal",
-                            ["path"] = _recordingFile.Path
+                            ["path"] = _recordingFile.Path.Replace("\\", "/")
                         },
                         ["duration"] = durationSec,
-                        ["title"] = "Голосовое сообщение",
                         ["caption"] = new Newtonsoft.Json.Linq.JObject {
                             ["@type"] = "formattedText",
                             ["text"] = ""
@@ -3240,13 +3256,13 @@ namespace TelegramWP10
             if (item == null) return;
             StickerPanel.Visibility = Visibility.Collapsed;
             _stickerPanelOpen = false;
-            // Отправляем стикер
-            string req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
-                         (_threadMessageId != 0 ? ",\"message_thread_id\":" + _threadMessageId : "") +
-                         ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
-                         ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + item.FileId + "}}}";
+            // Сначала убеждаемся что файл стикера скачан
             Log("SEND STICKER file_id=" + item.FileId);
-            TdJson.SendUtf8(_client, req);
+            // Регистрируем ожидание отправки стикера
+            _pendingStickerFileId = item.FileId;
+            _pendingStickerChatId = _currentChatId;
+            // Запрашиваем скачивание — если уже скачан, TDLib вернёт updateFile с is_downloading_completed=true
+            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + item.FileId + ",\"priority\":32,\"synchronous\":false}");
         }
 
         private void LoadStickerSet(long setId) {
