@@ -719,8 +719,12 @@ namespace TelegramWP10
                             if (lastReal == null || lastReal.RawDate.Date != newItem.RawDate.Date)
                                 _messageItems.Add(MakeSeparator(newItem.RawDate.Date, DateTime.Today));
                             _messageItems.Add(newItem);
-                            MessagesListView.UpdateLayout();
-                            MessagesListView.ScrollIntoView(newItem);
+                            // Скроллим вниз если пользователь был у самого низа
+                            double scrollable = MessagesScrollViewer.ScrollableHeight;
+                            double offset     = MessagesScrollViewer.VerticalOffset;
+                            bool wasAtBottom  = scrollable <= 0 || (scrollable - offset) < 200;
+                            if (wasAtBottom)
+                                MessagesScrollViewer.ChangeView(null, double.MaxValue, null, false);
                         }
                         // Помечаем как прочитанное если чат открыт
                         long newMsgId = newMsg["id"]?.ToObject<long>() ?? 0;
