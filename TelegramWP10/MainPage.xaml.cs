@@ -44,8 +44,8 @@ namespace TelegramWP10
         private bool _loadingOlderHistory = false;
         private bool _hasMoreHistory = true;
         private bool _trimming = false;
-        private bool _outOfMemory = false; // достигнут порог памяти
-        private const ulong MemoryThreshold = 400 * 1024 * 1024; // 400MB
+        private bool _outOfMemory = false;
+        private const ulong MemoryThreshold = 400 * 1024 * 1024;
         private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
         private bool _autoScrolling = false;
         private long _pendingStickerFileId = 0;
@@ -1403,25 +1403,6 @@ namespace TelegramWP10
                 }
             };
             _scrollTimer.Start();
-        }
-
-
-            foreach (var it in _messageItems) {
-                if (it.IsSeparator) continue;
-
-
-            }
-        }
-
-
-
-
-
-            string req = "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId +
-
-
-
-            TdJson.SendUtf8(_client, req);
         }
 
         private void LoadOlderMessages() {
