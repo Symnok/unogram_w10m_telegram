@@ -1548,6 +1548,8 @@ namespace TelegramWP10
             if (_pendingChatIds.Count == 0) {
                 if (_loadingChats) {
                     _loadingChats = false;
+                    // Теперь загружаем чаты папок — после основного списка
+                    LoadNextFolder();
                 }
                 if (_loadingArchive) {
                     _loadingArchive = false;
@@ -3482,9 +3484,11 @@ namespace TelegramWP10
             FolderTabs.Children.Add(MakeFolderTab("Все", -1));
             foreach (var f in folders) {
                 int fid = f["id"]?.ToObject<int>() ?? 0;
-                var titleToken = f["title"];
-                string fname = titleToken?["text"]?.ToString()  // formattedText
-                            ?? titleToken?.ToString()            // строка
+                var titleToken = f["name"];
+                // chatFolderInfo.name = chatFolderName { text: formattedText { text: string } }
+                string fname = titleToken?["text"]?["text"]?.ToString()  // chatFolderName.text.text
+                            ?? titleToken?["text"]?.ToString()            // chatFolderName.text если строка
+                            ?? titleToken?.ToString()                     // fallback
                             ?? "Папка";
                 FolderTabs.Children.Add(MakeFolderTab(fname, fid));
                 // Запрашиваем чаты папки по одной за раз через очередь
@@ -3492,7 +3496,8 @@ namespace TelegramWP10
             }
             FolderTabsScroll.Visibility = Visibility.Visible;
             UpdateFolderTabStyles();
-            LoadNextFolder();
+            // Папки загрузятся из LoadNextChat после основного списка
+            if (!_loadingChats) LoadNextFolder();
         }
 
         private Button MakeFolderTab(string title, int folderId) {
