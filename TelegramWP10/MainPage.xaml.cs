@@ -43,10 +43,13 @@ namespace TelegramWP10
         private int _historyRetryCount = 0;
         private bool _loadingOlderHistory = false;
         private bool _hasMoreHistory = true;
-        private bool _hasMoreBottom = false;
-        private bool _trimming = false; // блокируем nearTop во время обрезки
-        private const int MaxMessages = 150;
-        private const int TrimCount   = 50;
+        private bool _hasMoreNewer  = false; // есть новые сообщения ниже окна
+        private bool _trimming = false;
+        private const int WindowSize = 90;
+        private const int PageSize   = 30;
+        private bool _loadingNewerHistory = false;
+        private long _oldestMsgId = 0;
+        private long _newestMsgId = 0;
         private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
         private bool _autoScrolling = false;
         private long _pendingStickerFileId = 0;
@@ -1276,12 +1279,15 @@ namespace TelegramWP10
                         }
                         _messageItems.Clear();
                         _hasMoreHistory = gotCount > 0;
+                        _hasMoreNewer = false; // начальная загрузка — новее некуда
                         for (int i = msgs.Count - 1; i >= 0; i--) {
                             var it = ParseMessage(msgs[i]);
                             if (it != null) _messageItems.Add(it);
                         }
                         InsertDateSeparators();
-                        Log("rendered " + _messageItems.Count + " messages");
+                        // Запоминаем курсоры
+                        UpdateWindowCursors();
+                        Log("rendered " + _messageItems.Count + " oldest=" + _oldestMsgId + " newest=" + _newestMsgId);
                         // Если получили меньше 50 — дозагружаем более старые
                         if (gotCount > 0 && gotCount < 50) {
                             long oldestId = msgs[msgs.Count - 1]?["id"]?.ToObject<long>() ?? 0;
@@ -1300,50 +1306,80 @@ namespace TelegramWP10
                         long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
                         if (lastMsgId != 0)
                             TdJson.SendUtf8(_client, "{\"@type\":\"viewMessages\",\"chat_id\":" + expectedChat + ",\"message_ids\":[" + lastMsgId + "],\"force_read\":true}");
-                    } else {
-                        // Дозагрузка старых — вставляем в начало, сохраняем позицию скролла
+                    } else if (_loadingOlderHistory) {
+                        // Дозагрузка старых — вставляем в начало
                         _loadingOlderHistory = false;
                         OlderLoadingIndicator.Visibility = Visibility.Collapsed;
                         OlderProgressRing.IsActive = false;
                         if (gotCount == 0) {
-                            _hasMoreHistory = false; // больше нечего грузить
+                            _hasMoreHistory = false;
                             Log("no more history");
                         } else {
                             double oldHeight = MessagesScrollViewer.ExtentHeight;
                             double oldOffset = MessagesScrollViewer.VerticalOffset;
-                            // Вставляем новые сообщения в начало
                             int insertIdx = 0;
                             for (int i = msgs.Count - 1; i >= 0; i--) {
                                 var it = ParseMessage(msgs[i]);
                                 if (it != null) _messageItems.Insert(insertIdx++, it);
                             }
-                            // Вставляем только разделители для новых сообщений — не перестраиваем всё
                             InsertDateSeparatorsForRange(0, insertIdx);
-                            Log("prepended " + gotCount + " older messages, total=" + _messageItems.Count);
                             _hasMoreHistory = gotCount > 0;
-                            // Обрезаем снизу если превысили лимит
-                            bool didTrim = false;
-                            if (_messageItems.Count > MaxMessages) {
-                                int removed = 0;
-                                while (removed < TrimCount && _messageItems.Count > 0) {
+                            // Обрезаем снизу (WindowSize элементов)
+                            if (_messageItems.Count > WindowSize) {
+                                int toRemove = _messageItems.Count - WindowSize;
+                                for (int ri = 0; ri < toRemove; ri++)
                                     _messageItems.RemoveAt(_messageItems.Count - 1);
-                                    removed++;
-                                }
-                                _hasMoreBottom = true;
+                                _hasMoreNewer = true;
                                 _trimming = true;
-                                didTrim = true;
-                                Log("Trimmed " + removed + " from bottom total=" + _messageItems.Count);
+                                Log("Trimmed " + toRemove + " from bottom");
                                 var tt = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
                                 tt.Tick += (ts, te) => { tt.Stop(); _trimming = false; };
                                 tt.Start();
                             }
-                            // Восстанавливаем позицию скролла только если не было обрезки
-                            if (!didTrim) {
-                                MessagesListView.UpdateLayout();
-                                double newHeight = MessagesScrollViewer.ExtentHeight;
-                                double diff = newHeight - oldHeight;
-                                MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                            UpdateWindowCursors();
+                            Log("prepended " + gotCount + " total=" + _messageItems.Count + " oldest=" + _oldestMsgId);
+                            // Восстанавливаем позицию
+                            MessagesListView.UpdateLayout();
+                            double newHeight = MessagesScrollViewer.ExtentHeight;
+                            double diff = newHeight - oldHeight;
+                            MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                        }
+                    } else if (_loadingNewerHistory) {
+                        // Дозагрузка новых — добавляем в конец
+                        _loadingNewerHistory = false;
+                        if (gotCount == 0) {
+                            _hasMoreNewer = false;
+                            Log("no more newer");
+                        } else {
+                            double oldHeight = MessagesScrollViewer.ExtentHeight;
+                            double oldOffset = MessagesScrollViewer.VerticalOffset;
+                            // msgs приходят от новых к старым — добавляем в правильном порядке
+                            int addedCount = 0;
+                            for (int i = msgs.Count - 1; i >= 0; i--) {
+                                var it = ParseMessage(msgs[i]);
+                                if (it != null) { _messageItems.Add(it); addedCount++; }
                             }
+                            _hasMoreNewer = gotCount >= PageSize;
+                            // Обрезаем сверху (WindowSize элементов)
+                            if (_messageItems.Count > WindowSize) {
+                                int toRemove = _messageItems.Count - WindowSize;
+                                for (int ri = 0; ri < toRemove; ri++)
+                                    _messageItems.RemoveAt(0);
+                                _hasMoreHistory = true;
+                                _trimming = true;
+                                Log("Trimmed " + toRemove + " from top");
+                                var tt2 = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                                tt2.Tick += (ts, te) => { tt2.Stop(); _trimming = false; };
+                                tt2.Start();
+                            }
+                            UpdateWindowCursors();
+                            Log("appended " + gotCount + " total=" + _messageItems.Count + " newest=" + _newestMsgId);
+                            // Восстанавливаем позицию (компенсируем удаление сверху)
+                            MessagesListView.UpdateLayout();
+                            double newHeight2 = MessagesScrollViewer.ExtentHeight;
+                            double diff2 = newHeight2 - oldHeight;
+                            if (diff2 < 0) // высота уменьшилась — компенсируем
+                                MessagesScrollViewer.ChangeView(null, Math.Max(0, oldOffset + diff2), null, true);
                         }
                     }
                     break;
@@ -1361,46 +1397,52 @@ namespace TelegramWP10
         }
 
         private void MessagesScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e) {
-            double offset   = MessagesScrollViewer.VerticalOffset;
-            double viewport = MessagesScrollViewer.ViewportHeight;
+            double offset    = MessagesScrollViewer.VerticalOffset;
+            double viewport  = MessagesScrollViewer.ViewportHeight;
             double scrollable = MessagesScrollViewer.ScrollableHeight;
             bool atBottom = scrollable <= 0 || (scrollable - offset) < 50;
 
-            // Снимаем флаг автоскролла когда реально достигли низа
             if (_autoScrolling && atBottom) {
                 _autoScrolling = false;
                 Log("AutoScrolling done — at bottom");
             }
 
-            // Кнопка скролла вниз — показываем только если далеко от низа ИЛИ есть удалённые снизу
-            bool showBtn = (!atBottom && (scrollable - offset) > 300) || _hasMoreBottom;
+            // Кнопка скролла вниз
+            bool showBtn = (!atBottom && (scrollable - offset) > 300) || _hasMoreNewer;
             ScrollToBottomButton.Visibility = showBtn ? Visibility.Visible : Visibility.Collapsed;
-            if (_hasMoreBottom)
-                ScrollToBottomButton.Content = "↓↓"; // сигнализируем что нужна перезагрузка
-            else
-                ScrollToBottomButton.Content = "↓";
+            ScrollToBottomButton.Content = _hasMoreNewer ? "↓↓" : "↓";
 
-            // Дозагрузка истории — блокируем пока идёт автоскролл
+            // Загрузка старых — скролл вверх
             bool nearTop = offset < viewport * 0.5;
             if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0 && !_autoScrolling && !_trimming) {
                 Log("Scroll nearTop — LoadOlder offset=" + offset);
                 LoadOlderMessages();
             }
+
+            // Загрузка новых — скролл вниз (только если окно обрезано сверху)
+            bool nearBottom = (scrollable - offset) < viewport * 0.5;
+            if (nearBottom && _hasMoreNewer && !_loadingNewerHistory && !_trimming && !_autoScrolling) {
+                Log("Scroll nearBottom — LoadNewer");
+                LoadNewerMessages();
+            }
         }
 
         private void ScrollToBottom_Click(object sender, RoutedEventArgs e) {
-            if (_hasMoreBottom) {
-                // Перезагружаем последние сообщения
-                _hasMoreBottom = false;
+            if (_hasMoreNewer) {
+                // Перезагружаем с последних сообщений
+                _hasMoreNewer = false;
+                _loadingNewerHistory = false;
                 _messageItems.Clear();
                 _messagesDict.Clear();
                 _loadingOlderHistory = false;
                 _hasMoreHistory = true;
+                _oldestMsgId = 0;
+                _newestMsgId = 0;
                 LoadingIndicator.Visibility = Visibility.Visible;
                 MessagesListView.Visibility = Visibility.Collapsed;
                 _isLoadingHistory = true;
                 TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId + ",\"from_message_id\":0,\"offset\":0,\"limit\":50}");
-                Log("ScrollToBottom reload after trim");
+                Log("ScrollToBottom reload to latest");
             } else {
                 MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
             }
@@ -1451,6 +1493,28 @@ namespace TelegramWP10
                 }
             };
             _scrollTimer.Start();
+        }
+
+        // Обновляем курсоры окна — oldest и newest msg id
+        private void UpdateWindowCursors() {
+            _oldestMsgId = 0;
+            _newestMsgId = 0;
+            foreach (var it in _messageItems) {
+                if (it.IsSeparator) continue;
+                if (_oldestMsgId == 0 || it.Id < _oldestMsgId) _oldestMsgId = it.Id;
+                if (it.Id > _newestMsgId) _newestMsgId = it.Id;
+            }
+        }
+
+        private void LoadNewerMessages() {
+            if (_loadingNewerHistory || !_hasMoreNewer || _newestMsgId == 0) return;
+            _loadingNewerHistory = true;
+            // getChatHistory с from_message_id=newestMsgId и offset=-PageSize грузит PageSize сообщений ПОСЛЕ newestMsgId
+            string req = "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId +
+                ",\"from_message_id\":" + _newestMsgId +
+                ",\"offset\":-" + PageSize + ",\"limit\":" + PageSize + "}";
+            Log("LoadNewer from=" + _newestMsgId);
+            TdJson.SendUtf8(_client, req);
         }
 
         private void LoadOlderMessages() {
@@ -2309,8 +2373,12 @@ namespace TelegramWP10
             _pendingHistoryChatId = chat.Id;
             _historyRetryCount = 0;
             _loadingOlderHistory = false;
+            _loadingNewerHistory = false;
             _hasMoreHistory = true;
-            _hasMoreBottom = false;
+            _hasMoreNewer = false;
+            _oldestMsgId = 0;
+            _newestMsgId = 0;
+            _trimming = false;
             _autoScrolling = false;
             _scrollTimer?.Stop();
             if (OlderLoadingIndicator != null) {
