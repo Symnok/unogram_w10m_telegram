@@ -3512,6 +3512,9 @@ namespace TelegramWP10
         private void SwitchFolder(int folderId) {
             _currentFolderId = folderId;
             UpdateFolderTabStyles();
+            // Скрываем Архив внутри папок
+            if (ArchiveRow != null)
+                ArchiveRow.Visibility = folderId == -1 ? Visibility.Visible : Visibility.Collapsed;
             if (folderId == -1) {
                 // Показываем все чаты
                 _chatListItems.Clear();
