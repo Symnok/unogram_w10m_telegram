@@ -778,7 +778,7 @@ namespace TelegramWP10
                             if (lastReal == null || lastReal.RawDate.Date != newItem.RawDate.Date)
                                 _messageItems.Add(MakeSeparator(newItem.RawDate.Date, DateTime.Today));
                             _messageItems.Add(newItem);
-                            UpdateWindowCursors();
+
                             double scrollable3 = MessagesScrollViewer.ScrollableHeight;
                             double offset2 = MessagesScrollViewer.VerticalOffset;
                             bool wasAtBottom = scrollable3 <= 0 || (scrollable3 - offset2) < 200;
@@ -1405,50 +1405,22 @@ namespace TelegramWP10
             _scrollTimer.Start();
         }
 
-        private ItemsStackPanel _messagesStackPanel = null;
 
-        private ItemsStackPanel GetStackPanel() {
-            if (_messagesStackPanel != null) return _messagesStackPanel;
-            // Ищем ItemsStackPanel в визуальном дереве ListView
-            var panel = FindVisualChildByType<ItemsStackPanel>(MessagesListView);
-            if (panel != null) _messagesStackPanel = panel;
-            return panel;
-        }
-
-        private static T FindVisualChildByType<T>(DependencyObject parent) where T : DependencyObject {
-            int count = Windows.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
-            for (int i = 0; i < count; i++) {
-                var child = Windows.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
-                if (child is T t) return t;
-                var r = FindVisualChildByType<T>(child);
-                if (r != null) return r;
-            }
-            return null;
-        }
-
-        private void SetScrollMode(ItemsUpdatingScrollMode mode) {
-            var panel = GetStackPanel();
-            if (panel != null) panel.ItemsUpdatingScrollMode = mode;
-        }
-
-        private void UpdateWindowCursors() {
-            _oldestMsgId = 0;
-            _newestMsgId = 0;
             foreach (var it in _messageItems) {
                 if (it.IsSeparator) continue;
-                if (_oldestMsgId == 0 || it.Id < _oldestMsgId) _oldestMsgId = it.Id;
-                if (it.Id > _newestMsgId) _newestMsgId = it.Id;
+
+
             }
         }
 
-        private void LoadNewerMessages() {
-            if (_loadingNewerHistory || !_hasMoreNewer || _newestMsgId == 0) return;
-            _loadingNewerHistory = true;
-            // getChatHistory с from_message_id=newestMsgId и offset=-PageSize грузит PageSize сообщений ПОСЛЕ newestMsgId
+
+
+
+
             string req = "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId +
-                ",\"from_message_id\":" + _newestMsgId +
-                ",\"offset\":-" + PageSize + ",\"limit\":" + PageSize + "}";
-            Log("LoadNewer from=" + _newestMsgId);
+
+
+
             TdJson.SendUtf8(_client, req);
         }
 
@@ -2307,11 +2279,11 @@ namespace TelegramWP10
             _pendingHistoryChatId = chat.Id;
             _historyRetryCount = 0;
             _loadingOlderHistory = false;
-            _loadingNewerHistory = false;
+
             _hasMoreHistory = true;
-            _hasMoreNewer = false;
-            _oldestMsgId = 0;
-            _newestMsgId = 0;
+
+
+
             _trimming = false;
             _outOfMemory = false;
             _autoScrolling = false;
