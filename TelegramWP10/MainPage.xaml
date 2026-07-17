@@ -612,6 +612,13 @@
 
             <!-- Кнопка скролла вниз — правый нижний угол -->
             <Button x:Name="ScrollToBottomButton"
+                    Click="ScrollToBottom_Click"
+                    VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                    Margin="0,0,12,12"
+                    Width="44" Height="44"
+                    Background="#CC0088cc" Foreground="White"
+                    FontSize="20" Padding="0"
+                    Visibility="Collapsed">↓</Button>
 
             <!-- Оверлей записи видеокружочка -->
             <Grid x:Name="VideoNoteOverlay" Visibility="Collapsed"
