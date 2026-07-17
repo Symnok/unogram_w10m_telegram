@@ -1303,6 +1303,18 @@ namespace TelegramWP10
                 case "chats":
                     var chatIds = update["chat_ids"] as JArray;
                     if (chatIds != null) {
+                        // Результаты поиска — если поисковый запрос активен
+                        if (!string.IsNullOrEmpty(_searchQuery) && !_loadingArchiveIds && !_loadingChats && _pendingFolderLoad == 0) {
+                            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                                // Добавляем найденные чаты которых ещё нет в результатах
+                                foreach (var cId in chatIds) {
+                                    long id = (long)cId;
+                                    if (_chatsDict.ContainsKey(id) && !_searchResults.Any(r => r.Id == id))
+                                        _searchResults.Add(_chatsDict[id]);
+                                }
+                            });
+                            break;
+                        }
                         if (_loadingArchiveIds) {
                             // Pre-fetch: сохраняем id архивных чатов, потом грузим главный список
                             _loadingArchiveIds = false;
@@ -2336,7 +2348,8 @@ namespace TelegramWP10
                 SearchBox.Text = "";
                 _searchQuery = "";
                 SearchClearButton.Visibility = Visibility.Collapsed;
-                ApplySearch();
+                SearchResultsView.Visibility = Visibility.Collapsed;
+                ChatListView.Visibility = Visibility.Visible;
             }
             if (_chatsDict.ContainsKey(chat.Id))
                 OpenChat(_chatsDict[chat.Id], 0);
@@ -3685,38 +3698,43 @@ namespace TelegramWP10
             await dialog.ShowAsync();
         }
 
+        private ObservableCollection<ChatItem> _searchResults = new ObservableCollection<ChatItem>();
         private string _searchQuery = "";
 
         private void SearchBox_TextChanged(object sender, Windows.UI.Xaml.Controls.TextChangedEventArgs e) {
-            _searchQuery = SearchBox.Text?.Trim() ?? "";
+            _searchQuery = SearchBox.Text ?? "";
             SearchClearButton.Visibility = string.IsNullOrEmpty(_searchQuery) ? Visibility.Collapsed : Visibility.Visible;
-            ApplySearch();
+            if (string.IsNullOrEmpty(_searchQuery)) {
+                // Скрываем результаты, показываем основной список
+                SearchResultsView.Visibility = Visibility.Collapsed;
+                ChatListView.Visibility = Visibility.Visible;
+            } else {
+                // Показываем результаты, скрываем основной список
+                ChatListView.Visibility = Visibility.Collapsed;
+                SearchResultsView.Visibility = Visibility.Visible;
+                SearchResultsView.ItemsSource = _searchResults;
+                // Локальная фильтрация
+                _searchResults.Clear();
+                string q = _searchQuery.ToLower();
+                foreach (var c in _allChatItems)
+                    if (c.Title?.ToLower().Contains(q) == true)
+                        _searchResults.Add(c);
+                // Поиск в TDLib
+                TdJson.SendUtf8(_client, "{\"@type\":\"searchChats\",\"query\":\"" +
+                    _searchQuery.Replace("\"","\\\"") + "\",\"limit\":20}");
+            }
         }
 
         private void SearchClear_Click(object sender, RoutedEventArgs e) {
             SearchBox.Text = "";
             _searchQuery = "";
             SearchClearButton.Visibility = Visibility.Collapsed;
-            ApplySearch();
+            SearchResultsView.Visibility = Visibility.Collapsed;
+            ChatListView.Visibility = Visibility.Visible;
         }
 
         private void ApplySearch() {
-            var source = _currentFolderId == -1
-                ? _allChatItems
-                : (_folderChatIds.ContainsKey(_currentFolderId)
-                    ? _folderChatIds[_currentFolderId].Where(id => _chatsDict.ContainsKey(id)).Select(id => _chatsDict[id]).ToList()
-                    : new List<ChatItem>());
-
-            _chatListItems.Clear();
-            if (string.IsNullOrEmpty(_searchQuery)) {
-                foreach (var c in source) _chatListItems.Add(c);
-            } else {
-                string q = _searchQuery.ToLower();
-                foreach (var c in source)
-                    if (c.Title?.ToLower().Contains(q) == true ||
-                        c.LastMessage?.ToLower().Contains(q) == true)
-                        _chatListItems.Add(c);
-            }
+            // Не используется — поиск через SearchBox_TextChanged
         }
 
         private void ContactsButton_Click(object sender, RoutedEventArgs e) {
