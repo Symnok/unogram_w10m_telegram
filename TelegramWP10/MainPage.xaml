@@ -581,6 +581,14 @@
                 </StackPanel>
             </Border>
 
+            <!-- Плашка нехватки памяти -->
+            <Border x:Name="MemoryWarningBanner" Background="#CCCC2200" CornerRadius="10"
+                    Padding="12,6" Margin="0,48,0,0"
+                    VerticalAlignment="Top" HorizontalAlignment="Center"
+                    IsHitTestVisible="False" Visibility="Collapsed">
+                <TextBlock Text="⚠ Оперативная память закончилась" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+            </Border>
+
             <!-- Кнопка скролла вниз — правый нижний угол -->
             <Button x:Name="ScrollToBottomButton"
                     Click="ScrollToBottom_Click"
