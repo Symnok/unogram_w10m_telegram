@@ -439,8 +439,7 @@ namespace TelegramWP10
                             var update = JObject.Parse(json);
                             string type = update["@type"]?.ToString();
                             // Логируем всё для диагностики прокси (кроме очень частых апдейтов)
-                            if (type != "updateOption" && type != "updateChatReadOutbox" &&
-                                type != "updateMessageInteractionInfo")
+                            if (type != "updateOption" && type != "updateChatReadOutbox")
                             HandleUpdate(type, update);
                         } catch (Exception ex) { Log("PARSE ERR: " + ex.Message); }
                     });
@@ -490,6 +489,7 @@ namespace TelegramWP10
                         _isAuthorized = true;
                         LoginPanel.Visibility = Visibility.Collapsed;
                         ChatListView.Visibility = Visibility.Visible;
+                        if (SearchPanel != null) SearchPanel.Visibility = Visibility.Visible;
                         LogoutButton.Visibility = Visibility.Visible;
                         if (!_proxyApplied) {
                             _proxyApplied = true;
@@ -588,6 +588,7 @@ namespace TelegramWP10
                         _isAuthorized = true;
                         LoginPanel.Visibility = Visibility.Collapsed;
                         ChatListView.Visibility = Visibility.Visible;
+                        if (SearchPanel != null) SearchPanel.Visibility = Visibility.Visible;
                         LogoutButton.Visibility = Visibility.Visible;
                         // Pre-fetch архива перед main — как и при обычной авторизации
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
@@ -1305,6 +1306,7 @@ namespace TelegramWP10
                     if (chatIds != null) {
                         // Результаты поиска — если поисковый запрос активен
                         if (!string.IsNullOrEmpty(_searchQuery) && !_loadingArchiveIds && !_loadingChats && _pendingFolderLoad == 0) {
+                            Log("SEARCH TDLib result count=" + chatIds.Count + " q=" + _searchQuery);
                             var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                                 foreach (var cId in chatIds) {
                                     long id = (long)cId;
@@ -2349,6 +2351,7 @@ namespace TelegramWP10
                 SearchClearButton.Visibility = Visibility.Collapsed;
                 SearchResultsView.Visibility = Visibility.Collapsed;
                 ChatListView.Visibility = Visibility.Visible;
+                        if (SearchPanel != null) SearchPanel.Visibility = Visibility.Visible;
             }
             if (_chatsDict.ContainsKey(chat.Id))
                 OpenChat(_chatsDict[chat.Id], 0);
@@ -3704,21 +3707,19 @@ namespace TelegramWP10
             _searchQuery = SearchBox.Text ?? "";
             SearchClearButton.Visibility = string.IsNullOrEmpty(_searchQuery) ? Visibility.Collapsed : Visibility.Visible;
             if (string.IsNullOrEmpty(_searchQuery)) {
-                // Скрываем результаты, показываем основной список
                 SearchResultsView.Visibility = Visibility.Collapsed;
-                ChatListView.Visibility = Visibility.Visible;
             } else {
-                // Показываем результаты, скрываем основной список
-                ChatListView.Visibility = Visibility.Collapsed;
                 SearchResultsView.Visibility = Visibility.Visible;
                 SearchResultsView.ItemsSource = _searchResults;
-                // Локальная фильтрация
                 _searchResults.Clear();
                 string q = _searchQuery.ToLower();
+                int localCount = 0;
                 foreach (var c in _allChatItems)
-                    if (c.Title?.ToLower().Contains(q) == true)
+                    if (c.Title?.ToLower().Contains(q) == true) {
                         _searchResults.Add(c);
-                // Поиск в TDLib
+                        localCount++;
+                    }
+                Log("SEARCH local q=" + _searchQuery + " found=" + localCount);
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchChats\",\"query\":\"" +
                     _searchQuery.Replace("\"","\\\"") + "\",\"limit\":20}");
             }
@@ -3729,7 +3730,6 @@ namespace TelegramWP10
             _searchQuery = "";
             SearchClearButton.Visibility = Visibility.Collapsed;
             SearchResultsView.Visibility = Visibility.Collapsed;
-            ChatListView.Visibility = Visibility.Visible;
         }
 
         private void ApplySearch() {
