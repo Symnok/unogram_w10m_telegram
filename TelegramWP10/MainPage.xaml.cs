@@ -1333,8 +1333,8 @@ namespace TelegramWP10
                                 // Останавливаем автоскролл вниз чтобы не конфликтовал
                                 _scrollTimer?.Stop();
                                 _autoScrolling = false;
-                                double oldHeight = MessagesScrollViewer.ExtentHeight;
                                 double oldOffset = MessagesScrollViewer.VerticalOffset;
+                                double oldHeight = MessagesScrollViewer.ExtentHeight;
                                 int insertIdx = 0;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
@@ -1343,10 +1343,36 @@ namespace TelegramWP10
                                 RebuildDateSeparators();
                                 _hasMoreHistory = gotCount > 0;
                                 Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
-                                MessagesListView.UpdateLayout();
-                                double newHeight = MessagesScrollViewer.ExtentHeight;
-                                double diff = newHeight - oldHeight;
-                                MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                                // Ждём стабилизации ExtentHeight — тогда делаем точный ChangeView
+                                double capturedOldHeight = oldHeight;
+                                double capturedOldOffset = oldOffset;
+                                double prevExtent = -1;
+                                int stableTicks = 0;
+                                int totalTicks = 0;
+                                var restoreTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+                                restoreTimer.Tick += (rt, re) => {
+                                    totalTicks++;
+                                    double curExtent = MessagesScrollViewer.ExtentHeight;
+                                    if (curExtent > capturedOldHeight && curExtent == prevExtent) {
+                                        stableTicks++;
+                                        if (stableTicks >= 2) {
+                                            restoreTimer.Stop();
+                                            double diff = curExtent - capturedOldHeight;
+                                            MessagesScrollViewer.ChangeView(null, capturedOldOffset + diff, null, true);
+                                            Log("RestorePos diff=" + (int)diff + " offset=" + (int)(capturedOldOffset + diff) + " tick=" + totalTicks);
+                                        }
+                                    } else {
+                                        stableTicks = 0;
+                                        prevExtent = curExtent;
+                                    }
+                                    if (totalTicks >= 20) { // страховка 1 сек
+                                        restoreTimer.Stop();
+                                        double diff = MessagesScrollViewer.ExtentHeight - capturedOldHeight;
+                                        MessagesScrollViewer.ChangeView(null, capturedOldOffset + diff, null, true);
+                                        Log("RestorePos fallback diff=" + (int)diff);
+                                    }
+                                };
+                                restoreTimer.Start();
                             }
                         }
                     }
@@ -1364,10 +1390,21 @@ namespace TelegramWP10
             return null;
         }
 
+        private double _prevScrollOffset = 0;
+
         private void MessagesScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e) {
             double offset    = MessagesScrollViewer.VerticalOffset;
             double scrollable = MessagesScrollViewer.ScrollableHeight;
             bool atBottom = scrollable <= 0 || (scrollable - offset) < 50;
+
+            // Если пользователь скроллит вверх вручную — останавливаем автоскролл вниз
+            bool scrollingUp = offset < _prevScrollOffset;
+            if (scrollingUp && _autoScrolling) {
+                _scrollTimer?.Stop();
+                _autoScrolling = false;
+                Log("AutoScrolling cancelled by manual scroll up");
+            }
+            _prevScrollOffset = offset;
 
             if (_autoScrolling && atBottom) {
                 _autoScrolling = false;
