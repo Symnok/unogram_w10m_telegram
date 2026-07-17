@@ -77,6 +77,7 @@ namespace TelegramWP10
         private long _lastReadInboxMsgId = 0;
         private long _pinnedMessageId = 0;
         private long _pendingPinnedChatId = 0;
+        private Dictionary<long, long> _pinnedTextRequests = new Dictionary<long, long>(); // pinnedMsgId → serviceMsgId
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
         private string _dbPath = "";
@@ -507,6 +508,9 @@ namespace TelegramWP10
 
                 case "error":
                     string errMsg = update["message"]?.ToString();
+                    // Если нет закреплённого сообщения — сбрасываем флаг
+                    if (_pinnedMessageId == -1)
+                        _pinnedMessageId = 0;
                     // Не показываем proxy ошибки в UI
                     if (errMsg != null && (
                         errMsg.Contains("Proxy") ||
@@ -1191,6 +1195,25 @@ namespace TelegramWP10
                     long fetchedChatId2 = update["chat_id"]?.ToObject<long>() ?? 0;
                     Log("PIN: case message fetchedMsgId=" + fetchedMsgId + " _pinnedMessageId=" + _pinnedMessageId + " fetchedChatId=" + fetchedChatId2);
                     // Ответ на getChatPinnedMessage
+                    // Ответ на getMessage для сервисного сообщения о закреплении
+                    if (fetchedMsgId != 0 && _pinnedTextRequests.ContainsKey(fetchedMsgId)) {
+                        long serviceMsgId = _pinnedTextRequests[fetchedMsgId];
+                        _pinnedTextRequests.Remove(fetchedMsgId);
+                        if (_messagesDict.ContainsKey(serviceMsgId)) {
+                            var serviceItem = _messagesDict[serviceMsgId];
+                            var pinnedContent = update["content"];
+                            string pinnedType = pinnedContent?["@type"]?.ToString() ?? "";
+                            string pinnedText = pinnedType == "messageText"
+                                ? pinnedContent["text"]?["text"]?.ToString()
+                                : pinnedType == "messagePhoto" ? "📷 Фото"
+                                : pinnedType == "messageVideo" ? "🎥 Видео"
+                                : pinnedType == "messageSticker" ? pinnedContent["sticker"]?["emoji"]?.ToString()
+                                : "сообщение";
+                            if (!string.IsNullOrEmpty(pinnedText))
+                                serviceItem.Text = serviceItem.Text + "\n«" + pinnedText.Split('\n')[0].Substring(0, Math.Min(pinnedText.Length, 50)) + "»";
+                        }
+                    }
+
                     if (_pinnedMessageId == -1 && fetchedChatId2 == _currentChatId && fetchedMsgId != 0) {
                         _pinnedMessageId = fetchedMsgId;
                         var pc = update["content"];
@@ -1204,23 +1227,6 @@ namespace TelegramWP10
                             : pType == "messageVideoNote" ? "⏺ Видеосообщение"
                             : pType == "messageSticker" ? pc["sticker"]?["emoji"]?.ToString() + " Стикер"
                             : "Сообщение";
-                        Log("PIN: showing pText=" + pText);
-                        PinnedMessageText.Text = pText ?? "";
-                        PinnedMessageBar.Visibility = Visibility.Visible;
-                    }
-                    // Старая логика по pinnedMessageId
-                    if (fetchedMsgId != 0 && fetchedMsgId == _pinnedMessageId && _pinnedMessageId > 0) {
-                        var pc = update["content"];
-                        string pType = pc?["@type"]?.ToString() ?? "";
-                        string pText = pType == "messageText" ? pc["text"]?["text"]?.ToString()
-                            : pType == "messagePhoto" ? "📷 Фото"
-                            : pType == "messageVideo" ? "🎥 Видео"
-                            : pType == "messageDocument" ? "📄 " + (pc["document"]?["file_name"]?.ToString() ?? "Файл")
-                            : pType == "messageAudio" ? "🎵 Аудио"
-                            : pType == "messageVoiceNote" ? "🎤 Голосовое"
-                            : pType == "messageSticker" ? pc["sticker"]?["emoji"]?.ToString() + " Стикер"
-                            : "Сообщение";
-                        Log("PIN: showing pText=" + pText);
                         PinnedMessageText.Text = pText ?? "";
                         PinnedMessageBar.Visibility = Visibility.Visible;
                     }
@@ -2194,6 +2200,24 @@ namespace TelegramWP10
                         string durStr = dur > 0 ? " · " + FormatCallDuration(dur) : "";
                         string label = !string.IsNullOrEmpty(performer) ? performer + " — " + title : title;
                         item.Text = "🎵 " + (string.IsNullOrEmpty(label) ? "Аудио" : label) + durStr;
+                    } else if (type == "messagePinMessage") {
+                        long pinnedMsgId = content["message_id"]?.ToObject<long>() ?? 0;
+                        // Получаем имя отправителя
+                        string senderName = "";
+                        var senderId = msg["sender_id"];
+                        if (senderId?["@type"]?.ToString() == "messageSenderUser") {
+                            long uid = senderId["user_id"]?.ToObject<long>() ?? 0;
+                            if (_usersDict.ContainsKey(uid)) {
+                                var u = _usersDict[uid];
+                                senderName = u["first_name"]?.ToString() ?? "";
+                            }
+                        }
+                        item.Text = "📌 " + (string.IsNullOrEmpty(senderName) ? "Пользователь" : senderName) + " закрепил сообщение";
+                        // Запрашиваем текст закреплённого чтобы показать его
+                        if (pinnedMsgId != 0) {
+                            _pinnedTextRequests[pinnedMsgId] = msgId;
+                            TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + (long)msg["chat_id"] + ",\"message_id\":" + pinnedMsgId + "}");
+                        }
                     } else {
                         item.Text = "[" + type.Replace("message", "") + "]";
                     }
@@ -3342,6 +3366,13 @@ namespace TelegramWP10
             ProxySettingsButton.Foreground  = CB("#AAAAAA");
             LogoutButton.Background        = CB("#AA222222");
             LogoutButton.Foreground        = CB("#FF4444");
+            // Закреплённое — тёмная тема
+            if (PinnedMessageBar != null) {
+                PinnedMessageBar.Background = CB("#CC1F3A52");
+                PinnedMessageText.Foreground = CB("#FFFFFF");
+                PinnedLabel.Foreground = CB("#2AABEE");
+                PinnedAccentLine.Fill = CB("#2AABEE");
+            }
             NotifyAllChatTheme();
             UpdateBubbleColors();
         }
@@ -3391,6 +3422,13 @@ namespace TelegramWP10
             ProxySettingsButton.Foreground  = CB("#555555");
             LogoutButton.Background        = CB("#FFE5E5");
             LogoutButton.Foreground        = CB("#CC0000");
+            // Закреплённое — светлая тема как в оригинальном Telegram
+            if (PinnedMessageBar != null) {
+                PinnedMessageBar.Background = CB("#FFFFFF");
+                PinnedMessageText.Foreground = CB("#222222");
+                PinnedLabel.Foreground = CB("#2AABEE");
+                PinnedAccentLine.Fill = CB("#2AABEE");
+            }
             NotifyAllChatTheme();
             UpdateBubbleColors();
         }
