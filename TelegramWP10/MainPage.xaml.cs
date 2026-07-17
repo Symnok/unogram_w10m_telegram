@@ -19,7 +19,7 @@ namespace TelegramWP10
     {
         private IntPtr _client;
         private ObservableCollection<ChatItem> _chatListItems = new ObservableCollection<ChatItem>();
-        private ObservableCollection<MessageItem> _messageItems = new ObservableCollection<MessageItem>();
+        private BulkObservableCollection<MessageItem> _messageItems = new BulkObservableCollection<MessageItem>();
         private Dictionary<long, ChatItem> _chatsDict = new Dictionary<long, ChatItem>();
         private Dictionary<long, JToken> _rawChatsDict = new Dictionary<long, JToken>(); // сырой JSON чата
         private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>(); // userId → user object
@@ -46,6 +46,25 @@ namespace TelegramWP10
         private bool _trimming = false;
         private bool _outOfMemory = false;
         private const ulong MemoryThreshold = 400 * 1024 * 1024;
+        private ItemsStackPanel _messagesStackPanel = null;
+
+        private void SetScrollMode(ItemsUpdatingScrollMode mode) {
+            if (_messagesStackPanel == null)
+                _messagesStackPanel = FindVisualChild<ItemsStackPanel>(MessagesListView);
+            if (_messagesStackPanel != null)
+                _messagesStackPanel.ItemsUpdatingScrollMode = mode;
+        }
+
+        private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject {
+            int n = Windows.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < n; i++) {
+                var c = Windows.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+                if (c is T t) return t;
+                var r = FindVisualChild<T>(c);
+                if (r != null) return r;
+            }
+            return null;
+        }
         private Windows.UI.Xaml.DispatcherTimer _scrollTimer;
         private bool _autoScrolling = false;
         private long _pendingStickerFileId = 0;
@@ -1271,10 +1290,12 @@ namespace TelegramWP10
                         _messageItems.Clear();
                         _hasMoreHistory = gotCount > 0;
                         _outOfMemory = false;
+                        var initItems = new List<MessageItem>();
                         for (int i = msgs.Count - 1; i >= 0; i--) {
                             var it = ParseMessage(msgs[i]);
-                            if (it != null) _messageItems.Add(it);
+                            if (it != null) initItems.Add(it);
                         }
+                        _messageItems.AddRange(initItems);
                         InsertDateSeparators();
                         Log("rendered " + _messageItems.Count + " messages");
                         // Если получили меньше 50 — дозагружаем более старые
@@ -1312,13 +1333,16 @@ namespace TelegramWP10
                                 MemoryWarningBanner.Visibility = Visibility.Visible;
                                 Log("OOM — stopped loading history");
                             } else {
-                                _trimming = true; // блокируем nearTop на время вставки
-                                int insertIdx = 0;
+                                _trimming = true;
+                                SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
+                                var newItems = new List<MessageItem>();
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
-                                    if (it != null) _messageItems.Insert(insertIdx++, it);
+                                    if (it != null) newItems.Add(it);
                                 }
-                                InsertDateSeparatorsForRange(0, insertIdx);
+                                _messageItems.InsertRangeAt(0, newItems);
+                                InsertDateSeparatorsForRange(0, newItems.Count);
+                                SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
                                 _hasMoreHistory = gotCount > 0;
                                 Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
                                 // Снимаем блокировку через 500мс — к этому времени layout завершён
