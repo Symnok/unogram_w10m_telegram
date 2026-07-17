@@ -1049,6 +1049,15 @@ namespace TelegramWP10
                     break;
 
                 case "updateUnreadChatCount":
+                    if (update["chat_list"]?["@type"]?.ToString() == "chatListMain") {
+                        int totalUnread = update["unread_unmuted_count"]?.ToObject<int>() ?? 0;
+                        if (totalUnread == 0)
+                            totalUnread = update["unread_count"]?.ToObject<int>() ?? 0;
+                        UpdateAppBadge(totalUnread);
+                        // Если всё прочитано — очищаем бейдж
+                        if (totalUnread == 0)
+                            Windows.UI.Notifications.BadgeUpdateManager.CreateBadgeUpdaterForApplication().Clear();
+                    }
                     // TDLib присылает готовый счётчик непрочитанных при старте — используем для бейджа архива
                     if (update["chat_list"]?["@type"]?.ToString() == "chatListArchive") {
                         int archiveUnread = update["unread_unmuted_count"]?.ToObject<int>() ?? 0;
@@ -3473,7 +3482,10 @@ namespace TelegramWP10
             FolderTabs.Children.Add(MakeFolderTab("Все", -1));
             foreach (var f in folders) {
                 int fid = f["id"]?.ToObject<int>() ?? 0;
-                string fname = f["title"]?.ToString() ?? "Папка";
+                var titleToken = f["title"];
+                string fname = titleToken?["text"]?.ToString()  // formattedText
+                            ?? titleToken?.ToString()            // строка
+                            ?? "Папка";
                 FolderTabs.Children.Add(MakeFolderTab(fname, fid));
                 // Запрашиваем чаты папки по одной за раз через очередь
                 _folderLoadQueue.Enqueue(fid);
@@ -3528,6 +3540,21 @@ namespace TelegramWP10
                     isActive ? Windows.UI.Color.FromArgb(255, 42, 171, 238) : Windows.UI.Colors.Transparent);
                 btn.BorderThickness = new Thickness(0, 0, 0, isActive ? 2 : 0);
             }
+        }
+
+        private void UpdateAppBadge(int count) {
+            try {
+                var badgeXml = Windows.UI.Notifications.BadgeUpdateManager.GetTemplateContent(
+                    Windows.UI.Notifications.BadgeTemplateType.BadgeNumber);
+                var badgeNode = badgeXml.SelectSingleNode("/badge");
+                if (badgeNode?.Attributes != null) {
+                    var attr = badgeXml.CreateAttribute("value");
+                    attr.NodeValue = count > 0 ? count.ToString() : "0";
+                    badgeNode.Attributes.SetNamedItem(attr);
+                }
+                var badge = new Windows.UI.Notifications.BadgeNotification(badgeXml);
+                Windows.UI.Notifications.BadgeUpdateManager.CreateBadgeUpdaterForApplication().Update(badge);
+            } catch { }
         }
 
         private void NotifyAllChatTheme() {
