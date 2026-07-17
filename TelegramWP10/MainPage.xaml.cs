@@ -19,7 +19,7 @@ namespace TelegramWP10
     {
         private IntPtr _client;
         private ObservableCollection<ChatItem> _chatListItems = new ObservableCollection<ChatItem>();
-        private BulkObservableCollection<MessageItem> _messageItems = new BulkObservableCollection<MessageItem>();
+        private ObservableCollection<MessageItem> _messageItems = new ObservableCollection<MessageItem>();
         private Dictionary<long, ChatItem> _chatsDict = new Dictionary<long, ChatItem>();
         private Dictionary<long, JToken> _rawChatsDict = new Dictionary<long, JToken>(); // сырой JSON чата
         private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>(); // userId → user object
@@ -1315,7 +1315,7 @@ namespace TelegramWP10
                         if (lastMsgId != 0)
                             TdJson.SendUtf8(_client, "{\"@type\":\"viewMessages\",\"chat_id\":" + expectedChat + ",\"message_ids\":[" + lastMsgId + "],\"force_read\":true}");
                     } else if (_loadingOlderHistory) {
-                        // Дозагрузка старых — вставляем в начало
+                        // Дозагрузка старых — вставляем в начало, сохраняем позицию скролла
                         _loadingOlderHistory = false;
                         OlderLoadingIndicator.Visibility = Visibility.Collapsed;
                         OlderProgressRing.IsActive = false;
@@ -1324,37 +1324,27 @@ namespace TelegramWP10
                             Log("no more history");
                         } else {
                             ulong memUsage = Windows.System.MemoryManager.AppMemoryUsage;
-                            Log("Memory before prepend: " + (memUsage / 1024 / 1024) + "MB");
                             if (memUsage > MemoryThreshold) {
                                 _hasMoreHistory = false;
                                 _outOfMemory = true;
                                 MemoryWarningBanner.Visibility = Visibility.Visible;
-                                Log("OOM — stopped loading history");
+                                Log("OOM — stopped loading history mem=" + (memUsage / 1024 / 1024) + "MB");
                             } else {
-                                _trimming = true;
-                                SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
-                                var newItems = new List<MessageItem>();
-                                // Запоминаем день первого существующего сообщения ДО вставки
-                                var firstExisting = _messageItems.FirstOrDefault(m => !m.IsSeparator);
-                                DateTime? prevDay = firstExisting?.RawDate.Date;
-                                var today = DateTime.Today;
+                                double oldHeight = MessagesScrollViewer.ExtentHeight;
+                                double oldOffset = MessagesScrollViewer.VerticalOffset;
+                                int insertIdx = 0;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
-                                    if (it == null) continue;
-                                    var day = it.RawDate.Date;
-                                    if (prevDay == null || day != prevDay.Value)
-                                        newItems.Add(MakeSeparator(day, today));
-                                    newItems.Add(it);
-                                    prevDay = day;
+                                    if (it != null) _messageItems.Insert(insertIdx++, it);
                                 }
-                                _messageItems.InsertRangeAt(0, newItems);
-                                SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
-                                _hasMoreHistory = gotCount > 0;
-                                Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
-                                // Снимаем блокировку через 500мс — к этому времени layout завершён
-                                var tt = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-                                tt.Tick += (ts, te) => { tt.Stop(); _trimming = false; };
-                                tt.Start();
+                                RebuildDateSeparators();
+                                Log("prepended " + gotCount + " older messages, total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
+                                _hasMoreHistory = gotCount >= 50;
+                                // Восстанавливаем позицию скролла
+                                MessagesListView.UpdateLayout();
+                                double newHeight = MessagesScrollViewer.ExtentHeight;
+                                double diff = newHeight - oldHeight;
+                                MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
                             }
                         }
                     }
@@ -1435,8 +1425,8 @@ namespace TelegramWP10
         }
 
         private void LoadOlderMessages() {
-            // Берём самое СТАРОЕ сообщение (последний не-сепаратор в списке)
-            var oldest = _messageItems.LastOrDefault(m => !m.IsSeparator);
+            // Берём самое старое сообщение — оно в начале списка (старые = индекс 0)
+            var oldest = _messageItems.FirstOrDefault(m => !m.IsSeparator);
             if (oldest == null) return;
             _loadingOlderHistory = true;
             OlderLoadingIndicator.Visibility = Visibility.Visible;
