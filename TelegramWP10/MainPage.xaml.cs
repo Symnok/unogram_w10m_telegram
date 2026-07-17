@@ -2843,8 +2843,8 @@ namespace TelegramWP10
                     StreamingCaptureMode = Windows.Media.Capture.StreamingCaptureMode.AudioAndVideo,
                     VideoDeviceId = await GetFrontCameraId()
                 });
-                // Показываем превью
-                VideoNotePreview.Source = _videoCaptureCapture;
+                // Показываем превью через VideoBrush
+                VideoNotePreviewBrush.SetSource(_videoCaptureCapture);
                 await _videoCaptureCapture.StartPreviewAsync();
                 VideoNoteOverlay.Visibility = Visibility.Visible;
                 // Создаём файл
@@ -2878,7 +2878,6 @@ namespace TelegramWP10
                 await _videoCaptureCapture.StopRecordAsync();
                 await _videoCaptureCapture.StopPreviewAsync();
                 _isRecordingVideoNote = false;
-                VideoNotePreview.Source = null;
                 VideoNoteOverlay.Visibility = Visibility.Collapsed;
                 _videoCaptureCapture.Dispose();
                 _videoCaptureCapture = null;
