@@ -76,6 +76,7 @@ namespace TelegramWP10
         private long _currentChatOutboxReadId = 0;
         private long _lastReadInboxMsgId = 0;
         private long _pinnedMessageId = 0;
+        private long _pendingPinnedChatId = 0;
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
         private string _dbPath = "";
@@ -1150,6 +1151,16 @@ namespace TelegramWP10
                     break;
 
                 case "chat":
+                    // Ответ на getChat — берём pinned_message_id
+                    long getChatId = update["id"]?.ToObject<long>() ?? 0;
+                    if (getChatId != 0 && getChatId == _pendingPinnedChatId) {
+                        _pendingPinnedChatId = 0;
+                        long pinnedId = update["pinned_message_id"]?.ToObject<long>() ?? 0;
+                        if (pinnedId != 0 && getChatId == _currentChatId) {
+                            _pinnedMessageId = pinnedId;
+                            TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + getChatId + ",\"message_id\":" + pinnedId + "}");
+                        }
+                    }
                     // Ответ на createPrivateChat — открываем чат
                     if (_pendingContactUserId != 0) {
                         long newChatId = update["id"]?.ToObject<long>() ?? 0;
@@ -2314,19 +2325,12 @@ namespace TelegramWP10
             if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
             else ChatHeaderAvatarBrush.ImageSource = null;
             ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
-            // Закреплённое сообщение
+            // Закреплённое сообщение — запрашиваем getChat для актуального pinned_message_id
             PinnedMessageBar.Visibility = Visibility.Collapsed;
             PinnedMessageText.Text = "";
             _pinnedMessageId = 0;
-            // Берём pinned_message_id из rawChatsDict
-            if (_rawChatsDict.ContainsKey(chat.Id)) {
-                var rawChat = _rawChatsDict[chat.Id] as Newtonsoft.Json.Linq.JObject;
-                long pinnedId = rawChat?["pinned_message_id"]?.ToObject<long>() ?? 0;
-                if (pinnedId != 0) {
-                    _pinnedMessageId = pinnedId;
-                    TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + chat.Id + ",\"message_id\":" + pinnedId + "}");
-                }
-            }
+            _pendingPinnedChatId = chat.Id;
+            TdJson.SendUtf8(_client, "{\"@type\":\"getChat\",\"chat_id\":" + chat.Id + "}");
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
             MessagesListView.Visibility = Visibility.Collapsed;
@@ -2868,7 +2872,7 @@ namespace TelegramWP10
                     Windows.Media.Capture.MediaStreamType.VideoRecord) as Windows.Media.MediaProperties.VideoEncodingProperties;
                 if (props != null) {
                     System.Guid rotGuid = new System.Guid("C380465D-2271-428C-9B83-ECEA3B4A85C1");
-                    props.Properties.Add(rotGuid, 90);
+                    props.Properties.Add(rotGuid, 270);
                     await _videoCaptureCapture.VideoDeviceController.SetMediaStreamPropertiesAsync(
                         Windows.Media.Capture.MediaStreamType.VideoRecord, props);
                 }
