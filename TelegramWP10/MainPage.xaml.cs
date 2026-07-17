@@ -209,8 +209,8 @@ namespace TelegramWP10
             };
             InitAsync();
             // Логируем lifecycle приложения для диагностики фонового аудио
-            Application.Current.EnteredBackground += (s, e) => { }
-            Application.Current.LeavingBackground += (s, e) => { }
+            Application.Current.EnteredBackground += (s, e) => { };
+            Application.Current.LeavingBackground += (s, e) => { };
             Application.Current.Suspending += (s, e) => {
                 // Сохраняем позицию на случай если плеер упадёт после resume
                 if (_currentAudioPlayer != null)
@@ -251,7 +251,7 @@ namespace TelegramWP10
             var session = new Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession();
             session.Reason = Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionReason.Unspecified;
             session.Description = "Unogram audio";
-            session.Revoked += (s, e) => { }
+            session.Revoked += (s, e) => { };
             var result = await session.RequestExtensionAsync();
             if (result == Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionResult.Allowed)
                 _mediaSession = session;
@@ -295,8 +295,6 @@ namespace TelegramWP10
                 _logFile = await appFolder.CreateFileAsync(logName, CreationCollisionOption.ReplaceExisting);
                 // Логируем сохранённые настройки прокси
                 var ls2 = Windows.Storage.ApplicationData.Current.LocalSettings;
-                    " mode=" + (ls2.Values.ContainsKey("proxy_mode") ? ls2.Values["proxy_mode"].ToString() : "none") +
-                    " _proxyMode=" + (int)_proxyMode);
             } catch (Exception ex) {
                 await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
                 return;
@@ -559,9 +557,6 @@ namespace TelegramWP10
                     var c = update["chat"];
                     long chatId = (long)c["id"];
                     _rawChatsDict[chatId] = c; // сохраняем сырой JSON для last_read_inbox_message_id
-                        + " LoginPanel=" + LoginPanel.Visibility
-                        + " ChatListView=" + ChatListView.Visibility
-                        + " StartPanel=" + StartPanel.Visibility);
                     // Если пришёл updateNewChat — TDLib уже авторизован (сессия сохранена)
                     if (!_isAuthorized) {
                         _isAuthorized = true;
@@ -1850,7 +1845,6 @@ namespace TelegramWP10
                     var sizes = content["photo"]?["sizes"] as JArray;
                     if (sizes != null && sizes.Count > 0) {
                         var fileToken = sizes[sizes.Count - 1]["photo"] as JObject;
-                            + " path=" + fileToken?["local"]?["path"]);
                         if (fileToken != null) {
                             long pfid = (long)fileToken["id"];
                             item.FullPhotoFileId = pfid;
