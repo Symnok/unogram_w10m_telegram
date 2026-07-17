@@ -1162,7 +1162,6 @@ namespace TelegramWP10
                         PinnedMessageBar.Visibility = Visibility.Visible;
                     }
                     // Ответ на getMessage — заполняем ReplyToText если ждали
-                    long fetchedMsgId = update["id"]?.ToObject<long>() ?? 0;
                     if (fetchedMsgId != 0 && _replyRequests.ContainsKey(fetchedMsgId)) {
                         var waitingItem = _replyRequests[fetchedMsgId];
                         _replyRequests.Remove(fetchedMsgId);
