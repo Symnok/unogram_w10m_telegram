@@ -1304,9 +1304,6 @@ namespace TelegramWP10
                             _hasMoreHistory = false;
                             Log("no more history");
                         } else {
-                            double oldHeight = MessagesScrollViewer.ExtentHeight;
-                            double oldOffset = MessagesScrollViewer.VerticalOffset;
-                            // Проверяем память перед вставкой
                             ulong memUsage = Windows.System.MemoryManager.AppMemoryUsage;
                             Log("Memory before prepend: " + (memUsage / 1024 / 1024) + "MB");
                             if (memUsage > MemoryThreshold) {
@@ -1315,6 +1312,7 @@ namespace TelegramWP10
                                 MemoryWarningBanner.Visibility = Visibility.Visible;
                                 Log("OOM — stopped loading history");
                             } else {
+                                _trimming = true; // блокируем nearTop на время вставки
                                 int insertIdx = 0;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
@@ -1323,9 +1321,10 @@ namespace TelegramWP10
                                 InsertDateSeparatorsForRange(0, insertIdx);
                                 _hasMoreHistory = gotCount > 0;
                                 Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
-                                // Восстанавливаем позицию скролла
-                                double newHeight = MessagesScrollViewer.ExtentHeight;
-                                MessagesScrollViewer.ChangeView(null, oldOffset + (newHeight - oldHeight), null, true);
+                                // Снимаем блокировку через 500мс — к этому времени layout завершён
+                                var tt = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                                tt.Tick += (ts, te) => { tt.Stop(); _trimming = false; };
+                                tt.Start();
                             }
                         }
                     }
@@ -1358,7 +1357,7 @@ namespace TelegramWP10
 
             bool nearTop = offset < 200;
             if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory
-                && _currentChatId != 0 && !_autoScrolling && !_outOfMemory) {
+                && _currentChatId != 0 && !_autoScrolling && !_outOfMemory && !_trimming) {
                 LoadOlderMessages();
             }
         }
