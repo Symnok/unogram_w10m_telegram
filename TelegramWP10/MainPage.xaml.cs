@@ -1466,6 +1466,9 @@ namespace TelegramWP10
             };
             _scrollTimer.Start();
         }
+
+        private void UpdateWindowCursors() {
+            _oldestMsgId = 0;
             _newestMsgId = 0;
             foreach (var it in _messageItems) {
                 if (it.IsSeparator) continue;
