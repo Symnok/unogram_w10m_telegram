@@ -1366,7 +1366,6 @@ namespace TelegramWP10
         private void ScrollToBottom_Click(object sender, RoutedEventArgs e) {
             MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
         }
-        }
 
         private void ScrollToBottomDelayed() {
             _scrollTimer?.Stop();
