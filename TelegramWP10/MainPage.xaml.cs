@@ -90,6 +90,7 @@ namespace TelegramWP10
         private long _pendingPinnedChatId = 0;
         private Dictionary<long, long> _pinnedTextRequests = new Dictionary<long, long>(); // pinnedMsgId → serviceMsgId
         private bool _loadingChats = false;
+        private bool _mainListLoaded = false; // основной список полностью загружен
         private Queue<long> _pendingChatIds = new Queue<long>();
         private string _dbPath = "";
         private bool _connectionReady = false;
@@ -500,7 +501,10 @@ namespace TelegramWP10
                     if (s == "authorizationStateLoggingOut" || s == "authorizationStateClosed") {
                         _isAuthorized = false;
                         _chatListItems.Clear();
+                        _allChatItems.Clear();
                         _chatsDict.Clear();
+                        _folderChatIds.Clear();
+                        _mainListLoaded = false;
                         ChatListView.Visibility = Visibility.Collapsed;
                         LogoutButton.Visibility = Visibility.Collapsed;
                         LoginPanel.Visibility = Visibility.Visible;
@@ -1548,7 +1552,7 @@ namespace TelegramWP10
             if (_pendingChatIds.Count == 0) {
                 if (_loadingChats) {
                     _loadingChats = false;
-                    // Теперь загружаем чаты папок — после основного списка
+                    _mainListLoaded = true;
                     LoadNextFolder();
                 }
                 if (_loadingArchive) {
@@ -3496,8 +3500,8 @@ namespace TelegramWP10
             }
             FolderTabsScroll.Visibility = Visibility.Visible;
             UpdateFolderTabStyles();
-            // Папки загрузятся из LoadNextChat после основного списка
-            if (!_loadingChats) LoadNextFolder();
+            // Запускаем загрузку папок только если основной список уже загружен
+            if (_mainListLoaded) LoadNextFolder();
         }
 
         private Button MakeFolderTab(string title, int folderId) {
