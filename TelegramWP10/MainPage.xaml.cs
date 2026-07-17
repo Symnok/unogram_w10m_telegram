@@ -2204,9 +2204,9 @@ namespace TelegramWP10
                         long pinnedMsgId = content["message_id"]?.ToObject<long>() ?? 0;
                         // Получаем имя отправителя
                         string senderName = "";
-                        var senderId = msg["sender_id"];
-                        if (senderId?["@type"]?.ToString() == "messageSenderUser") {
-                            long uid = senderId["user_id"]?.ToObject<long>() ?? 0;
+                        var pinSenderId = msg["sender_id"];
+                        if (pinSenderId?["@type"]?.ToString() == "messageSenderUser") {
+                            long uid = pinSenderId["user_id"]?.ToObject<long>() ?? 0;
                             if (_usersDict.ContainsKey(uid)) {
                                 var u = _usersDict[uid];
                                 senderName = u["first_name"]?.ToString() ?? "";
