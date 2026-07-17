@@ -3528,16 +3528,13 @@ namespace TelegramWP10
         private void SwitchFolder(int folderId) {
             _currentFolderId = folderId;
             UpdateFolderTabStyles();
-            // Скрываем Архив внутри папок
             if (ArchiveRow != null)
                 ArchiveRow.Visibility = folderId == -1 ? Visibility.Visible : Visibility.Collapsed;
             if (folderId == -1) {
-                // Показываем все чаты
                 _chatListItems.Clear();
                 foreach (var c in _allChatItems)
                     _chatListItems.Add(c);
             } else {
-                // Показываем только чаты папки
                 _chatListItems.Clear();
                 if (_folderChatIds.ContainsKey(folderId)) {
                     foreach (var id in _folderChatIds[folderId]) {
@@ -3546,6 +3543,7 @@ namespace TelegramWP10
                     }
                 }
             }
+            ChatCountText.Text = _chatListItems.Count.ToString();
         }
 
         private void UpdateFolderTabStyles() {
