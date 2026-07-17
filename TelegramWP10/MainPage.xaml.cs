@@ -1330,21 +1330,16 @@ namespace TelegramWP10
                                 MemoryWarningBanner.Visibility = Visibility.Visible;
                                 Log("OOM — stopped loading history mem=" + (memUsage / 1024 / 1024) + "MB");
                             } else {
-                                double oldHeight = MessagesScrollViewer.ExtentHeight;
-                                double oldOffset = MessagesScrollViewer.VerticalOffset;
+                                SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
                                 int insertIdx = 0;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
                                     if (it != null) _messageItems.Insert(insertIdx++, it);
                                 }
                                 RebuildDateSeparators();
-                                Log("prepended " + gotCount + " older messages, total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
                                 _hasMoreHistory = gotCount >= 50;
-                                // Восстанавливаем позицию скролла
-                                MessagesListView.UpdateLayout();
-                                double newHeight = MessagesScrollViewer.ExtentHeight;
-                                double diff = newHeight - oldHeight;
-                                MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                                Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
+                                SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
                             }
                         }
                     }
