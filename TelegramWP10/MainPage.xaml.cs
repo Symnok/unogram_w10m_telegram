@@ -1278,7 +1278,7 @@ namespace TelegramWP10
                                 }
                                 RebuildDateSeparators();
                                 _hasMoreHistory = gotCount > 0;
-                                // Даём ListView время отрисовать элементы
+                                _trimming = true;
                                 double capturedOld = oldOffset;
                                 double capturedOldH = oldHeight;
                                 int attempts = 0;
@@ -1288,6 +1288,7 @@ namespace TelegramWP10
                                     if (newH > capturedOldH || attempts >= 10) {
                                         fixTimer.Stop();
                                         MessagesScrollViewer.ChangeView(null, capturedOld + (newH - capturedOldH), null, true);
+                                        _trimming = false;
                                     }
                                     attempts++;
                                 };
