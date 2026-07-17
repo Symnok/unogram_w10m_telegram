@@ -821,8 +821,9 @@ namespace TelegramWP10
 
                 case "updateChatFolders":
                     var folders = update["chat_folders"] as Newtonsoft.Json.Linq.JArray;
-                    if (folders != null)
-                        await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => BuildFolderTabs(folders));
+                    if (folders != null) {
+                        var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => BuildFolderTabs(folders));
+                    }
                     break;
 
                 case "updateConnectionState":
