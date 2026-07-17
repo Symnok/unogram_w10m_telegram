@@ -74,7 +74,8 @@ namespace TelegramWP10
         private string _pendingUploadType = ""; // "doc" или "voice"
         private long   _pendingUploadChatId = 0; // true пока идёт автоскролл вниз после загрузки
         private long _currentChatOutboxReadId = 0;
-        private long _lastReadInboxMsgId = 0; // последнее прочитанное входящее при открытии чата
+        private long _lastReadInboxMsgId = 0;
+        private long _pinnedMessageId = 0;
         private bool _loadingChats = false;
         private Queue<long> _pendingChatIds = new Queue<long>();
         private string _dbPath = "";
@@ -1144,6 +1145,22 @@ namespace TelegramWP10
                     break;
 
                 case "message":
+                    long fetchedMsgId = update["id"]?.ToObject<long>() ?? 0;
+                    // Показываем закреплённое сообщение
+                    if (fetchedMsgId != 0 && fetchedMsgId == _pinnedMessageId) {
+                        var pc = update["content"];
+                        string pType = pc?["@type"]?.ToString() ?? "";
+                        string pText = pType == "messageText" ? pc["text"]?["text"]?.ToString()
+                            : pType == "messagePhoto" ? "📷 Фото"
+                            : pType == "messageVideo" ? "🎥 Видео"
+                            : pType == "messageDocument" ? "📄 " + (pc["document"]?["file_name"]?.ToString() ?? "Файл")
+                            : pType == "messageAudio" ? "🎵 Аудио"
+                            : pType == "messageVoiceNote" ? "🎤 Голосовое"
+                            : pType == "messageSticker" ? pc["sticker"]?["emoji"]?.ToString() + " Стикер"
+                            : "Сообщение";
+                        PinnedMessageText.Text = pText ?? "";
+                        PinnedMessageBar.Visibility = Visibility.Visible;
+                    }
                     // Ответ на getMessage — заполняем ReplyToText если ждали
                     long fetchedMsgId = update["id"]?.ToObject<long>() ?? 0;
                     if (fetchedMsgId != 0 && _replyRequests.ContainsKey(fetchedMsgId)) {
@@ -2273,6 +2290,19 @@ namespace TelegramWP10
             if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
             else ChatHeaderAvatarBrush.ImageSource = null;
             ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
+            // Закреплённое сообщение
+            PinnedMessageBar.Visibility = Visibility.Collapsed;
+            PinnedMessageText.Text = "";
+            _pinnedMessageId = 0;
+            // Берём pinned_message_id из rawChatsDict
+            if (_rawChatsDict.ContainsKey(chat.Id)) {
+                var rawChat = _rawChatsDict[chat.Id] as Newtonsoft.Json.Linq.JObject;
+                long pinnedId = rawChat?["pinned_message_id"]?.ToObject<long>() ?? 0;
+                if (pinnedId != 0) {
+                    _pinnedMessageId = pinnedId;
+                    TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + chat.Id + ",\"message_id\":" + pinnedId + "}");
+                }
+            }
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
             MessagesListView.Visibility = Visibility.Collapsed;
@@ -2589,6 +2619,44 @@ namespace TelegramWP10
                     ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
             }
             TdJson.SendUtf8(_client, req);
+        }
+
+        private void PinMessage_Click(object sender, RoutedEventArgs e) {
+            if (_selectedMessageForCopy == null || _currentChatId == 0) return;
+            bool isPinned = _selectedMessageForCopy.Id == _pinnedMessageId && _pinnedMessageId != 0;
+            if (isPinned) {
+                // Открепляем
+                TdJson.SendUtf8(_client, "{\"@type\":\"unpinChatMessage\",\"chat_id\":" + _currentChatId +
+                    ",\"message_id\":" + _selectedMessageForCopy.Id + "}");
+                _pinnedMessageId = 0;
+                PinnedMessageBar.Visibility = Visibility.Collapsed;
+                PinnedMessageText.Text = "";
+            } else {
+                // Закрепляем
+                TdJson.SendUtf8(_client, "{\"@type\":\"pinChatMessage\",\"chat_id\":" + _currentChatId +
+                    ",\"message_id\":" + _selectedMessageForCopy.Id +
+                    ",\"disable_notification\":false,\"only_for_self\":false}");
+                _pinnedMessageId = _selectedMessageForCopy.Id;
+                // Обновляем текст полоски
+                string pinText = !string.IsNullOrEmpty(_selectedMessageForCopy.Text)
+                    ? _selectedMessageForCopy.Text
+                    : "Сообщение";
+                PinnedMessageText.Text = pinText;
+                PinnedMessageBar.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void PinnedMessage_Click(object sender, RoutedEventArgs e) {
+            if (_pinnedMessageId == 0) return;
+            // Ищем закреплённое в текущем списке
+            var pinned = _messageItems.FirstOrDefault(m => !m.IsSeparator && m.Id == _pinnedMessageId);
+            if (pinned != null) {
+                MessagesListView.ScrollIntoView(pinned, ScrollIntoViewAlignment.Leading);
+            } else {
+                // Сообщение не загружено — запрашиваем историю вокруг него
+                TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId +
+                    ",\"from_message_id\":" + _pinnedMessageId + ",\"offset\":-10,\"limit\":20}");
+            }
         }
 
         private void AudioSlider_ManipulationStarted(object sender, Windows.UI.Xaml.Input.ManipulationStartedRoutedEventArgs e) {
@@ -3639,6 +3707,10 @@ namespace TelegramWP10
                         if (mfi.Name == "MenuEdit") mfi.Visibility = canEdit ? Visibility.Visible : Visibility.Collapsed;
                         if (mfi.Name == "MenuDeleteSelf" || mfi.Name == "MenuDeleteAll")
                             mfi.Visibility = canDelete ? Visibility.Visible : Visibility.Collapsed;
+                        if (mfi.Name == "MenuPin") {
+                            bool isPinned = _selectedMessageForCopy?.Id == _pinnedMessageId && _pinnedMessageId != 0;
+                            mfi.Text = isPinned ? "📌 Открепить" : "📌 Закрепить";
+                        }
                     }
                 }
             }

@@ -294,6 +294,7 @@
         <Grid x:Name="MessagesPanel" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -315,8 +316,27 @@
                 </StackPanel>
             </StackPanel>
 
+            <!-- Закреплённое сообщение -->
+            <Button x:Name="PinnedMessageBar" Grid.Row="1" Click="PinnedMessage_Click"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                    Background="#CC1F3A52" Foreground="White" Padding="10,6"
+                    BorderThickness="0" Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Rectangle Grid.Column="0" Fill="#2AABEE" Width="3" RadiusX="2" RadiusY="2"/>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                        <TextBlock Text="📌 Закреплённое сообщение" Foreground="#2AABEE" FontSize="11" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="PinnedMessageText" Text="" Foreground="White" FontSize="13"
+                                   TextTrimming="CharacterEllipsis" MaxLines="1"/>
+                    </StackPanel>
+                </Grid>
+            </Button>
+
             <!-- Область сообщений: ScrollViewer + оверлеи в одном Grid -->
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="2">
             <ScrollViewer x:Name="MessagesScrollViewer"
                           VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
@@ -362,6 +382,7 @@
                                     <MenuFlyoutItem Text="↪ Переслать" Click="ForwardMessage_Click"/>
                                     <MenuFlyoutItem Text="📋 Копировать текст" Click="CopyMessage_Click"/>
                                     <MenuFlyoutItem x:Name="MenuEdit" Text="✏ Редактировать" Click="EditMessage_Click"/>
+                                    <MenuFlyoutItem x:Name="MenuPin" Text="📌 Закрепить" Click="PinMessage_Click"/>
                                     <MenuFlyoutItem x:Name="MenuDeleteSelf" Text="🗑 Удалить сообщение" Click="DeleteMessageSelf_Click"/>
                                     <MenuFlyoutItem x:Name="MenuDeleteAll" Text="🗑 Удалить у всех" Click="DeleteMessageAll_Click"/>
                                 </MenuFlyout>
@@ -601,12 +622,12 @@
 
             </Grid><!-- конец обёрточного Grid Row=1 -->
 
-            <Grid Grid.Row="1" x:Name="LoadingIndicator" Visibility="Collapsed">
+            <Grid Grid.Row="2" x:Name="LoadingIndicator" Visibility="Collapsed">
                 <ProgressRing IsActive="True" Width="60" Height="60" Foreground="#0088cc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock Text="Загрузка..." Foreground="#888888" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,80,0,0"/>
             </Grid>
 
-            <StackPanel x:Name="InputPanel" Grid.Row="2">
+            <StackPanel x:Name="InputPanel" Grid.Row="3">
                 <!-- Панель предпросмотра цитаты -->
                 <Grid x:Name="ReplyPreviewPanel" Visibility="Collapsed" Background="#1A1A1A" Padding="10,6">
                     <Grid.ColumnDefinitions>
@@ -661,7 +682,7 @@
 
             <!-- Панель выбора стикеров — поверх сообщений снизу -->
             <Grid x:Name="StickerPanel" Visibility="Collapsed"
-                  Grid.Row="1" VerticalAlignment="Bottom" Background="#1A1A1A" Height="280">
+                  Grid.Row="2" VerticalAlignment="Bottom" Background="#1A1A1A" Height="280">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
