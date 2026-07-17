@@ -108,7 +108,7 @@
                                     <TextBox x:Name="SearchBox" Grid.Column="1"
                                              PlaceholderText="Поиск" Background="Transparent"
                                              BorderThickness="0" Foreground="White"
-                                             PlaceholderForeground="#888888" FontSize="15"
+                                             FontSize="15"
                                              TextChanged="SearchBox_TextChanged"/>
                                     <Button x:Name="SearchClearButton" Grid.Column="2" Content="✕"
                                             Background="Transparent" Foreground="#888888"
