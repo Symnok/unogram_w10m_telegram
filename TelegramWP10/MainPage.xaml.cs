@@ -46,6 +46,7 @@ namespace TelegramWP10
         private bool _trimming = false;
         private bool _outOfMemory = false;
         private const ulong MemoryThreshold = 400 * 1024 * 1024;
+        private Windows.UI.Xaml.DispatcherTimer _restoreTimer = null;
         private ItemsStackPanel _messagesStackPanel = null;
 
         private void SetScrollMode(ItemsUpdatingScrollMode mode) {
@@ -1333,8 +1334,7 @@ namespace TelegramWP10
                                 // Останавливаем автоскролл вниз чтобы не конфликтовал
                                 _scrollTimer?.Stop();
                                 _autoScrolling = false;
-                                double oldOffset = MessagesScrollViewer.VerticalOffset;
-                                double oldHeight = MessagesScrollViewer.ExtentHeight;
+                                _restoreTimer?.Stop();
                                 int insertIdx = 0;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
@@ -1343,36 +1343,11 @@ namespace TelegramWP10
                                 RebuildDateSeparators();
                                 _hasMoreHistory = gotCount > 0;
                                 Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
-                                // Ждём стабилизации ExtentHeight — тогда делаем точный ChangeView
-                                double capturedOldHeight = oldHeight;
-                                double capturedOldOffset = oldOffset;
-                                double prevExtent = -1;
-                                int stableTicks = 0;
-                                int totalTicks = 0;
-                                var restoreTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
-                                restoreTimer.Tick += (rt, re) => {
-                                    totalTicks++;
-                                    double curExtent = MessagesScrollViewer.ExtentHeight;
-                                    if (curExtent > capturedOldHeight && curExtent == prevExtent) {
-                                        stableTicks++;
-                                        if (stableTicks >= 2) {
-                                            restoreTimer.Stop();
-                                            double diff = curExtent - capturedOldHeight;
-                                            MessagesScrollViewer.ChangeView(null, capturedOldOffset + diff, null, true);
-                                            Log("RestorePos diff=" + (int)diff + " offset=" + (int)(capturedOldOffset + diff) + " tick=" + totalTicks);
-                                        }
-                                    } else {
-                                        stableTicks = 0;
-                                        prevExtent = curExtent;
-                                    }
-                                    if (totalTicks >= 20) { // страховка 1 сек
-                                        restoreTimer.Stop();
-                                        double diff = MessagesScrollViewer.ExtentHeight - capturedOldHeight;
-                                        MessagesScrollViewer.ChangeView(null, capturedOldOffset + diff, null, true);
-                                        Log("RestorePos fallback diff=" + (int)diff);
-                                    }
-                                };
-                                restoreTimer.Start();
+                                // Блокируем nearTop на 500мс чтобы не залипало
+                                _trimming = true;
+                                var unblock = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                                unblock.Tick += (us, ue) => { unblock.Stop(); _trimming = false; }; 
+                                unblock.Start();
                             }
                         }
                     }
@@ -1414,7 +1389,7 @@ namespace TelegramWP10
             ScrollToBottomButton.Visibility = atBottom ? Visibility.Collapsed : Visibility.Visible;
             ScrollToBottomButton.Content = "↓";
 
-            bool nearTop = offset < 200;
+            bool nearTop = offset < 50;
             Log("ViewChanged offset=" + (int)offset + " nearTop=" + nearTop
                 + " loadingOld=" + _loadingOlderHistory + " loadingHist=" + _isLoadingHistory
                 + " hasMore=" + _hasMoreHistory + " autoScroll=" + _autoScrolling
@@ -2332,6 +2307,7 @@ namespace TelegramWP10
             _outOfMemory = false;
             _autoScrolling = false;
             _scrollTimer?.Stop();
+            _restoreTimer?.Stop();
             if (MemoryWarningBanner != null)
                 MemoryWarningBanner.Visibility = Visibility.Collapsed;
             if (OlderLoadingIndicator != null) {
