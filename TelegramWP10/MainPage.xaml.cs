@@ -45,8 +45,8 @@ namespace TelegramWP10
         private bool _hasMoreHistory = true;
         private bool _hasMoreNewer  = false; // есть новые сообщения ниже окна
         private bool _trimming = false;
-        private const int WindowSize = 90;
-        private const int PageSize   = 30;
+        private const int WindowSize = 15;
+        private const int PageSize   = 5;
         private bool _loadingNewerHistory = false;
         private long _oldestMsgId = 0;
         private long _newestMsgId = 0;
