@@ -23,7 +23,7 @@
           </uap:ShowNameOnTiles>
         </uap:DefaultTile>
         <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#000000"/>
-        <uap:LockScreen Notification="badge" BadgeLogo="Assets\Square24x24Logo.png"/>
+        <uap:LockScreen Notification="badge" BadgeLogo="Assets\Square44x44Logo.png"/>
       </uap:VisualElements>
     </Application>
   </Applications>
@@ -32,5 +32,6 @@
     <uap:Capability Name="musicLibrary" />
     <uap3:Capability Name="backgroundMediaPlayback" />
     <DeviceCapability Name="microphone" />
+    <DeviceCapability Name="webcam" />
   </Capabilities>
 </Package>

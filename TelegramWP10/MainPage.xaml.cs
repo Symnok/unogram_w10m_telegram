@@ -111,6 +111,11 @@ namespace TelegramWP10
         private bool _isRecording = false;
         private Windows.Media.Capture.MediaCapture _mediaCapture = null;
         private Windows.Storage.StorageFile _recordingFile = null;
+        private Windows.Media.Capture.MediaCapture _videoCaptureCapture = null;
+        private Windows.Storage.StorageFile _videoNoteFile = null;
+        private Windows.UI.Xaml.DispatcherTimer _videoNoteTimer = null;
+        private int _videoNoteSeconds = 0;
+        private const int MaxVideoNoteSeconds = 60;
         private Windows.Media.Playback.MediaPlayer _currentAudioPlayer = null;
         private long _currentAudioMsgId = 0;
         private Windows.Media.Core.MediaSource _currentAudioSource = null;
@@ -2825,6 +2830,80 @@ namespace TelegramWP10
                 _isRecording = false;
                 MicButton.Background = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.Transparent);
             }
+        }
+
+        private bool _isRecordingVideoNote = false;
+
+        private async void VideoNoteButton_PointerPressed(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e) {
+            if (_currentChatId == 0 || _isRecordingVideoNote) return;
+            try {
+                _isRecordingVideoNote = true;
+                _videoCaptureCapture = new Windows.Media.Capture.MediaCapture();
+                await _videoCaptureCapture.InitializeAsync(new Windows.Media.Capture.MediaCaptureInitializationSettings {
+                    StreamingCaptureMode = Windows.Media.Capture.StreamingCaptureMode.AudioAndVideo,
+                    VideoDeviceId = await GetFrontCameraId()
+                });
+                // Показываем превью
+                VideoNotePreview.Source = _videoCaptureCapture;
+                await _videoCaptureCapture.StartPreviewAsync();
+                VideoNoteOverlay.Visibility = Visibility.Visible;
+                // Создаём файл
+                string fname = "vidnote_" + Environment.TickCount + ".mp4";
+                _videoNoteFile = await _filesFolder.CreateFileAsync(fname, Windows.Storage.CreationCollisionOption.ReplaceExisting);
+                var profile = Windows.Media.MediaProperties.MediaEncodingProfile.CreateMp4(
+                    Windows.Media.MediaProperties.VideoEncodingQuality.Auto);
+                await _videoCaptureCapture.StartRecordToStorageFileAsync(profile, _videoNoteFile);
+                // Таймер
+                _videoNoteSeconds = 0;
+                VideoNoteTimer.Text = "0:00";
+                _videoNoteTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                _videoNoteTimer.Tick += (ts, te) => {
+                    _videoNoteSeconds++;
+                    VideoNoteTimer.Text = _videoNoteSeconds / 60 + ":" + (_videoNoteSeconds % 60).ToString("D2");
+                    if (_videoNoteSeconds >= MaxVideoNoteSeconds)
+                        VideoNoteButton_PointerReleased(null, null);
+                };
+                _videoNoteTimer.Start();
+            } catch (Exception ex) {
+                _isRecordingVideoNote = false;
+                VideoNoteOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async void VideoNoteButton_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e) {
+            if (!_isRecordingVideoNote || _videoCaptureCapture == null) return;
+            try {
+                _videoNoteTimer?.Stop();
+                _videoNoteTimer = null;
+                await _videoCaptureCapture.StopRecordAsync();
+                await _videoCaptureCapture.StopPreviewAsync();
+                _isRecordingVideoNote = false;
+                VideoNotePreview.Source = null;
+                VideoNoteOverlay.Visibility = Visibility.Collapsed;
+                _videoCaptureCapture.Dispose();
+                _videoCaptureCapture = null;
+                if (_videoNoteSeconds < 1) return; // слишком короткое
+                string path = _videoNoteFile.Path.Replace("\\", "/");
+                string req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                    ",\"input_message_content\":{\"@type\":\"inputMessageVideoNote\"" +
+                    ",\"video_note\":{\"@type\":\"inputVideoNote\"" +
+                    ",\"video_note\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
+                    ",\"duration\":" + _videoNoteSeconds +
+                    ",\"length\":240}}}";
+                TdJson.SendUtf8(_client, req);
+            } catch (Exception ex) {
+                _isRecordingVideoNote = false;
+                VideoNoteOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async System.Threading.Tasks.Task<string> GetFrontCameraId() {
+            var devices = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(
+                Windows.Devices.Enumeration.DeviceClass.VideoCapture);
+            foreach (var d in devices)
+                if (d.EnclosureLocation?.Panel == Windows.Devices.Enumeration.Panel.Front)
+                    return d.Id;
+            return devices.Count > 0 ? devices[0].Id : "";
         }
 
         private void ChatItem_Holding(object sender, Windows.UI.Xaml.Input.HoldingRoutedEventArgs e) {
