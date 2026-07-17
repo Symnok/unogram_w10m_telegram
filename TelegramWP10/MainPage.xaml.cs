@@ -2331,6 +2331,13 @@ namespace TelegramWP10
             if (chat.Id == _currentChatId && _threadMessageId == 0) return;
             _threadMessageId = 0;
             _threadChatId = 0;
+            // Очищаем поиск
+            if (!string.IsNullOrEmpty(_searchQuery)) {
+                SearchBox.Text = "";
+                _searchQuery = "";
+                SearchClearButton.Visibility = Visibility.Collapsed;
+                ApplySearch();
+            }
             if (_chatsDict.ContainsKey(chat.Id))
                 OpenChat(_chatsDict[chat.Id], 0);
         }
@@ -3678,6 +3685,40 @@ namespace TelegramWP10
             }));
             dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
             await dialog.ShowAsync();
+        }
+
+        private string _searchQuery = "";
+
+        private void SearchBox_TextChanged(object sender, Windows.UI.Xaml.Controls.TextChangedEventArgs e) {
+            _searchQuery = SearchBox.Text?.Trim() ?? "";
+            SearchClearButton.Visibility = string.IsNullOrEmpty(_searchQuery) ? Visibility.Collapsed : Visibility.Visible;
+            ApplySearch();
+        }
+
+        private void SearchClear_Click(object sender, RoutedEventArgs e) {
+            SearchBox.Text = "";
+            _searchQuery = "";
+            SearchClearButton.Visibility = Visibility.Collapsed;
+            ApplySearch();
+        }
+
+        private void ApplySearch() {
+            var source = _currentFolderId == -1
+                ? _allChatItems
+                : (_folderChatIds.ContainsKey(_currentFolderId)
+                    ? _folderChatIds[_currentFolderId].Where(id => _chatsDict.ContainsKey(id)).Select(id => _chatsDict[id]).ToList()
+                    : new List<ChatItem>());
+
+            _chatListItems.Clear();
+            if (string.IsNullOrEmpty(_searchQuery)) {
+                foreach (var c in source) _chatListItems.Add(c);
+            } else {
+                string q = _searchQuery.ToLower();
+                foreach (var c in source)
+                    if (c.Title?.ToLower().Contains(q) == true ||
+                        c.Subtitle?.ToLower().Contains(q) == true)
+                        _chatListItems.Add(c);
+            }
         }
 
         private void ContactsButton_Click(object sender, RoutedEventArgs e) {
