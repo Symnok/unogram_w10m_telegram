@@ -1156,8 +1156,10 @@ namespace TelegramWP10
                     if (getChatId != 0 && getChatId == _pendingPinnedChatId) {
                         _pendingPinnedChatId = 0;
                         long pinnedId = update["pinned_message_id"]?.ToObject<long>() ?? 0;
+                        Log("PIN: getChat chatId=" + getChatId + " pinnedId=" + pinnedId + " currentChat=" + _currentChatId);
                         if (pinnedId != 0 && getChatId == _currentChatId) {
                             _pinnedMessageId = pinnedId;
+                            Log("PIN: requesting getMessage id=" + pinnedId);
                             TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + getChatId + ",\"message_id\":" + pinnedId + "}");
                         }
                     }
@@ -1182,6 +1184,7 @@ namespace TelegramWP10
 
                 case "message":
                     long fetchedMsgId = update["id"]?.ToObject<long>() ?? 0;
+                    Log("PIN: case message fetchedMsgId=" + fetchedMsgId + " _pinnedMessageId=" + _pinnedMessageId);
                     // Показываем закреплённое сообщение
                     if (fetchedMsgId != 0 && fetchedMsgId == _pinnedMessageId) {
                         var pc = update["content"];
@@ -1194,6 +1197,7 @@ namespace TelegramWP10
                             : pType == "messageVoiceNote" ? "🎤 Голосовое"
                             : pType == "messageSticker" ? pc["sticker"]?["emoji"]?.ToString() + " Стикер"
                             : "Сообщение";
+                        Log("PIN: showing pText=" + pText);
                         PinnedMessageText.Text = pText ?? "";
                         PinnedMessageBar.Visibility = Visibility.Visible;
                     }
@@ -2094,6 +2098,27 @@ namespace TelegramWP10
                             TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + vfid + ",\"priority\":10,\"synchronous\":false}");
                         }
                     }
+                } else if (type == "messageVideoNote") {
+                    var videoNote = content["video_note"];
+                    var videoFile = videoNote?["video"] as JObject;
+                    int vnDur = videoNote?["duration"]?.ToObject<int>() ?? 0;
+                    item.IsAudio = true;
+                    item.AudioTitle = "⏺ Видеосообщение";
+                    item.AudioDuration = vnDur > 0 ? FormatCallDuration(vnDur) : "";
+                    item.AudioPlayStatus = "▶";
+                    if (videoFile != null) {
+                        long vnFid = (long)videoFile["id"];
+                        _fileToMsgId[vnFid] = msgId;
+                        _messagesDict[msgId] = item;
+                        string vnPath = videoFile["local"]?["path"]?.ToString();
+                        if (!string.IsNullOrEmpty(vnPath)) {
+                            item.FilePath = vnPath;
+                            item.DownloadStatus = "ready";
+                        } else {
+                            item.AudioPlayStatus = "⏳";
+                            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + vnFid + ",\"priority\":10,\"synchronous\":false}");
+                        }
+                    }
                 } else if (type == "messageAudio") {
                     var audio = content["audio"];
                     var audioFile = audio?["audio"] as JObject;
@@ -2119,7 +2144,7 @@ namespace TelegramWP10
                         }
                     }
                 }
-                if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio" && type != "messageVoiceNote" && type != "messageSticker" && type != "messagePoll") {
+                if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio" && type != "messageVoiceNote" && type != "messageVideoNote" && type != "messageSticker" && type != "messagePoll") {
                     if (type == "messageCall") {
                         var callContent = content;
                         bool isVideo = callContent["is_video"]?.ToObject<bool>() ?? false;
@@ -2330,6 +2355,7 @@ namespace TelegramWP10
             PinnedMessageText.Text = "";
             _pinnedMessageId = 0;
             _pendingPinnedChatId = chat.Id;
+            Log("PIN: getChat chatId=" + chat.Id);
             TdJson.SendUtf8(_client, "{\"@type\":\"getChat\",\"chat_id\":" + chat.Id + "}");
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
