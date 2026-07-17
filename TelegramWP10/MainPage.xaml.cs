@@ -1349,8 +1349,12 @@ namespace TelegramWP10
                                 _hasMoreHistory = gotCount >= 50;
                                 Log("prepended " + gotCount + " total=" + _messageItems.Count + " anchor=" + anchor?.Id);
                                 // Скроллим к якорю — пользователь остаётся на том же месте
-                                if (anchor != null)
+                                if (anchor != null) {
                                     MessagesListView.ScrollIntoView(anchor, ScrollIntoViewAlignment.Leading);
+                                    Log("ScrollIntoView anchor=" + anchor.Id + " done");
+                                } else {
+                                    Log("anchor is NULL — no scroll");
+                                }
                             }
                         }
                     }
@@ -1382,8 +1386,13 @@ namespace TelegramWP10
             ScrollToBottomButton.Content = "↓";
 
             bool nearTop = offset < 200;
+            Log("ViewChanged offset=" + (int)offset + " nearTop=" + nearTop
+                + " loadingOld=" + _loadingOlderHistory + " loadingHist=" + _isLoadingHistory
+                + " hasMore=" + _hasMoreHistory + " autoScroll=" + _autoScrolling
+                + " trimming=" + _trimming + " OOM=" + _outOfMemory);
             if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory
                 && _currentChatId != 0 && !_autoScrolling && !_outOfMemory && !_trimming) {
+                Log(">>> LoadOlderMessages triggered");
                 LoadOlderMessages();
             }
         }
