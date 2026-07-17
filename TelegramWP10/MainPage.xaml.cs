@@ -3714,7 +3714,7 @@ namespace TelegramWP10
                 string q = _searchQuery.ToLower();
                 foreach (var c in source)
                     if (c.Title?.ToLower().Contains(q) == true ||
-                        c.Subtitle?.ToLower().Contains(q) == true)
+                        c.LastMessage?.ToLower().Contains(q) == true)
                         _chatListItems.Add(c);
             }
         }
