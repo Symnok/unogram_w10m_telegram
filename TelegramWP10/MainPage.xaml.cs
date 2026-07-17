@@ -19,6 +19,17 @@ namespace TelegramWP10
     {
         private IntPtr _client;
         private ObservableCollection<ChatItem> _chatListItems = new ObservableCollection<ChatItem>();
+        private List<ChatItem> _allChatItems = new List<ChatItem>(); // все чаты для фильтрации
+        private int _currentFolderId = -1;
+        private Dictionary<int, List<long>> _folderChatIds = new Dictionary<int, List<long>>();
+        private int _pendingFolderLoad = 0;
+        private Queue<int> _folderLoadQueue = new Queue<int>();
+
+        private void LoadNextFolder() {
+            if (_folderLoadQueue.Count == 0 || _pendingFolderLoad != 0) return;
+            _pendingFolderLoad = _folderLoadQueue.Dequeue();
+            TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListFolder\",\"chat_folder_id\":" + _pendingFolderLoad + "},\"limit\":100}");
+        }
         private ObservableCollection<MessageItem> _messageItems = new ObservableCollection<MessageItem>();
         private Dictionary<long, ChatItem> _chatsDict = new Dictionary<long, ChatItem>();
         private Dictionary<long, JToken> _rawChatsDict = new Dictionary<long, JToken>(); // сырой JSON чата
@@ -808,6 +819,12 @@ namespace TelegramWP10
                     }
                     break;
 
+                case "updateChatFolders":
+                    var folders = update["chat_folders"] as Newtonsoft.Json.Linq.JArray;
+                    if (folders != null)
+                        await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => BuildFolderTabs(folders));
+                    break;
+
                 case "updateConnectionState":
                     var connState = update["state"]?["@type"]?.ToString();
                     if (connState == "connectionStateReady") {
@@ -1278,9 +1295,19 @@ namespace TelegramWP10
                             _archiveChatIds.Clear();
                             foreach (var cId in chatIds)
                                 _archiveChatIds.Add((long)cId);
-                            // Теперь грузим главный список
                             TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListMain\"},\"limit\":1000}");
                             _loadingChats = true;
+                        } else if (_pendingFolderLoad != 0) {
+                            // Чаты папки
+                            int fid = _pendingFolderLoad;
+                            _pendingFolderLoad = 0;
+                            var folderIds = new List<long>();
+                            foreach (var cId in chatIds)
+                                folderIds.Add((long)cId);
+                            _folderChatIds[fid] = folderIds;
+                            if (_currentFolderId == fid)
+                                SwitchFolder(fid);
+                            LoadNextFolder(); // загружаем следующую папку
                         } else {
                             _pendingChatIds.Clear();
                             foreach (var cId in chatIds)
@@ -1534,6 +1561,8 @@ namespace TelegramWP10
                         } else {
                             if (!_chatListItems.Contains(existing)) {
                                 _chatListItems.Add(existing);
+                                if (!_allChatItems.Contains(existing))
+                                    _allChatItems.Add(existing);
                                 ChatCountText.Text = _chatListItems.Count.ToString();
                             }
                         }
@@ -3431,6 +3460,73 @@ namespace TelegramWP10
             }
             NotifyAllChatTheme();
             UpdateBubbleColors();
+        }
+
+        private void BuildFolderTabs(Newtonsoft.Json.Linq.JArray folders) {
+            FolderTabs.Children.Clear();
+            if (folders == null || folders.Count == 0) {
+                FolderTabsScroll.Visibility = Visibility.Collapsed;
+                return;
+            }
+            // Вкладка "Все"
+            FolderTabs.Children.Add(MakeFolderTab("Все", -1));
+            foreach (var f in folders) {
+                int fid = f["id"]?.ToObject<int>() ?? 0;
+                string fname = f["title"]?.ToString() ?? "Папка";
+                FolderTabs.Children.Add(MakeFolderTab(fname, fid));
+                // Запрашиваем чаты папки по одной за раз через очередь
+                _folderLoadQueue.Enqueue(fid);
+            }
+            FolderTabsScroll.Visibility = Visibility.Visible;
+            UpdateFolderTabStyles();
+            LoadNextFolder();
+        }
+
+        private Button MakeFolderTab(string title, int folderId) {
+            var btn = new Button {
+                Content = title,
+                Tag = folderId,
+                Background = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.Transparent),
+                Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.White),
+                FontSize = 14,
+                Padding = new Thickness(12, 8, 12, 8),
+                BorderThickness = new Thickness(0)
+            };
+            btn.Click += (s, e) => SwitchFolder((int)(btn.Tag));
+            return btn;
+        }
+
+        private void SwitchFolder(int folderId) {
+            _currentFolderId = folderId;
+            UpdateFolderTabStyles();
+            if (folderId == -1) {
+                // Показываем все чаты
+                _chatListItems.Clear();
+                foreach (var c in _allChatItems)
+                    _chatListItems.Add(c);
+            } else {
+                // Показываем только чаты папки
+                _chatListItems.Clear();
+                if (_folderChatIds.ContainsKey(folderId)) {
+                    foreach (var id in _folderChatIds[folderId]) {
+                        if (_chatsDict.ContainsKey(id))
+                            _chatListItems.Add(_chatsDict[id]);
+                    }
+                }
+            }
+        }
+
+        private void UpdateFolderTabStyles() {
+            foreach (var child in FolderTabs.Children) {
+                var btn = child as Button;
+                if (btn == null) continue;
+                bool isActive = (int)(btn.Tag) == _currentFolderId;
+                btn.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(
+                    isActive ? Windows.UI.Color.FromArgb(255, 42, 171, 238) : Windows.UI.Colors.White);
+                btn.BorderBrush = new Windows.UI.Xaml.Media.SolidColorBrush(
+                    isActive ? Windows.UI.Color.FromArgb(255, 42, 171, 238) : Windows.UI.Colors.Transparent);
+                btn.BorderThickness = new Thickness(0, 0, 0, isActive ? 2 : 0);
+            }
         }
 
         private void NotifyAllChatTheme() {
