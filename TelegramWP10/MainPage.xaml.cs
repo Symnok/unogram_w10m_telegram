@@ -1310,7 +1310,7 @@ namespace TelegramWP10
                             Log("no more history");
                         } else {
                             // Переключаем в KeepScrollOffset — Windows компенсирует смещение при вставке вверху
-                            SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
+                            
                             int insertIdx = 0;
                             for (int i = msgs.Count - 1; i >= 0; i--) {
                                 var it = ParseMessage(msgs[i]);
@@ -1332,7 +1332,7 @@ namespace TelegramWP10
                             UpdateWindowCursors();
                             Log("prepended " + gotCount + " total=" + _messageItems.Count);
                             // Возвращаем KeepLastItemInView
-                            SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
+                            
                         }
                     } else if (_loadingNewerHistory) {
                         // Дозагрузка новых — добавляем в конец
@@ -1348,7 +1348,7 @@ namespace TelegramWP10
                             _hasMoreNewer = gotCount >= PageSize;
                             if (_messageItems.Count > WindowSize) {
                                 // При удалении сверху тоже нужна компенсация
-                                SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
+                                
                                 int toRemove = _messageItems.Count - WindowSize;
                                 for (int ri = 0; ri < toRemove; ri++)
                                     _messageItems.RemoveAt(0);
@@ -1356,7 +1356,7 @@ namespace TelegramWP10
                                 _trimming = true;
                                 Log("Trimmed " + toRemove + " from top");
                                 var tt2 = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-                                tt2.Tick += (ts, te) => { tt2.Stop(); _trimming = false; SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView); };
+                                tt2.Tick += (ts, te) => { tt2.Stop(); _trimming = false;  };
                                 tt2.Start();
                             }
                             UpdateWindowCursors();
