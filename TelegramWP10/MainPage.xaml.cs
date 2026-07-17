@@ -2141,10 +2141,10 @@ namespace TelegramWP10
                     // Превью (миниатюра)
                     var vnThumb = videoNote?["thumbnail"]?["file"] as JObject;
                     if (vnThumb != null) {
-                        long vnTfid = (long)vnThumb["id"];
                         string vnTPath = vnThumb["local"]?["path"]?.ToString();
-                        if (!string.IsNullOrEmpty(vnTPath))
-                            item.PhotoSource = new Uri(vnTPath);
+                        if (!string.IsNullOrEmpty(vnTPath)) {
+                            try { item.AttachedPhoto = new Windows.UI.Xaml.Media.Imaging.BitmapImage(new Uri(vnTPath)); } catch { }
+                        }
                     }
                 } else if (type == "messageAudio") {
                     var audio = content["audio"];
