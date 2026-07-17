@@ -1331,10 +1331,19 @@ namespace TelegramWP10
                                 MemoryWarningBanner.Visibility = Visibility.Visible;
                                 Log("OOM — stopped loading history mem=" + (memUsage / 1024 / 1024) + "MB");
                             } else {
-                                // Останавливаем автоскролл вниз чтобы не конфликтовал
                                 _scrollTimer?.Stop();
                                 _autoScrolling = false;
                                 _restoreTimer?.Stop();
+                                // Якорный элемент — запоминаем первый видимый до вставки
+                                MessageItem anchor = null;
+                                double offset0 = MessagesScrollViewer.VerticalOffset;
+                                double extent0 = MessagesScrollViewer.ExtentHeight;
+                                double itemAvgH = extent0 / Math.Max(_messageItems.Count, 1);
+                                int anchorIdx = Math.Max(0, (int)(offset0 / itemAvgH));
+                                for (int ai = anchorIdx; ai < _messageItems.Count; ai++) {
+                                    if (!_messageItems[ai].IsSeparator) { anchor = _messageItems[ai]; break; }
+                                }
+                                // Вставляем сообщения
                                 int insertIdx = 0;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
@@ -1342,11 +1351,16 @@ namespace TelegramWP10
                                 }
                                 RebuildDateSeparators();
                                 _hasMoreHistory = gotCount > 0;
-                                Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
-                                // Блокируем nearTop на 500мс чтобы не залипало
+                                Log("prepended " + gotCount + " total=" + _messageItems.Count + " anchor=" + anchor?.Id);
+                                // Блокируем nearTop пока скроллим к якорю
                                 _trimming = true;
+                                if (anchor != null) {
+                                    MessagesListView.ScrollIntoView(anchor, ScrollIntoViewAlignment.Leading);
+                                    Log("ScrollIntoView anchor=" + anchor.Id);
+                                }
+                                // Снимаем блокировку через 500мс
                                 var unblock = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-                                unblock.Tick += (us, ue) => { unblock.Stop(); _trimming = false; }; 
+                                unblock.Tick += (us, ue) => { unblock.Stop(); _trimming = false; };
                                 unblock.Start();
                             }
                         }
