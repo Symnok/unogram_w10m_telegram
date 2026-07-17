@@ -1155,7 +1155,11 @@ namespace TelegramWP10
                     long getChatId = update["id"]?.ToObject<long>() ?? 0;
                     if (getChatId != 0 && getChatId == _pendingPinnedChatId) {
                         _pendingPinnedChatId = 0;
-                        long pinnedId = update["pinned_message_id"]?.ToObject<long>() ?? 0;
+                        // TDLib 1.8+ хранит список в pinned_message_ids
+                        var pinnedIds = update["pinned_message_ids"] as Newtonsoft.Json.Linq.JArray;
+                        long pinnedId = pinnedIds != null && pinnedIds.Count > 0
+                            ? pinnedIds[0].ToObject<long>()
+                            : update["pinned_message_id"]?.ToObject<long>() ?? 0;
                         Log("PIN: getChat chatId=" + getChatId + " pinnedId=" + pinnedId + " currentChat=" + _currentChatId);
                         if (pinnedId != 0 && getChatId == _currentChatId) {
                             _pinnedMessageId = pinnedId;
@@ -1184,9 +1188,28 @@ namespace TelegramWP10
 
                 case "message":
                     long fetchedMsgId = update["id"]?.ToObject<long>() ?? 0;
-                    Log("PIN: case message fetchedMsgId=" + fetchedMsgId + " _pinnedMessageId=" + _pinnedMessageId);
-                    // Показываем закреплённое сообщение
-                    if (fetchedMsgId != 0 && fetchedMsgId == _pinnedMessageId) {
+                    long fetchedChatId2 = update["chat_id"]?.ToObject<long>() ?? 0;
+                    Log("PIN: case message fetchedMsgId=" + fetchedMsgId + " _pinnedMessageId=" + _pinnedMessageId + " fetchedChatId=" + fetchedChatId2);
+                    // Ответ на getChatPinnedMessage
+                    if (_pinnedMessageId == -1 && fetchedChatId2 == _currentChatId && fetchedMsgId != 0) {
+                        _pinnedMessageId = fetchedMsgId;
+                        var pc = update["content"];
+                        string pType = pc?["@type"]?.ToString() ?? "";
+                        string pText = pType == "messageText" ? pc["text"]?["text"]?.ToString()
+                            : pType == "messagePhoto" ? "📷 Фото"
+                            : pType == "messageVideo" ? "🎥 Видео"
+                            : pType == "messageDocument" ? "📄 " + (pc["document"]?["file_name"]?.ToString() ?? "Файл")
+                            : pType == "messageAudio" ? "🎵 Аудио"
+                            : pType == "messageVoiceNote" ? "🎤 Голосовое"
+                            : pType == "messageVideoNote" ? "⏺ Видеосообщение"
+                            : pType == "messageSticker" ? pc["sticker"]?["emoji"]?.ToString() + " Стикер"
+                            : "Сообщение";
+                        Log("PIN: showing pText=" + pText);
+                        PinnedMessageText.Text = pText ?? "";
+                        PinnedMessageBar.Visibility = Visibility.Visible;
+                    }
+                    // Старая логика по pinnedMessageId
+                    if (fetchedMsgId != 0 && fetchedMsgId == _pinnedMessageId && _pinnedMessageId > 0) {
                         var pc = update["content"];
                         string pType = pc?["@type"]?.ToString() ?? "";
                         string pText = pType == "messageText" ? pc["text"]?["text"]?.ToString()
@@ -2350,13 +2373,12 @@ namespace TelegramWP10
             if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
             else ChatHeaderAvatarBrush.ImageSource = null;
             ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
-            // Закреплённое сообщение — запрашиваем getChat для актуального pinned_message_id
+            // Закреплённое сообщение — запрашиваем напрямую
             PinnedMessageBar.Visibility = Visibility.Collapsed;
             PinnedMessageText.Text = "";
-            _pinnedMessageId = 0;
-            _pendingPinnedChatId = chat.Id;
-            Log("PIN: getChat chatId=" + chat.Id);
-            TdJson.SendUtf8(_client, "{\"@type\":\"getChat\",\"chat_id\":" + chat.Id + "}");
+            _pinnedMessageId = -1; // -1 = ждём ответ getChatPinnedMessage
+            Log("PIN: getChatPinnedMessage chatId=" + chat.Id);
+            TdJson.SendUtf8(_client, "{\"@type\":\"getChatPinnedMessage\",\"chat_id\":" + chat.Id + "}");
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
             MessagesListView.Visibility = Visibility.Collapsed;
