@@ -19,7 +19,7 @@ namespace TelegramWP10
     {
         private IntPtr _client;
         private ObservableCollection<ChatItem> _chatListItems = new ObservableCollection<ChatItem>();
-        private BulkObservableCollection<MessageItem> _messageItems = new BulkObservableCollection<MessageItem>();
+        private ObservableCollection<MessageItem> _messageItems = new ObservableCollection<MessageItem>();
         private Dictionary<long, ChatItem> _chatsDict = new Dictionary<long, ChatItem>();
         private Dictionary<long, JToken> _rawChatsDict = new Dictionary<long, JToken>(); // сырой JSON чата
         private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>(); // userId → user object
@@ -1290,12 +1290,10 @@ namespace TelegramWP10
                         _messageItems.Clear();
                         _hasMoreHistory = gotCount > 0;
                         _outOfMemory = false;
-                        var initItems = new List<MessageItem>();
                         for (int i = msgs.Count - 1; i >= 0; i--) {
                             var it = ParseMessage(msgs[i]);
-                            if (it != null) initItems.Add(it);
+                            if (it != null) _messageItems.Add(it);
                         }
-                        _messageItems.AddRange(initItems);
                         InsertDateSeparators();
                         Log("rendered " + _messageItems.Count + " messages");
                         // Если получили меньше 50 — дозагружаем более старые
@@ -1335,13 +1333,12 @@ namespace TelegramWP10
                             } else {
                                 _trimming = true;
                                 SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
-                                var newItems = new List<MessageItem>();
+                                int insertIdx = 0;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
-                                    if (it != null) newItems.Add(it);
+                                    if (it != null) _messageItems.Insert(insertIdx++, it);
                                 }
-                                _messageItems.InsertRangeAt(0, newItems);
-                                InsertDateSeparatorsForRange(0, newItems.Count);
+                                InsertDateSeparatorsForRange(0, insertIdx);
                                 SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
                                 _hasMoreHistory = gotCount > 0;
                                 Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
