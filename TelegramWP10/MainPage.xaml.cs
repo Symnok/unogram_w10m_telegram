@@ -970,6 +970,26 @@ namespace TelegramWP10
                     }
                     break;
 
+                case "updateChatLastPinnedMessageId":
+                    long pinnedChatId = update["chat_id"]?.ToObject<long>() ?? 0;
+                    long newPinnedId  = update["pinned_message_id"]?.ToObject<long>() ?? 0;
+                    // Обновляем rawChatsDict
+                    if (pinnedChatId != 0 && _rawChatsDict.ContainsKey(pinnedChatId)) {
+                        var rawC = _rawChatsDict[pinnedChatId] as Newtonsoft.Json.Linq.JObject;
+                        if (rawC != null) rawC["pinned_message_id"] = newPinnedId;
+                    }
+                    // Если это текущий чат — обновляем полоску
+                    if (pinnedChatId == _currentChatId) {
+                        _pinnedMessageId = newPinnedId;
+                        if (newPinnedId == 0) {
+                            PinnedMessageBar.Visibility = Visibility.Collapsed;
+                            PinnedMessageText.Text = "";
+                        } else {
+                            TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + pinnedChatId + ",\"message_id\":" + newPinnedId + "}");
+                        }
+                    }
+                    break;
+
                 case "updateChatReadInbox":
                     long ucriId = update["chat_id"]?.ToObject<long>() ?? 0;
                     if (ucriId != 0 && _chatsDict.ContainsKey(ucriId)) {
@@ -2843,6 +2863,15 @@ namespace TelegramWP10
                     StreamingCaptureMode = Windows.Media.Capture.StreamingCaptureMode.AudioAndVideo,
                     VideoDeviceId = await GetFrontCameraId()
                 });
+                // Поворачиваем на 90° для портретной ориентации
+                var props = _videoCaptureCapture.VideoDeviceController.GetMediaStreamProperties(
+                    Windows.Media.Capture.MediaStreamType.VideoRecord) as Windows.Media.MediaProperties.VideoEncodingProperties;
+                if (props != null) {
+                    System.Guid rotGuid = new System.Guid("C380465D-2271-428C-9B83-ECEA3B4A85C1");
+                    props.Properties.Add(rotGuid, 90);
+                    await _videoCaptureCapture.VideoDeviceController.SetMediaStreamPropertiesAsync(
+                        Windows.Media.Capture.MediaStreamType.VideoRecord, props);
+                }
                 VideoNotePreview.Source = _videoCaptureCapture;
                 await _videoCaptureCapture.StartPreviewAsync();
                 VideoNoteOverlay.Visibility = Visibility.Visible;
