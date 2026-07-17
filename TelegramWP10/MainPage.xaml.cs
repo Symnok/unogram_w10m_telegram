@@ -1333,12 +1333,10 @@ namespace TelegramWP10
                             } else {
                                 _trimming = true;
                                 SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
-                                // Строим список новых элементов с разделителями дат
                                 var newItems = new List<MessageItem>();
-                                DateTime? prevDay = null;
-                                // Узнаём день первого старого сообщения (граница)
-                                var firstOld = _messageItems.FirstOrDefault(m => !m.IsSeparator);
-                                if (firstOld != null) prevDay = firstOld.RawDate.Date;
+                                // Запоминаем день первого существующего сообщения ДО вставки
+                                var firstExisting = _messageItems.FirstOrDefault(m => !m.IsSeparator);
+                                DateTime? prevDay = firstExisting?.RawDate.Date;
                                 var today = DateTime.Today;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
@@ -1349,7 +1347,6 @@ namespace TelegramWP10
                                     newItems.Add(it);
                                     prevDay = day;
                                 }
-                                // Один батч — одна перерисовка
                                 _messageItems.InsertRangeAt(0, newItems);
                                 SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
                                 _hasMoreHistory = gotCount > 0;
