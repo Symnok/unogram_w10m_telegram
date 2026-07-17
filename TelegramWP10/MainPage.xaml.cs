@@ -19,7 +19,7 @@ namespace TelegramWP10
     {
         private IntPtr _client;
         private ObservableCollection<ChatItem> _chatListItems = new ObservableCollection<ChatItem>();
-        private ObservableCollection<MessageItem> _messageItems = new ObservableCollection<MessageItem>();
+        private BulkObservableCollection<MessageItem> _messageItems = new BulkObservableCollection<MessageItem>();
         private Dictionary<long, ChatItem> _chatsDict = new Dictionary<long, ChatItem>();
         private Dictionary<long, JToken> _rawChatsDict = new Dictionary<long, JToken>(); // сырой JSON чата
         private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>(); // userId → user object
@@ -1333,12 +1333,24 @@ namespace TelegramWP10
                             } else {
                                 _trimming = true;
                                 SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
-                                int insertIdx = 0;
+                                // Строим список новых элементов с разделителями дат
+                                var newItems = new List<MessageItem>();
+                                DateTime? prevDay = null;
+                                // Узнаём день первого старого сообщения (граница)
+                                var firstOld = _messageItems.FirstOrDefault(m => !m.IsSeparator);
+                                if (firstOld != null) prevDay = firstOld.RawDate.Date;
+                                var today = DateTime.Today;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
-                                    if (it != null) _messageItems.Insert(insertIdx++, it);
+                                    if (it == null) continue;
+                                    var day = it.RawDate.Date;
+                                    if (prevDay == null || day != prevDay.Value)
+                                        newItems.Add(MakeSeparator(day, today));
+                                    newItems.Add(it);
+                                    prevDay = day;
                                 }
-                                InsertDateSeparatorsForRange(0, insertIdx);
+                                // Один батч — одна перерисовка
+                                _messageItems.InsertRangeAt(0, newItems);
                                 SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
                                 _hasMoreHistory = gotCount > 0;
                                 Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
@@ -1426,8 +1438,8 @@ namespace TelegramWP10
         }
 
         private void LoadOlderMessages() {
-            // Берём самое старое сообщение (не разделитель дат)
-            var oldest = _messageItems.FirstOrDefault(m => !m.IsSeparator);
+            // Берём самое СТАРОЕ сообщение (последний не-сепаратор в списке)
+            var oldest = _messageItems.LastOrDefault(m => !m.IsSeparator);
             if (oldest == null) return;
             _loadingOlderHistory = true;
             OlderLoadingIndicator.Visibility = Visibility.Visible;
