@@ -1330,7 +1330,16 @@ namespace TelegramWP10
                                 MemoryWarningBanner.Visibility = Visibility.Visible;
                                 Log("OOM — stopped loading history mem=" + (memUsage / 1024 / 1024) + "MB");
                             } else {
-                                SetScrollMode(ItemsUpdatingScrollMode.KeepScrollOffset);
+                                // Запоминаем якорный элемент — первый видимый сверху
+                                MessageItem anchor = null;
+                                double scrollOffset = MessagesScrollViewer.VerticalOffset;
+                                double itemEstH = MessagesScrollViewer.ExtentHeight / Math.Max(_messageItems.Count, 1);
+                                int anchorIdx = Math.Max(0, (int)(scrollOffset / itemEstH));
+                                // Берём ближайший реальный элемент (не сепаратор)
+                                for (int ai = anchorIdx; ai < _messageItems.Count; ai++) {
+                                    if (!_messageItems[ai].IsSeparator) { anchor = _messageItems[ai]; break; }
+                                }
+                                // Вставляем сообщения
                                 int insertIdx = 0;
                                 for (int i = msgs.Count - 1; i >= 0; i--) {
                                     var it = ParseMessage(msgs[i]);
@@ -1338,8 +1347,10 @@ namespace TelegramWP10
                                 }
                                 RebuildDateSeparators();
                                 _hasMoreHistory = gotCount >= 50;
-                                Log("prepended " + gotCount + " total=" + _messageItems.Count + " mem=" + (memUsage / 1024 / 1024) + "MB");
-                                SetScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
+                                Log("prepended " + gotCount + " total=" + _messageItems.Count + " anchor=" + anchor?.Id);
+                                // Скроллим к якорю — пользователь остаётся на том же месте
+                                if (anchor != null)
+                                    MessagesListView.ScrollIntoView(anchor, ScrollIntoViewAlignment.Leading);
                             }
                         }
                     }
