@@ -1305,8 +1305,7 @@ namespace TelegramWP10
                     if (chatIds != null) {
                         // Результаты поиска — если поисковый запрос активен
                         if (!string.IsNullOrEmpty(_searchQuery) && !_loadingArchiveIds && !_loadingChats && _pendingFolderLoad == 0) {
-                            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                                // Добавляем найденные чаты которых ещё нет в результатах
+                            var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                                 foreach (var cId in chatIds) {
                                     long id = (long)cId;
                                     if (_chatsDict.ContainsKey(id) && !_searchResults.Any(r => r.Id == id))
