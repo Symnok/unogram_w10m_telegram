@@ -1338,11 +1338,36 @@ namespace TelegramWP10
                             }
                             UpdateWindowCursors();
                             Log("prepended " + gotCount + " total=" + _messageItems.Count + " oldest=" + _oldestMsgId);
-                            // Восстанавливаем позицию
-                            MessagesListView.UpdateLayout();
-                            double newHeight = MessagesScrollViewer.ExtentHeight;
-                            double diff = newHeight - oldHeight;
-                            MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                            // Ждём стабилизации ExtentHeight и восстанавливаем позицию
+                            double capturedOldOffset = oldOffset;
+                            double capturedOldHeight = oldHeight;
+                            double prevExtent = -1;
+                            int stableTicks = 0;
+                            int totalT = 0;
+                            var restoreTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+                            restoreTimer.Tick += (rt, re) => {
+                                totalT++;
+                                double curExtent = MessagesScrollViewer.ExtentHeight;
+                                if (curExtent > 0 && curExtent == prevExtent) {
+                                    stableTicks++;
+                                    if (stableTicks >= 2) {
+                                        restoreTimer.Stop();
+                                        double diff = curExtent - capturedOldHeight;
+                                        double target = capturedOldOffset + diff;
+                                        MessagesScrollViewer.ChangeView(null, Math.Max(0, target), null, true);
+                                        Log("RestorePos diff=" + diff + " target=" + target + " tick=" + totalT);
+                                    }
+                                } else {
+                                    stableTicks = 0;
+                                    prevExtent = curExtent;
+                                }
+                                if (totalT >= 20) { // страховка 1 сек
+                                    restoreTimer.Stop();
+                                    double diff2 = MessagesScrollViewer.ExtentHeight - capturedOldHeight;
+                                    MessagesScrollViewer.ChangeView(null, Math.Max(0, capturedOldOffset + diff2), null, true);
+                                }
+                            };
+                            restoreTimer.Start();
                         }
                     } else if (_loadingNewerHistory) {
                         // Дозагрузка новых — добавляем в конец
