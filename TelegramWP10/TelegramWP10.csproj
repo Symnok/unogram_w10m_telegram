@@ -53,6 +53,7 @@
     <Compile Include="TdJson.cs" />
     <Compile Include="ChatItem.cs" />
     <Compile Include="MessageItem.cs" />
+    <Compile Include="BulkObservableCollection.cs" />
   </ItemGroup>
 
   <ItemGroup>
