@@ -1346,7 +1346,7 @@ namespace TelegramWP10
                                     if (it != null) _messageItems.Insert(insertIdx++, it);
                                 }
                                 RebuildDateSeparators();
-                                _hasMoreHistory = gotCount >= 50;
+                                _hasMoreHistory = gotCount > 0;
                                 Log("prepended " + gotCount + " total=" + _messageItems.Count + " anchor=" + anchor?.Id);
                                 // Скроллим к якорю — пользователь остаётся на том же месте
                                 if (anchor != null) {
