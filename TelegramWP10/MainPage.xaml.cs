@@ -1278,10 +1278,20 @@ namespace TelegramWP10
                                 }
                                 RebuildDateSeparators();
                                 _hasMoreHistory = gotCount > 0;
-                                MessagesListView.UpdateLayout();
-                                double newHeight = MessagesScrollViewer.ExtentHeight;
-                                double diff = newHeight - oldHeight;
-                                MessagesScrollViewer.ChangeView(null, oldOffset + diff, null, true);
+                                // Даём ListView время отрисовать элементы
+                                double capturedOld = oldOffset;
+                                double capturedOldH = oldHeight;
+                                int attempts = 0;
+                                var fixTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+                                fixTimer.Tick += (ft, fe) => {
+                                    double newH = MessagesScrollViewer.ExtentHeight;
+                                    if (newH > capturedOldH || attempts >= 10) {
+                                        fixTimer.Stop();
+                                        MessagesScrollViewer.ChangeView(null, capturedOld + (newH - capturedOldH), null, true);
+                                    }
+                                    attempts++;
+                                };
+                                fixTimer.Start();
                             }
                         }
                     }
