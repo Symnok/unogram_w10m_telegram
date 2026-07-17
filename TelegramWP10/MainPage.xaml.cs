@@ -2125,22 +2125,26 @@ namespace TelegramWP10
                     var videoNote = content["video_note"];
                     var videoFile = videoNote?["video"] as JObject;
                     int vnDur = videoNote?["duration"]?.ToObject<int>() ?? 0;
-                    item.IsAudio = true;
-                    item.AudioTitle = "⏺ Видеосообщение";
-                    item.AudioDuration = vnDur > 0 ? FormatCallDuration(vnDur) : "";
-                    item.AudioPlayStatus = "▶";
+                    item.IsVideo = true;
+                    item.Text = "⏺ " + (vnDur > 0 ? FormatCallDuration(vnDur) : "Видеосообщение");
                     if (videoFile != null) {
                         long vnFid = (long)videoFile["id"];
                         _fileToMsgId[vnFid] = msgId;
+                        _videoFileIds[vnFid] = msgId;
                         _messagesDict[msgId] = item;
                         string vnPath = videoFile["local"]?["path"]?.ToString();
-                        if (!string.IsNullOrEmpty(vnPath)) {
+                        if (!string.IsNullOrEmpty(vnPath))
                             item.FilePath = vnPath;
-                            item.DownloadStatus = "ready";
-                        } else {
-                            item.AudioPlayStatus = "⏳";
+                        else
                             TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + vnFid + ",\"priority\":10,\"synchronous\":false}");
-                        }
+                    }
+                    // Превью (миниатюра)
+                    var vnThumb = videoNote?["thumbnail"]?["file"] as JObject;
+                    if (vnThumb != null) {
+                        long vnTfid = (long)vnThumb["id"];
+                        string vnTPath = vnThumb["local"]?["path"]?.ToString();
+                        if (!string.IsNullOrEmpty(vnTPath))
+                            item.PhotoSource = new Uri(vnTPath);
                     }
                 } else if (type == "messageAudio") {
                     var audio = content["audio"];
