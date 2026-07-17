@@ -778,24 +778,17 @@ namespace TelegramWP10
                     if (newMsgChatId == _currentChatId && newMsg != null && !_isLoadingHistory) {
                         var newItem = ParseMessage(newMsg);
                         if (newItem != null) {
-                            // Добавляем разделитель если это первое сообщение нового дня
-                            var lastReal = _messageItems.LastOrDefault(m => !m.IsSeparator);
-                            if (lastReal == null || lastReal.RawDate.Date != newItem.RawDate.Date)
-                                _messageItems.Add(MakeSeparator(newItem.RawDate.Date, DateTime.Today));
-                            _messageItems.Add(newItem);
-                            // Скроллим вниз если пользователь был у самого низа
-                            double scrollable2 = MessagesScrollViewer.ScrollableHeight;
-                            double offset2     = MessagesScrollViewer.VerticalOffset;
-                            bool wasAtBottom   = scrollable2 <= 0 || (scrollable2 - offset2) < 200;
-                            if (wasAtBottom) {
-                                // Ждём один кадр чтобы новое сообщение отрисовалось
-                                var t = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
-                                t.Tick += (ts, te) => {
-                                    t.Stop();
-                                    MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight + 1000, null, false);
-                                };
-                                t.Start();
-                            }
+                            // Перевёрнутый список: новые вставляем в НАЧАЛО (визуально внизу)
+                            var firstReal = _messageItems.FirstOrDefault(m => !m.IsSeparator);
+                            if (firstReal == null || firstReal.RawDate.Date != newItem.RawDate.Date)
+                                _messageItems.Insert(0, MakeSeparator(newItem.RawDate.Date, DateTime.Today));
+                            _messageItems.Insert(0, newItem);
+                            UpdateWindowCursors();
+                            // В перевёрнутом списке offset=0 это низ — если пользователь внизу, остаёмся там
+                            double offset2 = MessagesScrollViewer.VerticalOffset;
+                            bool wasAtBottom = offset2 < 200;
+                            if (wasAtBottom)
+                                MessagesScrollViewer.ChangeView(null, 0, null, false);
                         }
                         // Помечаем как прочитанное если чат открыт
                         long newMsgId = newMsg["id"]?.ToObject<long>() ?? 0;
@@ -1279,13 +1272,13 @@ namespace TelegramWP10
                         }
                         _messageItems.Clear();
                         _hasMoreHistory = gotCount > 0;
-                        _hasMoreNewer = false; // начальная загрузка — новее некуда
-                        for (int i = msgs.Count - 1; i >= 0; i--) {
+                        _hasMoreNewer = false;
+                        // Перевёрнутый список: новые сообщения в начало (индекс 0 = визуально внизу)
+                        for (int i = 0; i < msgs.Count; i++) {
                             var it = ParseMessage(msgs[i]);
                             if (it != null) _messageItems.Add(it);
                         }
                         InsertDateSeparators();
-                        // Запоминаем курсоры
                         UpdateWindowCursors();
                         Log("rendered " + _messageItems.Count + " oldest=" + _oldestMsgId + " newest=" + _newestMsgId);
                         // Если получили меньше 50 — дозагружаем более старые
@@ -1315,59 +1308,28 @@ namespace TelegramWP10
                             _hasMoreHistory = false;
                             Log("no more history");
                         } else {
-                            double oldHeight = MessagesScrollViewer.ExtentHeight;
                             double oldOffset = MessagesScrollViewer.VerticalOffset;
-                            int insertIdx = 0;
+                            // Перевёрнутый список: старые = добавляем в КОНЕЦ (визуально вверх)
+                            // Нет прыжка — скролл естественно остаётся на месте
                             for (int i = msgs.Count - 1; i >= 0; i--) {
                                 var it = ParseMessage(msgs[i]);
-                                if (it != null) _messageItems.Insert(insertIdx++, it);
+                                if (it != null) _messageItems.Add(it);
                             }
-                            InsertDateSeparatorsForRange(0, insertIdx);
                             _hasMoreHistory = gotCount > 0;
-                            // Обрезаем снизу (WindowSize элементов)
+                            // Обрезаем начало (новые) если превысили WindowSize
                             if (_messageItems.Count > WindowSize) {
                                 int toRemove = _messageItems.Count - WindowSize;
                                 for (int ri = 0; ri < toRemove; ri++)
-                                    _messageItems.RemoveAt(_messageItems.Count - 1);
+                                    _messageItems.RemoveAt(0);
                                 _hasMoreNewer = true;
                                 _trimming = true;
-                                Log("Trimmed " + toRemove + " from bottom");
+                                Log("Trimmed " + toRemove + " from top (newer)");
                                 var tt = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
                                 tt.Tick += (ts, te) => { tt.Stop(); _trimming = false; };
                                 tt.Start();
                             }
                             UpdateWindowCursors();
-                            Log("prepended " + gotCount + " total=" + _messageItems.Count + " oldest=" + _oldestMsgId);
-                            // Ждём стабилизации ExtentHeight и восстанавливаем позицию
-                            double capturedOldOffset = oldOffset;
-                            double capturedOldHeight = oldHeight;
-                            double prevExtent = -1;
-                            int stableTicks = 0;
-                            int totalT = 0;
-                            var restoreTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
-                            restoreTimer.Tick += (rt, re) => {
-                                totalT++;
-                                double curExtent = MessagesScrollViewer.ExtentHeight;
-                                if (curExtent > 0 && curExtent == prevExtent) {
-                                    stableTicks++;
-                                    if (stableTicks >= 2) {
-                                        restoreTimer.Stop();
-                                        double diff = curExtent - capturedOldHeight;
-                                        double target = capturedOldOffset + diff;
-                                        MessagesScrollViewer.ChangeView(null, Math.Max(0, target), null, true);
-                                        Log("RestorePos diff=" + diff + " target=" + target + " tick=" + totalT);
-                                    }
-                                } else {
-                                    stableTicks = 0;
-                                    prevExtent = curExtent;
-                                }
-                                if (totalT >= 20) { // страховка 1 сек
-                                    restoreTimer.Stop();
-                                    double diff2 = MessagesScrollViewer.ExtentHeight - capturedOldHeight;
-                                    MessagesScrollViewer.ChangeView(null, Math.Max(0, capturedOldOffset + diff2), null, true);
-                                }
-                            };
-                            restoreTimer.Start();
+                            Log("appended-older " + gotCount + " total=" + _messageItems.Count);
                         }
                     } else if (_loadingNewerHistory) {
                         // Дозагрузка новых — добавляем в конец
@@ -1376,35 +1338,27 @@ namespace TelegramWP10
                             _hasMoreNewer = false;
                             Log("no more newer");
                         } else {
-                            double oldHeight = MessagesScrollViewer.ExtentHeight;
-                            double oldOffset = MessagesScrollViewer.VerticalOffset;
-                            // msgs приходят от новых к старым — добавляем в правильном порядке
-                            int addedCount = 0;
-                            for (int i = msgs.Count - 1; i >= 0; i--) {
+                            // Перевёрнутый список: новые = вставляем в НАЧАЛО (визуально вниз)
+                            int insertIdx2 = 0;
+                            for (int i = 0; i < msgs.Count; i++) {
                                 var it = ParseMessage(msgs[i]);
-                                if (it != null) { _messageItems.Add(it); addedCount++; }
+                                if (it != null) _messageItems.Insert(insertIdx2++, it);
                             }
                             _hasMoreNewer = gotCount >= PageSize;
-                            // Обрезаем сверху (WindowSize элементов)
+                            // Обрезаем конец (старые) если превысили WindowSize
                             if (_messageItems.Count > WindowSize) {
                                 int toRemove = _messageItems.Count - WindowSize;
                                 for (int ri = 0; ri < toRemove; ri++)
-                                    _messageItems.RemoveAt(0);
+                                    _messageItems.RemoveAt(_messageItems.Count - 1);
                                 _hasMoreHistory = true;
                                 _trimming = true;
-                                Log("Trimmed " + toRemove + " from top");
+                                Log("Trimmed " + toRemove + " from bottom (older)");
                                 var tt2 = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
                                 tt2.Tick += (ts, te) => { tt2.Stop(); _trimming = false; };
                                 tt2.Start();
                             }
                             UpdateWindowCursors();
-                            Log("appended " + gotCount + " total=" + _messageItems.Count + " newest=" + _newestMsgId);
-                            // Восстанавливаем позицию (компенсируем удаление сверху)
-                            MessagesListView.UpdateLayout();
-                            double newHeight2 = MessagesScrollViewer.ExtentHeight;
-                            double diff2 = newHeight2 - oldHeight;
-                            if (diff2 < 0) // высота уменьшилась — компенсируем
-                                MessagesScrollViewer.ChangeView(null, Math.Max(0, oldOffset + diff2), null, true);
+                            Log("prepended-newer " + gotCount + " total=" + _messageItems.Count + " newest=" + _newestMsgId);
                         }
                     }
                     break;
@@ -1423,31 +1377,31 @@ namespace TelegramWP10
 
         private void MessagesScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e) {
             double offset    = MessagesScrollViewer.VerticalOffset;
-            double viewport  = MessagesScrollViewer.ViewportHeight;
             double scrollable = MessagesScrollViewer.ScrollableHeight;
-            bool atBottom = scrollable <= 0 || (scrollable - offset) < 50;
+
+            // Перевёрнутый список: offset=0 = визуально внизу
+            bool atBottom = offset < 50;
+            bool atTop    = scrollable > 0 && (scrollable - offset) < 50;
 
             if (_autoScrolling && atBottom) {
                 _autoScrolling = false;
-                Log("AutoScrolling done — at bottom");
+                Log("AutoScrolling done");
             }
 
-            // Кнопка скролла вниз
-            bool showBtn = (!atBottom && (scrollable - offset) > 300) || _hasMoreNewer;
+            // Кнопка ↓
+            bool showBtn = !atBottom || _hasMoreNewer;
             ScrollToBottomButton.Visibility = showBtn ? Visibility.Visible : Visibility.Collapsed;
             ScrollToBottomButton.Content = _hasMoreNewer ? "↓↓" : "↓";
 
-            // Загрузка старых — скролл вверх
-            bool nearTop = offset < viewport * 0.5;
-            if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0 && !_autoScrolling && !_trimming) {
-                Log("Scroll nearTop — LoadOlder offset=" + offset);
+            // Визуально вверху = загружаем старые
+            if (atTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory && _currentChatId != 0 && !_autoScrolling && !_trimming) {
+                Log("atTop — LoadOlder offset=" + offset);
                 LoadOlderMessages();
             }
 
-            // Загрузка новых — скролл вниз (только если окно обрезано сверху)
-            bool nearBottom = (scrollable - offset) < viewport * 0.5;
-            if (nearBottom && _hasMoreNewer && !_loadingNewerHistory && !_trimming && !_autoScrolling) {
-                Log("Scroll nearBottom — LoadNewer");
+            // Визуально внизу = загружаем новые
+            if (atBottom && _hasMoreNewer && !_loadingNewerHistory && !_trimming && !_autoScrolling) {
+                Log("atBottom — LoadNewer");
                 LoadNewerMessages();
             }
         }
@@ -1476,53 +1430,42 @@ namespace TelegramWP10
         private void ScrollToBottomDelayed() {
             _scrollTimer?.Stop();
             _autoScrolling = true;
-            double prevHeight = -1;
+            double prevExtent = -1;
             int stableTicks = 0;
             int totalTicks = 0;
             _scrollTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
             _scrollTimer.Tick += (s2, e2) => {
                 totalTicks++;
-                double sh = MessagesScrollViewer.ScrollableHeight;
-                if (sh > 0 && sh == prevHeight) {
+                double sh = MessagesScrollViewer.ExtentHeight;
+                if (sh > 0 && sh == prevExtent) {
                     stableTicks++;
                     if (stableTicks >= 2) {
                         _scrollTimer.Stop();
+                        // Перевёрнутый список: "вниз" = offset=0
                         var unreadSep = _messageItems.FirstOrDefault(m => m.IsUnreadSeparator);
                         if (unreadSep != null) {
-                            // Вычисляем позицию разделителя через его индекс
-                            int sepIdx = _messageItems.IndexOf(unreadSep);
-                            double itemAvgHeight = sh / Math.Max(_messageItems.Count, 1);
-                            double targetOffset = Math.Max(0, sepIdx * itemAvgHeight - 20);
-                            MessagesScrollViewer.ChangeView(null, targetOffset, null, false);
-                            Log("ScrollToUnreadSep tick=" + totalTicks + " idx=" + sepIdx + " offset=" + targetOffset);
+                            int idx = _messageItems.IndexOf(unreadSep);
+                            double itemH = MessagesScrollViewer.ScrollableHeight / Math.Max(_messageItems.Count, 1);
+                            double target = idx * itemH;
+                            MessagesScrollViewer.ChangeView(null, target, null, false);
+                            Log("ScrollToUnreadSep idx=" + idx + " offset=" + target);
                         } else {
-                            MessagesScrollViewer.ChangeView(null, sh, null, false);
-                            Log("ScrollToBottom stable tick=" + totalTicks + " sh=" + sh);
+                            MessagesScrollViewer.ChangeView(null, 0, null, false);
+                            Log("ScrollToBottom tick=" + totalTicks);
                         }
                     }
                 } else {
                     stableTicks = 0;
-                    prevHeight = sh;
+                    prevExtent = sh;
                 }
                 if (totalTicks >= 30) {
                     _scrollTimer.Stop();
-                    var unreadSep2 = _messageItems.FirstOrDefault(m => m.IsUnreadSeparator);
-                    if (unreadSep2 != null) {
-                        int sepIdx2 = _messageItems.IndexOf(unreadSep2);
-                        double sh2 = MessagesScrollViewer.ScrollableHeight;
-                        double itemH = sh2 / Math.Max(_messageItems.Count, 1);
-                        MessagesScrollViewer.ChangeView(null, Math.Max(0, sepIdx2 * itemH - 20), null, false);
-                    } else if (MessagesScrollViewer.ScrollableHeight > 0)
-                        MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
+                    MessagesScrollViewer.ChangeView(null, 0, null, false);
                     _autoScrolling = false;
                 }
             };
             _scrollTimer.Start();
         }
-
-        // Обновляем курсоры окна — oldest и newest msg id
-        private void UpdateWindowCursors() {
-            _oldestMsgId = 0;
             _newestMsgId = 0;
             foreach (var it in _messageItems) {
                 if (it.IsSeparator) continue;
@@ -1630,20 +1573,30 @@ namespace TelegramWP10
 
         // Вставляет разделители дат в _messageItems (полная перестройка)
         private void InsertDateSeparators() {
+            // Перевёрнутый список: индекс 0 = новейшие (визуально внизу)
+            // Разделитель нужен когда день СЛЕДУЮЩЕГО (более старого) сообщения отличается
             var today = DateTime.Today;
-            DateTime? lastDate = null;
             int i = 0;
             while (i < _messageItems.Count) {
                 var item = _messageItems[i];
                 if (item.IsSeparator) { i++; continue; }
-                var msgDay = item.RawDate.Date;
-                if (lastDate == null || msgDay != lastDate.Value) {
-                    _messageItems.Insert(i, MakeSeparator(msgDay, today));
-                    i += 2;
+                // Смотрим следующий реальный элемент (более старый)
+                int nextIdx = i + 1;
+                while (nextIdx < _messageItems.Count && _messageItems[nextIdx].IsSeparator) nextIdx++;
+                if (nextIdx < _messageItems.Count) {
+                    var nextItem = _messageItems[nextIdx];
+                    if (!nextItem.IsSeparator && item.RawDate.Date != nextItem.RawDate.Date) {
+                        // Разделитель вставляем между i и nextIdx — он будет визуально над nextItem
+                        _messageItems.Insert(i + 1, MakeSeparator(nextItem.RawDate.Date, today));
+                        i += 2;
+                        continue;
+                    }
                 } else {
-                    i++;
+                    // Последнее (самое старое) сообщение — вставляем разделитель после него
+                    _messageItems.Add(MakeSeparator(item.RawDate.Date, today));
+                    break;
                 }
-                lastDate = msgDay;
+                i++;
             }
             InsertUnreadSeparator();
         }
@@ -1651,12 +1604,13 @@ namespace TelegramWP10
         private void InsertUnreadSeparator() {
             Log("InsertUnreadSeparator lastRead=" + _lastReadInboxMsgId + " items=" + _messageItems.Count);
             if (_lastReadInboxMsgId <= 0) return;
-            // Ищем первое входящее сообщение после _lastReadInboxMsgId
+            // Перевёрнутый список: новые в начале (индекс 0)
+            // Разделитель вставляем перед первым сообщением у которого Id <= _lastReadInboxMsgId
             for (int i = 0; i < _messageItems.Count; i++) {
                 var item = _messageItems[i];
                 if (item.IsSeparator) continue;
-                if (!item.IsOutgoing && item.Id > _lastReadInboxMsgId) {
-                    // Вставляем разделитель перед этим сообщением
+                if (!item.IsOutgoing && item.Id <= _lastReadInboxMsgId) {
+                    // Это первое прочитанное — разделитель перед ним
                     var sep = new MessageItem {
                         IsSeparator = true,
                         SeparatorLabel = "Новые сообщения",
@@ -1664,7 +1618,7 @@ namespace TelegramWP10
                         Background = "#00000000"
                     };
                     _messageItems.Insert(i, sep);
-                    Log("UnreadSeparator inserted before msg=" + item.Id);
+                    Log("UnreadSeparator inserted at idx=" + i);
                     return;
                 }
             }

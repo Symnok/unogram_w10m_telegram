@@ -322,10 +322,19 @@
                           HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                           ViewChanged="MessagesScrollViewer_ViewChanged">
             <ListView x:Name="MessagesListView" SelectionMode="None" Padding="10,10,10,12" IsItemClickEnabled="True" ItemClick="MessagesListView_ItemClick" Visibility="Collapsed">
+                <ListView.RenderTransform>
+                    <ScaleTransform ScaleY="-1"/>
+                </ListView.RenderTransform>
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                         <Setter Property="Padding" Value="0"/>
+                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                        <Setter Property="RenderTransform">
+                            <Setter.Value>
+                                <ScaleTransform ScaleY="-1"/>
+                            </Setter.Value>
+                        </Setter>
                     </Style>
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
