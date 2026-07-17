@@ -2563,20 +2563,32 @@ namespace TelegramWP10
         private async void AttachFile_Click(object sender, RoutedEventArgs e) {
             if (_currentChatId == 0) return;
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
-            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary;
             picker.FileTypeFilter.Add("*");
             var file = await picker.PickSingleFileAsync();
             if (file == null) return;
-            // Копируем файл в папку приложения чтобы TDLib мог его прочитать
             var copy = await file.CopyAsync(_filesFolder, file.Name, Windows.Storage.NameCollisionOption.ReplaceExisting);
             string path = copy.Path.Replace("\\", "/");
-            string docReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
-                ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
-                ",\"document\":{\"@type\":\"inputDocument\"" +
-                ",\"document\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
-                ",\"disable_content_type_detection\":false}" +
-                ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
-            TdJson.SendUtf8(_client, docReq);
+            string ext = file.FileType?.ToLower() ?? "";
+            bool isPhoto = ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" || ext == ".bmp";
+            string req;
+            if (isPhoto) {
+                // Отправляем как фото
+                req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                    ",\"input_message_content\":{\"@type\":\"inputMessagePhoto\"" +
+                    ",\"photo\":{\"@type\":\"inputPhoto\"" +
+                    ",\"photo\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}}" +
+                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+            } else {
+                // Отправляем как документ
+                req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                    ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
+                    ",\"document\":{\"@type\":\"inputDocument\"" +
+                    ",\"document\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
+                    ",\"disable_content_type_detection\":false}" +
+                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+            }
+            TdJson.SendUtf8(_client, req);
         }
 
         private void AudioSlider_ManipulationStarted(object sender, Windows.UI.Xaml.Input.ManipulationStartedRoutedEventArgs e) {
@@ -3714,6 +3726,15 @@ namespace TelegramWP10
 
         private long _editingMessageId = 0;
         private long _replyToMessageId = 0; // id сообщения на которое отвечаем
+
+        private void MessageInput_TextChanged(object sender, Windows.UI.Xaml.Controls.TextChangedEventArgs e) {
+            if (_currentChatId == 0 || string.IsNullOrEmpty(MessageInput.Text)) return;
+            // Отправляем chatActionTyping и перезапускаем таймер сброса
+            TdJson.SendUtf8(_client, "{\"@type\":\"sendChatAction\",\"chat_id\":" + _currentChatId +
+                ",\"action\":{\"@type\":\"chatActionTyping\"}}");
+            _typingTimer.Stop();
+            _typingTimer.Start();
+        }
 
         private void MessageInput_Holding(object sender, Windows.UI.Xaml.Input.HoldingRoutedEventArgs e) {
             if (e.HoldingState != Windows.UI.Input.HoldingState.Started) return;

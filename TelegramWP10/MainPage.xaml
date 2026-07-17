@@ -644,6 +644,7 @@
                 <TextBox x:Name="MessageInput" PlaceholderText="Сообщение..." AcceptsReturn="True" MaxHeight="100"
                          Background="Transparent" BorderThickness="0"
                          Foreground="#222222" Style="{StaticResource ChatInputStyle}"
+                         TextChanged="MessageInput_TextChanged"
                          Holding="MessageInput_Holding">
                     <FlyoutBase.AttachedFlyout>
                         <MenuFlyout>
