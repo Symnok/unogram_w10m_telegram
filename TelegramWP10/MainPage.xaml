@@ -625,15 +625,14 @@
                   Background="#CC000000" Grid.Row="2">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <!-- Круглый превью с камеры -->
-                    <Grid Width="240" Height="240" HorizontalAlignment="Center">
-                        <Ellipse Width="240" Height="240">
-                            <Ellipse.Fill>
-                                <Windows.UI.Xaml.Media.VideoBrush x:Name="VideoNotePreviewBrush" Stretch="UniformToFill"/>
-                            </Ellipse.Fill>
-                        </Ellipse>
-                        <Ellipse x:Name="VideoNoteProgressRing" Width="240" Height="240"
-                                 Stroke="#2AABEE" StrokeThickness="4" Fill="Transparent"/>
-                    </Grid>
+                    <Border Width="240" Height="240" HorizontalAlignment="Center"
+                            CornerRadius="120" Background="Black">
+                        <CaptureElement x:Name="VideoNotePreview" Width="240" Height="240"
+                                        Stretch="UniformToFill"/>
+                    </Border>
+                    <Ellipse x:Name="VideoNoteProgressRing" Width="248" Height="248"
+                             Stroke="#2AABEE" StrokeThickness="4" Fill="Transparent"
+                             HorizontalAlignment="Center" Margin="0,-248,0,0"/>
                     <!-- Таймер -->
                     <TextBlock x:Name="VideoNoteTimer" Text="0:00" Foreground="White"
                                FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center"
