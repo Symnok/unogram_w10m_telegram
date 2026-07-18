@@ -3088,13 +3088,18 @@ namespace TelegramWP10
         }
 
         private void PinnedMessage_Click(object sender, RoutedEventArgs e) {
-            if (_pinnedMessageId == 0) return;
-            // Ищем закреплённое в текущем списке
+            if (_pinnedMessageId <= 0) return;
             var pinned = _messageItems.FirstOrDefault(m => !m.IsSeparator && m.Id == _pinnedMessageId);
             if (pinned != null) {
-                MessagesListView.ScrollIntoView(pinned, ScrollIntoViewAlignment.Leading);
+                // Вычисляем позицию через индекс и среднюю высоту
+                int idx = _messageItems.IndexOf(pinned);
+                double sh = MessagesScrollViewer.ScrollableHeight;
+                double itemH = sh / Math.Max(_messageItems.Count, 1);
+                double target = Math.Max(0, idx * itemH - 60);
+                MessagesScrollViewer.ChangeView(null, target, null, false);
             } else {
                 // Сообщение не загружено — запрашиваем историю вокруг него
+                _pendingScrollToMsgId = _pinnedMessageId;
                 TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId +
                     ",\"from_message_id\":" + _pinnedMessageId + ",\"offset\":-10,\"limit\":20}");
             }
