@@ -33,7 +33,8 @@ namespace TelegramWP10
         private ObservableCollection<MessageItem> _messageItems = new ObservableCollection<MessageItem>();
         private Dictionary<long, ChatItem> _chatsDict = new Dictionary<long, ChatItem>();
         private Dictionary<long, JToken> _rawChatsDict = new Dictionary<long, JToken>(); // сырой JSON чата
-        private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>(); // userId → user object
+        private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>();
+        private Dictionary<long, JToken> _supergroupDict = new Dictionary<long, JToken>();
         private Dictionary<long, long> _fileToChatId = new Dictionary<long, long>();
         private Dictionary<long, SearchResultItem> _fileToSearchResult = new Dictionary<long, SearchResultItem>();
         private Dictionary<long, long> _fileToMsgId = new Dictionary<long, long>();
@@ -957,6 +958,19 @@ namespace TelegramWP10
                     }
                     break;
 
+                case "updateSupergroup":
+                    var sg = update["supergroup"];
+                    if (sg != null) {
+                        long sgId = sg["id"]?.ToObject<long>() ?? 0;
+                        if (sgId != 0) _supergroupDict[sgId] = sg;
+                    }
+                    break;
+
+                case "supergroup":
+                    long sg2Id = update["id"]?.ToObject<long>() ?? 0;
+                    if (sg2Id != 0) _supergroupDict[sg2Id] = update;
+                    break;
+
                 case "updateUser":
                     var user = update["user"];
                     long uid = user?["id"]?.ToObject<long>() ?? 0;
@@ -1350,8 +1364,21 @@ namespace TelegramWP10
                                             var raw = _rawChatsDict[id] as Newtonsoft.Json.Linq.JObject;
                                             srUsername = raw?["username"]?.ToString()
                                                       ?? raw?["usernames"]?["editable_username"]?.ToString()
-                                                      ?? raw?["type"]?["username"]?.ToString() ?? "";
-                                            Log("SEARCH username for " + id + "=" + srUsername + " raw_type=" + raw?["type"]?["@type"]);
+                                                      ?? raw?["type"]?["username"]?.ToString()
+                                                      ?? raw?["type"]?["usernames"]?["editable_username"]?.ToString()
+                                                      ?? "";
+                                            // Для супергрупп/каналов — берём из _supergroupDict
+                                            if (string.IsNullOrEmpty(srUsername)) {
+                                                long sgId = raw?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
+                                                if (sgId != 0 && _supergroupDict.ContainsKey(sgId)) {
+                                                    var sg3 = _supergroupDict[sgId];
+                                                    srUsername = sg3["username"]?.ToString()
+                                                              ?? sg3["usernames"]?["editable_username"]?.ToString() ?? "";
+                                                }
+                                                // Если не нашли — запрашиваем
+                                                if (string.IsNullOrEmpty(srUsername) && sgId != 0)
+                                                    TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroup\",\"supergroup_id\":" + sgId + "}");
+                                            }
                                         }
                                         string srSubtitle = !string.IsNullOrEmpty(srUsername)
                                             ? "@" + srUsername
@@ -3803,10 +3830,11 @@ namespace TelegramWP10
                 }
             }
             // Убираем себя из обычного списка — добавим как "Избранное" первым
-            Log("CONTACTS before filter: count=" + contacts.Count + " _myUserId=" + _myUserId);
-            foreach (var cx in contacts) Log("CONTACTS item: uid=" + cx.UserId + " name=" + cx.FullName);
+            Log("CONTACTS myUserId=" + _myUserId + " count=" + contacts.Count);
+            foreach (var cx in contacts)
+                Log("CONTACTS item uid=" + cx.UserId + " name=" + cx.FullName + " isSelf=" + (cx.UserId == _myUserId));
             contacts = contacts.Where(c => c.UserId != _myUserId).OrderBy(c => c.FullName).ToList();
-            Log("CONTACTS after filter: count=" + contacts.Count);
+            Log("CONTACTS after filter count=" + contacts.Count);
             if (_myUserId != 0) {
                 var selfItem = new ContactItem { UserId = _myUserId, FullName = "⭐ Избранное" };
                 contacts.Insert(0, selfItem);
