@@ -28,6 +28,25 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="SearchBoxStyle" TargetType="TextBox">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Grid>
+                            <ScrollViewer x:Name="ContentElement" Margin="{TemplateBinding Padding}"
+                                          HorizontalScrollMode="Auto" VerticalScrollMode="Auto"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                            <TextBlock x:Name="PlaceholderTextContentPresenter"
+                                       Text="{TemplateBinding PlaceholderText}"
+                                       Foreground="#888888"
+                                       Margin="{TemplateBinding Padding}"
+                                       IsHitTestVisible="False"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Page.Resources>
 
     <Grid>
@@ -73,7 +92,8 @@
                         <TextBox x:Name="SearchBox" Grid.Column="1"
                                  PlaceholderText="Поиск" Background="Transparent"
                                  BorderThickness="0" Foreground="White"
-                                 FontSize="15" TextChanged="SearchBox_TextChanged"/>
+                                 FontSize="15" Style="{StaticResource SearchBoxStyle}"
+                                 TextChanged="SearchBox_TextChanged"/>
                         <Button x:Name="SearchClearButton" Grid.Column="2" Content="✕"
                                 Background="Transparent" Foreground="#888888"
                                 FontSize="12" Padding="4,0" BorderThickness="0"
