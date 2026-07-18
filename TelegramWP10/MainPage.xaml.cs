@@ -313,8 +313,8 @@ namespace TelegramWP10
 
         private async void InitAsync() {
             try {
-                var localFolder = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Music);
-                var appFolder = await localFolder.SaveFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
+                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
+                var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
@@ -943,11 +943,9 @@ namespace TelegramWP10
                             if (_chatsDict.ContainsKey(_myUserId)) {
                                 _chatsDict[_myUserId].Title = "⭐ Избранное";
                             }
-                            Log("GETME myUserId=" + _myUserId + " contactsPending=" + _contactsPendingMyId);
                             if (_contactsPendingMyId && _contactItems != null) {
                                 _contactsPendingMyId = false;
                                 var selfContact = _contactItems.FirstOrDefault(c => c.UserId == gUid);
-                                Log("GETME selfContact=" + (selfContact?.FullName ?? "null"));
                                 if (selfContact != null) {
                                     selfContact.FullName = "⭐ Избранное";
                                     selfContact.Username = "";
@@ -1211,7 +1209,6 @@ namespace TelegramWP10
 
                 case "users":
                     var contactUserIds = update["user_ids"] as JArray;
-                    Log("CONTACTS case users count=" + (contactUserIds?.Count.ToString() ?? "null"));
                     if (contactUserIds != null) {
                         var uids = contactUserIds;
                         var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, async () => {
@@ -1256,10 +1253,8 @@ namespace TelegramWP10
                         long pinnedId = pinnedIds != null && pinnedIds.Count > 0
                             ? pinnedIds[0].ToObject<long>()
                             : update["pinned_message_id"]?.ToObject<long>() ?? 0;
-                        Log("PIN: getChat chatId=" + getChatId + " pinnedId=" + pinnedId + " currentChat=" + _currentChatId);
                         if (pinnedId != 0 && getChatId == _currentChatId) {
                             _pinnedMessageId = pinnedId;
-                            Log("PIN: requesting getMessage id=" + pinnedId);
                             TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + getChatId + ",\"message_id\":" + pinnedId + "}");
                         }
                     }
@@ -1285,7 +1280,6 @@ namespace TelegramWP10
                 case "message":
                     long fetchedMsgId = update["id"]?.ToObject<long>() ?? 0;
                     long fetchedChatId2 = update["chat_id"]?.ToObject<long>() ?? 0;
-                    Log("PIN: case message fetchedMsgId=" + fetchedMsgId + " _pinnedMessageId=" + _pinnedMessageId + " fetchedChatId=" + fetchedChatId2);
                     // Ответ на getChatPinnedMessage
                     // Ответ на getMessage для сервисного сообщения о закреплении
                     if (fetchedMsgId != 0 && _pinnedTextRequests.ContainsKey(fetchedMsgId)) {
@@ -1366,7 +1360,6 @@ namespace TelegramWP10
                     if (chatIds != null) {
                         // Результаты поиска — если поисковый запрос активен
                         if (!string.IsNullOrEmpty(_searchQuery) && !_loadingArchiveIds && !_loadingChats && _pendingFolderLoad == 0) {
-                            Log("SEARCH case chats count=" + chatIds.Count + " q=" + _searchQuery + " extra=" + (update["@extra"]?.ToString() ?? "none"));
                                 var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                                 foreach (var cId in chatIds) {
                                     long id = (long)cId;
@@ -1458,7 +1451,6 @@ namespace TelegramWP10
 
                 case "foundMessages":
                     // Ответ на searchMessages
-                    Log("SEARCH foundMessages total=" + update["total_count"] + " q=" + _searchQuery);
                     if (!string.IsNullOrEmpty(_searchQuery)) {
                         var foundMsgs2 = update["messages"] as JArray;
                         if (foundMsgs2 != null && foundMsgs2.Count > 0) {
@@ -1495,7 +1487,6 @@ namespace TelegramWP10
                 case "messages":
                     // Результаты searchMessages
                     if (!string.IsNullOrEmpty(_searchQuery) && update["total_count"] != null && _pendingHistoryChatId == 0) {
-                        Log("SEARCH case messages total=" + update["total_count"] + " q=" + _searchQuery);
                         var foundMsgs = update["messages"] as JArray;
                         if (foundMsgs != null && foundMsgs.Count > 0) {
                             var ignored2 = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
@@ -2676,7 +2667,6 @@ namespace TelegramWP10
             PinnedMessageBar.Visibility = Visibility.Collapsed;
             PinnedMessageText.Text = "";
             _pinnedMessageId = -1; // -1 = ждём ответ getChatPinnedMessage
-            Log("PIN: getChatPinnedMessage chatId=" + chat.Id);
             TdJson.SendUtf8(_client, "{\"@type\":\"getChatPinnedMessage\",\"chat_id\":" + chat.Id + "}");
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
@@ -3839,7 +3829,6 @@ namespace TelegramWP10
                         Username = cid2 == _myUserId ? "" : (u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? ""),
                         LastSeen = cid2 == _myUserId ? "" : GetLastSeenText(u2["status"])
                     });
-                    Log("CONTACT cid=" + cid2 + " myUserId=" + _myUserId + " isSelf=" + (cid2 == _myUserId));
                 } else {
                     // Нет данных — добавляем заглушку и запрашиваем
                     contacts.Add(new ContactItem { UserId = cid2, FullName = "..." });
@@ -3847,20 +3836,15 @@ namespace TelegramWP10
                 }
             }
             // Убираем себя из обычного списка — добавим как "Избранное" первым
-            Log("CONTACTS myUserId=" + _myUserId + " count=" + contacts.Count);
             foreach (var cx in contacts)
-                Log("CONTACTS item uid=" + cx.UserId + " name=" + cx.FullName + " isSelf=" + (cx.UserId == _myUserId));
             contacts = contacts.Where(c => c.UserId != _myUserId).OrderBy(c => c.FullName).ToList();
-            Log("CONTACTS after filter count=" + contacts.Count);
             if (_myUserId != 0) {
                 var selfItem = new ContactItem { UserId = _myUserId, FullName = "⭐ Избранное" };
                 contacts.Insert(0, selfItem);
-                Log("CONTACTS inserted self at top");
                 if (_usersDict.ContainsKey(_myUserId)) {
                     var t = LoadContactAvatarFromUser(selfItem, _usersDict[_myUserId]);
                 }
             } else {
-                Log("CONTACTS _myUserId=0 cannot add self!");
             }
             _contactItems = contacts;
             if (_myUserId == 0) _contactsPendingMyId = true;
@@ -3992,7 +3976,6 @@ namespace TelegramWP10
                 if (SearchResultsView.ItemsSource == null) SearchResultsView.ItemsSource = _searchAllResults;
                 _searchToken++;
                 int myToken = _searchToken;
-                Log("SEARCH q=" + _searchQuery + " token=" + myToken + " allChats=" + _allChatItems.Count);
                 // Локальный поиск по чатам
                 string q = _searchQuery.ToLower();
                 bool anyChats = false;
@@ -4010,7 +3993,6 @@ namespace TelegramWP10
                     }
                 }
                 // TDLib поиск
-                Log("SEARCH sending searchChats+searchPublic q=" + _searchQuery);
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchChats\",\"query\":\"" + _searchQuery.Replace("\"","\\\"") + "\",\"limit\":50}");
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchChatsOnServer\",\"query\":\"" + _searchQuery.Replace("\"","\\\"") + "\",\"limit\":50}");
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchPublicChats\",\"query\":\"" + _searchQuery.Replace("\"","\\\"") + "\"}");
@@ -4047,7 +4029,6 @@ namespace TelegramWP10
         private void ApplySearch() { }
 
         private void ContactsButton_Click(object sender, RoutedEventArgs e) {
-            Log("CONTACTS button clicked myUserId=" + _myUserId);
             ContactsOverlay.Visibility = Visibility.Visible;
             ContactsListView.ItemsSource = null;
             ContactsLoadingText.Visibility = Visibility.Visible;
@@ -4056,7 +4037,6 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"getMe\"}");
             }
             TdJson.SendUtf8(_client, "{\"@type\":\"getContacts\"}");
-            Log("CONTACTS getContacts sent");
         }
 
         private void ContactsOverlay_Close(object sender, RoutedEventArgs e) {
