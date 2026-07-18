@@ -3720,8 +3720,13 @@ namespace TelegramWP10
                         localCount++;
                     }
                 Log("SEARCH local q=" + _searchQuery + " found=" + localCount);
+                // Локальный поиск + TDLib поиск по локальной базе + по серверу
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchChats\",\"query\":\"" +
-                    _searchQuery.Replace("\"","\\\"") + "\",\"limit\":20}");
+                    _searchQuery.Replace("\"","\\\"") + "\",\"limit\":50}");
+                TdJson.SendUtf8(_client, "{\"@type\":\"searchChatsOnServer\",\"query\":\"" +
+                    _searchQuery.Replace("\"","\\\"") + "\",\"limit\":50}");
+                TdJson.SendUtf8(_client, "{\"@type\":\"searchPublicChats\",\"query\":\"" +
+                    _searchQuery.Replace("\"","\\\"") + "\"}");
             }
         }
 
