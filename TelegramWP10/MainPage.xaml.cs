@@ -44,6 +44,7 @@ namespace TelegramWP10
         private long _currentChatId = 0;
         private long _myUserId = 0;
         private bool _waitingForMe = false;
+        private bool _contactsPendingMyId = false;
         private long _fullPhotoMsgId = 0;
         private long _threadMessageId = 0;
         private long _threadChatId = 0;
@@ -923,6 +924,16 @@ namespace TelegramWP10
                         if (_waitingForMe) {
                             _waitingForMe = false;
                             _myUserId = gUid;
+                            // Обновляем контакт с собой если список уже загружен
+                            if (_contactsPendingMyId && _contactItems != null) {
+                                _contactsPendingMyId = false;
+                                var selfContact = _contactItems.FirstOrDefault(c => c.UserId == gUid);
+                                if (selfContact != null) {
+                                    selfContact.FullName = "⭐ Избранное";
+                                    selfContact.Username = "";
+                                    selfContact.LastSeen = "";
+                                }
+                            }
                         }
                         if (gUid == _currentChatId)
                             UpdateChatStatus(update["status"]);
@@ -1317,7 +1328,7 @@ namespace TelegramWP10
                     if (chatIds != null) {
                         // Результаты поиска — если поисковый запрос активен
                         if (!string.IsNullOrEmpty(_searchQuery) && !_loadingArchiveIds && !_loadingChats && _pendingFolderLoad == 0) {
-                            Log("SEARCH case chats count=" + chatIds.Count + " q=" + _searchQuery);
+                            Log("SEARCH case chats count=" + chatIds.Count + " q=" + _searchQuery + " extra=" + (update["@extra"]?.ToString() ?? "none"));
                             var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                                 foreach (var cId in chatIds) {
                                     long id = (long)cId;
@@ -3693,10 +3704,10 @@ namespace TelegramWP10
             }
             contacts = contacts.OrderBy(contact => contact.FullName).ToList();
             _contactItems = contacts;
+            if (_myUserId == 0) _contactsPendingMyId = true;
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                 ContactsLoadingText.Visibility = Visibility.Collapsed;
                 ContactsListView.ItemsSource   = _contactItems;
-                // Загружаем аватарки для тех у кого уже есть данные
                 foreach (var contact in _contactItems)
                     if (_usersDict.ContainsKey(contact.UserId))
                         { var t = LoadContactAvatarFromUser(contact, _usersDict[contact.UserId]); }
@@ -3840,8 +3851,10 @@ namespace TelegramWP10
                     }
                 }
                 // TDLib поиск
+                Log("SEARCH sending searchChats+searchPublic q=" + _searchQuery);
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchChats\",\"query\":\"" + _searchQuery.Replace("\"","\\\"") + "\",\"limit\":50}");
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchChatsOnServer\",\"query\":\"" + _searchQuery.Replace("\"","\\\"") + "\",\"limit\":50}");
+                TdJson.SendUtf8(_client, "{\"@type\":\"searchPublicChats\",\"query\":\"" + _searchQuery.Replace("\"","\\\"") + "\"}");
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchMessages\",\"query\":\"" + _searchQuery.Replace("\"","\\\"") + "\",\"limit\":20,\"offset\":0}");
             }
         }
@@ -3878,6 +3891,10 @@ namespace TelegramWP10
             ContactsOverlay.Visibility = Visibility.Visible;
             ContactsListView.ItemsSource = null;
             ContactsLoadingText.Visibility = Visibility.Visible;
+            if (_myUserId == 0) {
+                _waitingForMe = true;
+                TdJson.SendUtf8(_client, "{\"@type\":\"getMe\"}");
+            }
             TdJson.SendUtf8(_client, "{\"@type\":\"getContacts\"}");
         }
 
