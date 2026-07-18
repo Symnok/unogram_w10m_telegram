@@ -635,6 +635,9 @@ namespace TelegramWP10
                         var pos = positions.FirstOrDefault(p => p["list"]?["@type"]?.ToString() == targetListType
                                   || p["list"]?["@type"]?.ToString() == "chatListMain");
                         chatItem.IsPinned = pos?["is_pinned"]?.ToObject<bool>() ?? false;
+                        Log("PIN_SORT chatId=" + chatId + " title=" + chatItem.Title + " isPinned=" + chatItem.IsPinned + " posCount=" + positions.Count + " pos0type=" + positions[0]["list"]?["@type"]);
+                    } else {
+                        Log("PIN_SORT chatId=" + chatId + " title=" + chatItem.Title + " positions=null");
                     }
 
                     // updateNewChat только обновляет _chatsDict.
@@ -1774,12 +1777,12 @@ namespace TelegramWP10
                             }
                         } else {
                             if (!_chatListItems.Contains(existing)) {
-                                // Закреплённые добавляем перед незакреплёнными
+                                Log("PIN_SORT adding chatId=" + existing.Id + " title=" + existing.Title + " isPinned=" + existing.IsPinned);
                                 if (existing.IsPinned) {
                                     int insertAt = 0;
-                                    // Вставляем после последнего закреплённого
                                     for (int pi = 0; pi < _chatListItems.Count; pi++)
                                         if (_chatListItems[pi].IsPinned) insertAt = pi + 1;
+                                    Log("PIN_SORT insert at=" + insertAt);
                                     _chatListItems.Insert(insertAt, existing);
                                 } else {
                                     _chatListItems.Add(existing);

@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using Windows.UI.Xaml;
 using Windows.UI.Xaml.Media.Imaging;
 
 namespace TelegramWP10
@@ -101,7 +102,7 @@ namespace TelegramWP10
             get => _isPinned;
             set { _isPinned = value; OnPropertyChanged("IsPinned"); OnPropertyChanged("PinVisibility"); }
         }
-        public string PinVisibility => _isPinned ? "Visible" : "Collapsed";
+        public Visibility PinVisibility => _isPinned ? Visibility.Visible : Visibility.Collapsed;
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged(string propertyName)
