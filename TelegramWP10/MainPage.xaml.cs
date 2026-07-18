@@ -608,7 +608,13 @@ namespace TelegramWP10
                         bool isChannel = chatUpd["type"]?["@type"]?.ToString() == "chatTypeSupergroup"
                             && (chatUpd["type"]?["is_channel"]?.ToObject<bool>() ?? false);
                         long initOutboxRead = chatUpd["last_read_outbox_message_id"]?.ToObject<long>() ?? 0;
-                        _chatsDict[chatId] = new ChatItem { Id = chatId, Title = chatUpd["title"]?.ToString(), OutboxReadId = initOutboxRead > 0 ? initOutboxRead : 0, IsChannel = isChannel };
+                        string chatTitle = chatUpd["title"]?.ToString();
+                        // Чат с собой — называем "⭐ Избранное"
+                        bool isSavedMessages = chatUpd["type"]?["@type"]?.ToString() == "chatTypePrivate"
+                            && (chatUpd["type"]?["user_id"]?.ToObject<long>() ?? 0) == _myUserId
+                            && _myUserId != 0;
+                        if (isSavedMessages) chatTitle = "⭐ Избранное";
+                        _chatsDict[chatId] = new ChatItem { Id = chatId, Title = chatTitle, OutboxReadId = initOutboxRead > 0 ? initOutboxRead : 0, IsChannel = isChannel };
                     }
                     var chatItem = _chatsDict[chatId];
                     // Заполняем последнее сообщение
@@ -933,6 +939,10 @@ namespace TelegramWP10
                         if (_waitingForMe) {
                             _waitingForMe = false;
                             _myUserId = gUid;
+                            // Переименовываем чат с собой в списке чатов
+                            if (_chatsDict.ContainsKey(_myUserId)) {
+                                _chatsDict[_myUserId].Title = "⭐ Избранное";
+                            }
                             Log("GETME myUserId=" + _myUserId + " contactsPending=" + _contactsPendingMyId);
                             if (_contactsPendingMyId && _contactItems != null) {
                                 _contactsPendingMyId = false;
