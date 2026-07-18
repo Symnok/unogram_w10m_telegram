@@ -4037,6 +4037,7 @@ namespace TelegramWP10
         private void ApplySearch() { }
 
         private void ContactsButton_Click(object sender, RoutedEventArgs e) {
+            Log("CONTACTS button clicked myUserId=" + _myUserId);
             ContactsOverlay.Visibility = Visibility.Visible;
             ContactsListView.ItemsSource = null;
             ContactsLoadingText.Visibility = Visibility.Visible;
@@ -4045,6 +4046,7 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"getMe\"}");
             }
             TdJson.SendUtf8(_client, "{\"@type\":\"getContacts\"}");
+            Log("CONTACTS getContacts sent");
         }
 
         private void ContactsOverlay_Close(object sender, RoutedEventArgs e) {
