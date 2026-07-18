@@ -1200,10 +1200,14 @@ namespace TelegramWP10
                     break;
 
                 case "users":
-                    // Ответ на getContacts
                     var contactUserIds = update["user_ids"] as JArray;
-                    if (contactUserIds != null)
-                        { var t = HandleContactsLoaded(contactUserIds); }
+                    Log("CONTACTS case users user_ids=" + (contactUserIds?.Count.ToString() ?? "null"));
+                    if (contactUserIds != null) {
+                        var t = Task.Run(async () => {
+                            try { await HandleContactsLoaded(contactUserIds); }
+                            catch (Exception ex) { Log("CONTACTS ERR: " + ex.Message); }
+                        });
+                    }
                     break;
 
                 case "ok":
