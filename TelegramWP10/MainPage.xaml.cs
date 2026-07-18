@@ -3629,6 +3629,7 @@ namespace TelegramWP10
             // Поле поиска — тёмная тема
             if (SearchPanel != null) SearchPanel.Background = CB("#1C1C1E");
             if (SearchBorder != null) SearchBorder.Background = CB("#2A2A2E");
+            if (SearchBox != null) SearchBox.Foreground = CB("#FFFFFF");
             if (FolderTabsScroll != null) FolderTabsScroll.Background = CB("#1C1C1E");
             UpdateFolderTabStyles();
             // Закреплённое — тёмная тема
@@ -3690,6 +3691,7 @@ namespace TelegramWP10
             // Поле поиска — светлая тема
             if (SearchPanel != null) SearchPanel.Background = CB("#EFEFF3");
             if (SearchBorder != null) SearchBorder.Background = CB("#E0E0E5");
+            if (SearchBox != null) SearchBox.Foreground = CB("#000000");
             // Вкладки папок — светлый фон
             if (FolderTabsScroll != null) FolderTabsScroll.Background = CB("#FFFFFF");
             UpdateFolderTabStyles();
