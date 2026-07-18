@@ -932,10 +932,11 @@ namespace TelegramWP10
                         if (_waitingForMe) {
                             _waitingForMe = false;
                             _myUserId = gUid;
-                            // Обновляем контакт с собой если список уже загружен
+                            Log("GETME myUserId=" + _myUserId + " contactsPending=" + _contactsPendingMyId);
                             if (_contactsPendingMyId && _contactItems != null) {
                                 _contactsPendingMyId = false;
                                 var selfContact = _contactItems.FirstOrDefault(c => c.UserId == gUid);
+                                Log("GETME selfContact=" + (selfContact?.FullName ?? "null"));
                                 if (selfContact != null) {
                                     selfContact.FullName = "⭐ Избранное";
                                     selfContact.Username = "";
@@ -3774,6 +3775,7 @@ namespace TelegramWP10
                         Username = cid2 == _myUserId ? "" : (u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? ""),
                         LastSeen = cid2 == _myUserId ? "" : GetLastSeenText(u2["status"])
                     });
+                    Log("CONTACT cid=" + cid2 + " myUserId=" + _myUserId + " isSelf=" + (cid2 == _myUserId));
                 } else {
                     // Нет данных — добавляем заглушку и запрашиваем
                     contacts.Add(new ContactItem { UserId = cid2, FullName = "..." });
