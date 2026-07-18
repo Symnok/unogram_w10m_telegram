@@ -23,6 +23,7 @@ namespace TelegramWP10
         public int Offset { get; set; }
         public int Length { get; set; }
         public string Url { get; set; }
+        public string Mention { get; set; } // @username или @idXXX для mentionName
     }
 
     public class MessageItem : INotifyPropertyChanged

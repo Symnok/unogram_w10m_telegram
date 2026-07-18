@@ -1285,6 +1285,17 @@ namespace TelegramWP10
                     break;
 
                 case "chat":
+                    long getChatId = update["id"]?.ToObject<long>() ?? 0;
+                    // Открыть чат по упоминанию (searchPublicChat / createPrivateChat)
+                    if (_pendingOpenChat && getChatId != 0) {
+                        _pendingOpenChat = false;
+                        if (_chatsDict.ContainsKey(getChatId))
+                            OpenChat(_chatsDict[getChatId], 0);
+                        else {
+                            // Чат ещё не в словаре — ждём updateNewChat
+                            _pendingHistoryChatId = getChatId;
+                        }
+                    }
                     // Ответ на getChat — берём pinned_message_id
                     long getChatId = update["id"]?.ToObject<long>() ?? 0;
                     if (getChatId != 0 && getChatId == _pendingPinnedChatId) {
@@ -2095,7 +2106,7 @@ namespace TelegramWP10
                     ? content["text"]?["text"]?.ToString() ?? ""
                     : content["caption"]?["text"]?.ToString() ?? "";
 
-                // Парсим entities для ссылок
+                // Парсим entities для ссылок и упоминаний
                 var entitiesJson = type == "messageText"
                     ? content["text"]?["entities"] as Newtonsoft.Json.Linq.JArray
                     : content["caption"]?["entities"] as Newtonsoft.Json.Linq.JArray;
@@ -2106,11 +2117,17 @@ namespace TelegramWP10
                         int offset = ent["offset"]?.ToObject<int>() ?? 0;
                         int length = ent["length"]?.ToObject<int>() ?? 0;
                         string url = null;
+                        string mention = null;
                         if (eType == "textEntityTypeUrl")
                             url = txt.Substring(Math.Max(0, offset), Math.Min(length, txt.Length - offset));
                         else if (eType == "textEntityTypeTextUrl")
                             url = ent["type"]?["url"]?.ToString();
+                        else if (eType == "textEntityTypeMention" && txt.Length >= offset + length)
+                            mention = txt.Substring(offset, length); // @username
+                        else if (eType == "textEntityTypeMentionName")
+                            mention = "@id" + (ent["type"]?["user_id"]?.ToString() ?? "");
                         if (url != null) entities.Add(new MessageEntity { Offset = offset, Length = length, Url = url });
+                        if (mention != null) entities.Add(new MessageEntity { Offset = offset, Length = length, Mention = mention });
                     }
                 }
 
@@ -3060,6 +3077,25 @@ namespace TelegramWP10
                     ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
             }
             TdJson.SendUtf8(_client, req);
+        }
+
+        private bool _pendingOpenChat = false; // ждём chat после searchPublicChat/createPrivateChat для открытия
+
+        private async void OpenMention_Click(object sender, RoutedEventArgs e) {
+            var mentions = _selectedMessageForCopy?.Entities?.Where(en => en.Mention != null).ToList();
+            if (mentions == null || mentions.Count == 0) return;
+            string mention = mentions[0].Mention;
+            _pendingOpenChat = true;
+            if (mention.StartsWith("@id")) {
+                long uid = 0;
+                long.TryParse(mention.Substring(3), out uid);
+                if (uid != 0)
+                    TdJson.SendUtf8(_client, "{\"@type\":\"createPrivateChat\",\"user_id\":" + uid + ",\"force\":true}");
+                else _pendingOpenChat = false;
+            } else {
+                string username = mention.TrimStart('@');
+                TdJson.SendUtf8(_client, "{\"@type\":\"searchPublicChat\",\"username\":\"" + username + "\"}");
+            }
         }
 
         private void PinMessage_Click(object sender, RoutedEventArgs e) {
@@ -4536,6 +4572,9 @@ namespace TelegramWP10
             if (flyout != null) {
                 bool canEdit = _selectedMessageForCopy?.IsOutgoing == true && !string.IsNullOrEmpty(_selectedMessageForCopy?.Text);
                 bool canDelete = true;
+                // Собираем упоминания из текущего сообщения
+                var mentions = _selectedMessageForCopy?.Entities?
+                    .Where(en => en.Mention != null).ToList();
                 foreach (var item in flyout.Items) {
                     if (item is MenuFlyoutItem mfi) {
                         if (mfi.Name == "MenuEdit") mfi.Visibility = canEdit ? Visibility.Visible : Visibility.Collapsed;
@@ -4544,6 +4583,16 @@ namespace TelegramWP10
                         if (mfi.Name == "MenuPin") {
                             bool isPinned = _selectedMessageForCopy?.Id == _pinnedMessageId && _pinnedMessageId != 0;
                             mfi.Text = isPinned ? "📌 Открепить" : "📌 Закрепить";
+                        }
+                        if (mfi.Name == "MenuMention") {
+                            if (mentions != null && mentions.Count > 0) {
+                                mfi.Visibility = Visibility.Visible;
+                                mfi.Text = mentions.Count == 1
+                                    ? "👤 Открыть " + mentions[0].Mention
+                                    : "👤 Открыть упоминание (" + mentions.Count + ")";
+                            } else {
+                                mfi.Visibility = Visibility.Collapsed;
+                            }
                         }
                     }
                 }
