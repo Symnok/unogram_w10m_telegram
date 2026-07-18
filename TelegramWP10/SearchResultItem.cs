@@ -9,9 +9,13 @@ namespace TelegramWP10
         public event PropertyChangedEventHandler PropertyChanged;
         private void Notify(string p) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
 
-        public enum ResultType { Chat, Message, Header }
+        public enum ResultType { Chat, Message, Header, Divider }
         public ResultType Type { get; set; }
         public bool IsHeader => Type == ResultType.Header;
+        public bool IsDivider => Type == ResultType.Divider;
+        public Visibility HeaderVisibility => Type == ResultType.Header ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility DividerVisibility => Type == ResultType.Divider ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility ItemVisibility => (Type == ResultType.Chat || Type == ResultType.Message) ? Visibility.Visible : Visibility.Collapsed;
 
         public long ChatId { get; set; }
         public string Title { get; set; } = "";

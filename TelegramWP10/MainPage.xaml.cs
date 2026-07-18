@@ -1349,7 +1349,9 @@ namespace TelegramWP10
                                         if (_rawChatsDict.ContainsKey(id)) {
                                             var raw = _rawChatsDict[id] as Newtonsoft.Json.Linq.JObject;
                                             srUsername = raw?["username"]?.ToString()
-                                                      ?? raw?["usernames"]?["editable_username"]?.ToString() ?? "";
+                                                      ?? raw?["usernames"]?["editable_username"]?.ToString()
+                                                      ?? raw?["type"]?["username"]?.ToString() ?? "";
+                                            Log("SEARCH username for " + id + "=" + srUsername + " raw_type=" + raw?["type"]?["@type"]);
                                         }
                                         string srSubtitle = !string.IsNullOrEmpty(srUsername)
                                             ? "@" + srUsername
@@ -1428,6 +1430,7 @@ namespace TelegramWP10
                                     if (string.IsNullOrEmpty(fmText)) continue;
                                     if (_searchAllResults.Any(r => r.MessageId == fmMsgId)) continue;
                                     if (!hadHdr) {
+                                        _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Divider });
                                         _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Сообщения" });
                                         hadHdr = true;
                                     }
@@ -3783,14 +3786,19 @@ namespace TelegramWP10
                 }
             }
             // Убираем себя из обычного списка — добавим как "Избранное" первым
+            Log("CONTACTS before filter: count=" + contacts.Count + " _myUserId=" + _myUserId);
+            foreach (var cx in contacts) Log("CONTACTS item: uid=" + cx.UserId + " name=" + cx.FullName);
             contacts = contacts.Where(c => c.UserId != _myUserId).OrderBy(c => c.FullName).ToList();
-            // Добавляем себя ("Избранное") в самое начало
+            Log("CONTACTS after filter: count=" + contacts.Count);
             if (_myUserId != 0) {
                 var selfItem = new ContactItem { UserId = _myUserId, FullName = "⭐ Избранное" };
                 contacts.Insert(0, selfItem);
+                Log("CONTACTS inserted self at top");
                 if (_usersDict.ContainsKey(_myUserId)) {
                     var t = LoadContactAvatarFromUser(selfItem, _usersDict[_myUserId]);
                 }
+            } else {
+                Log("CONTACTS _myUserId=0 cannot add self!");
             }
             _contactItems = contacts;
             if (_myUserId == 0) _contactsPendingMyId = true;

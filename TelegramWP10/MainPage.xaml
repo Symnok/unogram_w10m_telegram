@@ -273,23 +273,33 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Padding="12,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="44"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Ellipse Width="40" Height="40" Fill="#555555"/>
-                            <Ellipse Width="40" Height="40">
-                                <Ellipse.Fill>
-                                    <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
-                                </Ellipse.Fill>
-                            </Ellipse>
-                            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="15" FontWeight="SemiBold"/>
-                                <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="13" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding DateText}" Foreground="#666666" FontSize="11"
-                                           Visibility="{Binding DateVisibility}"/>
-                            </StackPanel>
+                        <Grid>
+                            <!-- Заголовок секции -->
+                            <TextBlock Text="{Binding Title}" Foreground="#888888"
+                                       FontSize="12" FontWeight="SemiBold" Margin="12,10,12,4"
+                                       Visibility="{Binding HeaderVisibility}"/>
+                            <!-- Разделитель -->
+                            <Rectangle Height="1" Fill="#333333" Margin="0,6,0,6"
+                                       Visibility="{Binding DividerVisibility}"/>
+                            <!-- Обычный элемент -->
+                            <Grid Padding="12,8" Visibility="{Binding ItemVisibility}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="44"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Width="40" Height="40" Fill="#555555"/>
+                                <Ellipse Width="40" Height="40">
+                                    <Ellipse.Fill>
+                                        <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
+                                    </Ellipse.Fill>
+                                </Ellipse>
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" Foreground="White" FontSize="15" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding DateText}" Foreground="#666666" FontSize="11"
+                                               Visibility="{Binding DateVisibility}"/>
+                                </StackPanel>
+                            </Grid>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
