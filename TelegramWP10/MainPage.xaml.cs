@@ -37,6 +37,7 @@ namespace TelegramWP10
         private Dictionary<long, JToken> _supergroupDict = new Dictionary<long, JToken>();
         private Dictionary<long, long> _fileToChatId = new Dictionary<long, long>();
         private Dictionary<long, SearchResultItem> _fileToSearchResult = new Dictionary<long, SearchResultItem>();
+        private Dictionary<long, bool> _pendingPinnedPositions = new Dictionary<long, bool>(); // chatId → isPinned до updateNewChat
         private Dictionary<long, long> _fileToMsgId = new Dictionary<long, long>();
         private Dictionary<string, long> _remoteUniqueIdToMsgId = new Dictionary<string, long>(); // remote.unique_id → msgId
         private Dictionary<long, long> _videoFileIds = new Dictionary<long, long>(); // file_id → msgId только для видеофайлов
@@ -635,9 +636,11 @@ namespace TelegramWP10
                         var pos = positions.FirstOrDefault(p => p["list"]?["@type"]?.ToString() == targetListType
                                   || p["list"]?["@type"]?.ToString() == "chatListMain");
                         chatItem.IsPinned = pos?["is_pinned"]?.ToObject<bool>() ?? false;
-                        Log("PIN_SORT chatId=" + chatId + " title=" + chatItem.Title + " isPinned=" + chatItem.IsPinned + " posCount=" + positions.Count + " pos0type=" + positions[0]["list"]?["@type"]);
-                    } else {
-                        Log("PIN_SORT chatId=" + chatId + " title=" + chatItem.Title + " positions=null");
+                    }
+                    // Применяем pending position если updateChatPosition пришёл раньше
+                    if (_pendingPinnedPositions.ContainsKey(chatId)) {
+                        chatItem.IsPinned = _pendingPinnedPositions[chatId];
+                        _pendingPinnedPositions.Remove(chatId);
                     }
 
                     // updateNewChat только обновляет _chatsDict.
@@ -1041,15 +1044,22 @@ namespace TelegramWP10
 
                 case "updateChatPosition":
                     long ucpId = update["chat_id"]?.ToObject<long>() ?? 0;
-                    if (ucpId != 0 && _chatsDict.ContainsKey(ucpId)) {
+                    if (ucpId != 0) {
                         var ucpPos = update["position"];
                         bool ucpPinned = ucpPos?["is_pinned"]?.ToObject<bool>() ?? false;
-                        _chatsDict[ucpId].IsPinned = ucpPinned;
-                        var ucpList = _archiveChatItems.Any(ch => ch.Id == ucpId) ? _archiveChatItems : _chatListItems;
-                        var ucpItem = ucpList.FirstOrDefault(ch => ch.Id == ucpId);
-                        if (ucpItem != null) {
-                            ucpList.Remove(ucpItem);
-                            InsertAfterPinned(ucpList, ucpItem);
+                        if (_chatsDict.ContainsKey(ucpId)) {
+                            _chatsDict[ucpId].IsPinned = ucpPinned;
+                            var allItem = _allChatItems.FirstOrDefault(ch => ch.Id == ucpId);
+                            if (allItem != null) allItem.IsPinned = ucpPinned;
+                            var ucpList = _archiveChatItems.Any(ch => ch.Id == ucpId) ? _archiveChatItems : _chatListItems;
+                            var ucpItem = ucpList.FirstOrDefault(ch => ch.Id == ucpId);
+                            if (ucpItem != null) {
+                                ucpList.Remove(ucpItem);
+                                InsertAfterPinned(ucpList, ucpItem);
+                            }
+                        } else {
+                            // Чат ещё не загружен — сохраняем pending
+                            _pendingPinnedPositions[ucpId] = ucpPinned;
                         }
                     }
                     break;
@@ -1777,12 +1787,10 @@ namespace TelegramWP10
                             }
                         } else {
                             if (!_chatListItems.Contains(existing)) {
-                                Log("PIN_SORT adding chatId=" + existing.Id + " title=" + existing.Title + " isPinned=" + existing.IsPinned);
                                 if (existing.IsPinned) {
                                     int insertAt = 0;
                                     for (int pi = 0; pi < _chatListItems.Count; pi++)
                                         if (_chatListItems[pi].IsPinned) insertAt = pi + 1;
-                                    Log("PIN_SORT insert at=" + insertAt);
                                     _chatListItems.Insert(insertAt, existing);
                                 } else {
                                     _chatListItems.Add(existing);
