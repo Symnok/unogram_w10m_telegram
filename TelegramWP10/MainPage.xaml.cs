@@ -42,6 +42,7 @@ namespace TelegramWP10
         // replyMsgId → MessageItem которому нужно заполнить ReplyToText
         private Dictionary<long, MessageItem> _replyRequests = new Dictionary<long, MessageItem>();
         private long _currentChatId = 0;
+        private long _myUserId = 0; // ID текущего пользователя
         private long _fullPhotoMsgId = 0;
         private long _threadMessageId = 0;
         private long _threadChatId = 0;
@@ -497,6 +498,7 @@ namespace TelegramWP10
                             ApplySavedProxy();
                         }
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
+                        TdJson.SendUtf8(_client, "{\"@type\":\"getMe\"}");
                         _loadingArchiveIds = true;
                     }
                     if (s == "authorizationStateLoggingOut" || s == "authorizationStateClosed") {
@@ -910,10 +912,12 @@ namespace TelegramWP10
                     break;
 
                 case "user":
-                    // Ответ на getUser
                     long gUid = update["id"]?.ToObject<long>() ?? 0;
                     if (gUid != 0) {
                         _usersDict[gUid] = update;
+                        // Если это ответ на getMe — сохраняем свой ID
+                        if (update["is_premium"] != null || _myUserId == 0)
+                            if (_myUserId == 0) _myUserId = gUid;
                         if (gUid == _currentChatId)
                             UpdateChatStatus(update["status"]);
                         // Обновляем контакт если он в списке контактов
@@ -3658,9 +3662,9 @@ namespace TelegramWP10
                     var u2 = _usersDict[cid2];
                     contacts.Add(new ContactItem {
                         UserId   = cid2,
-                        FullName = (u2["first_name"]?.ToString() + " " + u2["last_name"]?.ToString()).Trim(),
-                        Username = u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? "",
-                        LastSeen = GetLastSeenText(u2["status"])
+                        FullName = cid2 == _myUserId ? "⭐ Избранное" : (u2["first_name"]?.ToString() + " " + u2["last_name"]?.ToString()).Trim(),
+                        Username = cid2 == _myUserId ? "" : (u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? ""),
+                        LastSeen = cid2 == _myUserId ? "" : GetLastSeenText(u2["status"])
                     });
                 } else {
                     // Нет данных — добавляем заглушку и запрашиваем
