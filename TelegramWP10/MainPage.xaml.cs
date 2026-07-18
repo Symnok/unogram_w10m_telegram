@@ -1415,6 +1415,7 @@ namespace TelegramWP10
                                                           ?? u3["usernames"]?["editable_username"]?.ToString() ?? "";
                                             }
                                         }
+                                    }
                                     if (string.IsNullOrEmpty(srTitle)) continue;
                                     string srSubtitle = !string.IsNullOrEmpty(srUsername) ? "@" + srUsername : "";
                                     var srItem = new SearchResultItem {
