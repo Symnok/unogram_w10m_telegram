@@ -101,6 +101,8 @@
                                             FontSize="18" Padding="8,4" BorderThickness="0">
                                         <Button.Flyout>
                                             <MenuFlyout>
+                                                <MenuFlyoutItem Text="⭐ Избранное" Click="Favorites_Click"/>
+                                                <MenuFlyoutSeparator/>
                                                 <MenuFlyoutItem x:Name="ClearCacheItem" Text="🗑 Очистить кэш" Click="ClearCache_Click"/>
                                                 <MenuFlyoutItem x:Name="SoundToggleItem" Text="🔔 Звук: Вкл" Click="SoundToggle_Click"/>
                                             </MenuFlyout>

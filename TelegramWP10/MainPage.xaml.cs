@@ -1317,6 +1317,7 @@ namespace TelegramWP10
                     if (chatIds != null) {
                         // Результаты поиска — если поисковый запрос активен
                         if (!string.IsNullOrEmpty(_searchQuery) && !_loadingArchiveIds && !_loadingChats && _pendingFolderLoad == 0) {
+                            Log("SEARCH case chats count=" + chatIds.Count + " q=" + _searchQuery);
                             var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                                 foreach (var cId in chatIds) {
                                     long id = (long)cId;
@@ -1369,6 +1370,7 @@ namespace TelegramWP10
                 case "messages":
                     // Результаты searchMessages
                     if (!string.IsNullOrEmpty(_searchQuery) && update["total_count"] != null && _pendingHistoryChatId == 0) {
+                        Log("SEARCH case messages total=" + update["total_count"] + " q=" + _searchQuery);
                         var foundMsgs = update["messages"] as JArray;
                         if (foundMsgs != null && foundMsgs.Count > 0) {
                             var ignored2 = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
@@ -3764,6 +3766,16 @@ namespace TelegramWP10
             return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
         }
 
+        private void Favorites_Click(object sender, RoutedEventArgs e) {
+            // Открываем чат с самим собой (Избранное)
+            if (_myUserId == 0) return;
+            // Ищем чат с собой — его ID совпадает с _myUserId
+            if (_chatsDict.ContainsKey(_myUserId))
+                OpenChat(_chatsDict[_myUserId], 0);
+            else
+                TdJson.SendUtf8(_client, "{\"@type\":\"createPrivateChat\",\"user_id\":" + _myUserId + ",\"force\":true}");
+        }
+
         private void SoundToggle_Click(object sender, RoutedEventArgs e) {
             _soundEnabled = !_soundEnabled;
             Windows.Storage.ApplicationData.Current.LocalSettings.Values["sound_enabled"] = _soundEnabled;
@@ -3794,6 +3806,7 @@ namespace TelegramWP10
         private ObservableCollection<SearchMessageItem> _searchMessageResults = new ObservableCollection<SearchMessageItem>();
         private string _searchQuery = "";
 
+        private int _searchToken = 0;
         private void SearchBox_TextChanged(object sender, Windows.UI.Xaml.Controls.TextChangedEventArgs e) {
             _searchQuery = SearchBox.Text ?? "";
             SearchClearButton.Visibility = string.IsNullOrEmpty(_searchQuery) ? Visibility.Collapsed : Visibility.Visible;
@@ -3806,7 +3819,10 @@ namespace TelegramWP10
                 if (FolderTabsScroll != null) FolderTabsScroll.Visibility = Visibility.Collapsed;
                 SearchResultsView.Visibility = Visibility.Visible;
                 _searchAllResults.Clear();
-                SearchResultsView.ItemsSource = _searchAllResults;
+                if (SearchResultsView.ItemsSource == null) SearchResultsView.ItemsSource = _searchAllResults;
+                _searchToken++;
+                int myToken = _searchToken;
+                Log("SEARCH q=" + _searchQuery + " token=" + myToken + " allChats=" + _allChatItems.Count);
                 // Локальный поиск по чатам
                 string q = _searchQuery.ToLower();
                 bool anyChats = false;
