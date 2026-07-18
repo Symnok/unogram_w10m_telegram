@@ -3708,19 +3708,18 @@ namespace TelegramWP10
             SearchClearButton.Visibility = string.IsNullOrEmpty(_searchQuery) ? Visibility.Collapsed : Visibility.Visible;
             if (string.IsNullOrEmpty(_searchQuery)) {
                 SearchResultsView.Visibility = Visibility.Collapsed;
+                ChatListView.Visibility = Visibility.Visible;
+                if (FolderTabsScroll != null) FolderTabsScroll.Visibility = _folderChatIds.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             } else {
+                ChatListView.Visibility = Visibility.Collapsed;
+                if (FolderTabsScroll != null) FolderTabsScroll.Visibility = Visibility.Collapsed;
                 SearchResultsView.Visibility = Visibility.Visible;
                 SearchResultsView.ItemsSource = _searchResults;
                 _searchResults.Clear();
                 string q = _searchQuery.ToLower();
-                int localCount = 0;
                 foreach (var c in _allChatItems)
-                    if (c.Title?.ToLower().Contains(q) == true) {
+                    if (c.Title?.ToLower().Contains(q) == true)
                         _searchResults.Add(c);
-                        localCount++;
-                    }
-                Log("SEARCH local q=" + _searchQuery + " found=" + localCount);
-                // Локальный поиск + TDLib поиск по локальной базе + по серверу
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchChats\",\"query\":\"" +
                     _searchQuery.Replace("\"","\\\"") + "\",\"limit\":50}");
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchChatsOnServer\",\"query\":\"" +
@@ -3735,6 +3734,8 @@ namespace TelegramWP10
             _searchQuery = "";
             SearchClearButton.Visibility = Visibility.Collapsed;
             SearchResultsView.Visibility = Visibility.Collapsed;
+            ChatListView.Visibility = Visibility.Visible;
+            if (FolderTabsScroll != null) FolderTabsScroll.Visibility = _folderChatIds.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void ApplySearch() {
