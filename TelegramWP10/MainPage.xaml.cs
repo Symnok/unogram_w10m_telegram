@@ -3791,7 +3791,6 @@ namespace TelegramWP10
 
         private ObservableCollection<ChatItem> _searchResults = new ObservableCollection<ChatItem>();
         private ObservableCollection<SearchResultItem> _searchAllResults = new ObservableCollection<SearchResultItem>();
-        private ObservableCollection<ChatItem> _searchResults = new ObservableCollection<ChatItem>();
         private ObservableCollection<SearchMessageItem> _searchMessageResults = new ObservableCollection<SearchMessageItem>();
         private string _searchQuery = "";
 
