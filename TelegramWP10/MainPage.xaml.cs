@@ -35,6 +35,7 @@ namespace TelegramWP10
         private Dictionary<long, JToken> _rawChatsDict = new Dictionary<long, JToken>(); // сырой JSON чата
         private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>(); // userId → user object
         private Dictionary<long, long> _fileToChatId = new Dictionary<long, long>();
+        private Dictionary<long, SearchResultItem> _fileToSearchResult = new Dictionary<long, SearchResultItem>();
         private Dictionary<long, long> _fileToMsgId = new Dictionary<long, long>();
         private Dictionary<string, long> _remoteUniqueIdToMsgId = new Dictionary<string, long>(); // remote.unique_id → msgId
         private Dictionary<long, long> _videoFileIds = new Dictionary<long, long>(); // file_id → msgId только для видеофайлов
@@ -691,6 +692,13 @@ namespace TelegramWP10
                             if (_fileToChatId.ContainsKey(fid) && !string.IsNullOrEmpty(fpath))
                                 { var t = UpdateAvatar(_fileToChatId[fid], fpath); }
 
+                            // Аватарка для результатов поиска
+                            if (isCompleted && !string.IsNullOrEmpty(fpath) && _fileToSearchResult.ContainsKey(fid)) {
+                                var srItm = _fileToSearchResult[fid];
+                                _fileToSearchResult.Remove(fid);
+                                { var t = UpdateAvatarSearchResult(srItm, fpath); }
+                            }
+
                             // Thumbnail для панели стикеров
                             if (isCompleted && !string.IsNullOrEmpty(fpath) && _stickerThumbToItem.ContainsKey(fid))
                                 HandleStickerThumbDownloaded(fid, fpath);
@@ -1336,11 +1344,36 @@ namespace TelegramWP10
                                         if (!_searchAllResults.Any(r => r.IsHeader && r.Title == "Чаты"))
                                             _searchAllResults.Insert(0, new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Чаты" });
                                         var srChat = _chatsDict[id];
-                                        _searchAllResults.Add(new SearchResultItem {
+                                        string srUsername = "";
+                                        if (_rawChatsDict.ContainsKey(id)) {
+                                            var raw = _rawChatsDict[id] as Newtonsoft.Json.Linq.JObject;
+                                            srUsername = raw?["username"]?.ToString()
+                                                      ?? raw?["usernames"]?["editable_username"]?.ToString() ?? "";
+                                        }
+                                        string srSubtitle = !string.IsNullOrEmpty(srUsername)
+                                            ? "@" + srUsername
+                                            : srChat.LastMessage;
+                                        var srItem = new SearchResultItem {
                                             Type = SearchResultItem.ResultType.Chat,
                                             ChatId = id, Title = srChat.Title,
-                                            Subtitle = srChat.LastMessage, Photo = srChat.Photo
-                                        });
+                                            Subtitle = srSubtitle, Photo = srChat.Photo
+                                        };
+                                        _searchAllResults.Add(srItem);
+                                        // Если фото нет — запускаем загрузку
+                                        if (srChat.Photo == null && _rawChatsDict.ContainsKey(id)) {
+                                            var rawCh = _rawChatsDict[id] as Newtonsoft.Json.Linq.JObject;
+                                            var phSmallSr = rawCh?["photo"]?["small"];
+                                            if (phSmallSr != null) {
+                                                long phFid = phSmallSr["id"]?.ToObject<long>() ?? 0;
+                                                string phPath = phSmallSr["local"]?["path"]?.ToString();
+                                                if (!string.IsNullOrEmpty(phPath))
+                                                    { var t2 = UpdateAvatarSearchResult(srItem, phPath); }
+                                                else if (phFid > 0) {
+                                                    _fileToSearchResult[phFid] = srItem;
+                                                    TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + phFid + ",\"priority\":10,\"synchronous\":false}");
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             });
@@ -2364,6 +2397,16 @@ namespace TelegramWP10
                 _messagesDict[msgId] = item;
                 return item;
             } catch (Exception ex) { Log("ParseMessage ERR: " + ex.Message); return null; }
+        }
+
+        private async Task UpdateAvatarSearchResult(SearchResultItem item, string path) {
+            try {
+                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                var bmp = new BitmapImage();
+                using (var stream = await file.OpenReadAsync())
+                    await bmp.SetSourceAsync(stream);
+                item.Photo = bmp;
+            } catch { }
         }
 
         private async Task UpdateAvatar(long chatId, string path) {
