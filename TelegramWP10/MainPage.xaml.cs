@@ -1296,7 +1296,6 @@ namespace TelegramWP10
                     }
                     // Ответ на getChat — берём pinned_message_id
                     long getChatId = openChatId;
-                    long getChatId = update["id"]?.ToObject<long>() ?? 0;
                     if (getChatId != 0 && getChatId == _pendingPinnedChatId) {
                         _pendingPinnedChatId = 0;
                         // TDLib 1.8+ хранит список в pinned_message_ids
