@@ -1051,8 +1051,10 @@ namespace TelegramWP10
                     long ucpId = update["chat_id"]?.ToObject<long>() ?? 0;
                     if (ucpId != 0) {
                         var ucpPos = update["position"];
+                        string ucpListType = ucpPos?["list"]?["@type"]?.ToString() ?? "";
+                        // Игнорируем позиции папок — они не влияют на закрепление в основном списке
+                        if (ucpListType == "chatListFolder") break;
                         bool ucpPinned = ucpPos?["is_pinned"]?.ToObject<bool>() ?? false;
-                        string ucpListType = ucpPos?["list"]?["@type"]?.ToString() ?? "?";
                         Log("PIN[2] updateChatPosition chatId=" + ucpId + " isPinned=" + ucpPinned + " list=" + ucpListType + " inDict=" + _chatsDict.ContainsKey(ucpId));
                         if (_chatsDict.ContainsKey(ucpId)) {
                             _chatsDict[ucpId].IsPinned = ucpPinned;
