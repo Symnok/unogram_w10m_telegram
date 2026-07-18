@@ -3783,6 +3783,15 @@ namespace TelegramWP10
                 }
             }
             contacts = contacts.OrderBy(contact => contact.FullName).ToList();
+            // Добавляем себя ("Избранное") в самое начало
+            if (_myUserId != 0) {
+                var selfItem = new ContactItem { UserId = _myUserId, FullName = "⭐ Избранное" };
+                contacts.Insert(0, selfItem);
+                // Загружаем аватарку себя
+                if (_usersDict.ContainsKey(_myUserId)) {
+                    var t = LoadContactAvatarFromUser(selfItem, _usersDict[_myUserId]);
+                }
+            }
             _contactItems = contacts;
             if (_myUserId == 0) _contactsPendingMyId = true;
             await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
