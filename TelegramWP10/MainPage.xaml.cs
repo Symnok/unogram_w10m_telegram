@@ -3782,12 +3782,12 @@ namespace TelegramWP10
                     TdJson.SendUtf8(_client, "{\"@type\":\"getUser\",\"user_id\":" + cid2 + "}");
                 }
             }
-            contacts = contacts.OrderBy(contact => contact.FullName).ToList();
+            // Убираем себя из обычного списка — добавим как "Избранное" первым
+            contacts = contacts.Where(c => c.UserId != _myUserId).OrderBy(c => c.FullName).ToList();
             // Добавляем себя ("Избранное") в самое начало
             if (_myUserId != 0) {
                 var selfItem = new ContactItem { UserId = _myUserId, FullName = "⭐ Избранное" };
                 contacts.Insert(0, selfItem);
-                // Загружаем аватарку себя
                 if (_usersDict.ContainsKey(_myUserId)) {
                     var t = LoadContactAvatarFromUser(selfItem, _usersDict[_myUserId]);
                 }
