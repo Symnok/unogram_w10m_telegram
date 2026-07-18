@@ -94,6 +94,7 @@ namespace TelegramWP10
         private long _lastReadInboxMsgId = 0;
         private long _pinnedMessageId = 0;
         private long _pendingPinnedChatId = 0;
+        private bool _currentChatIsBot = false;
         private long _pendingScrollToMsgId = 0; // скролл к сообщению после открытия чата
         private Dictionary<long, long> _pinnedTextRequests = new Dictionary<long, long>(); // pinnedMsgId → serviceMsgId
         private bool _loadingChats = false;
@@ -314,8 +315,8 @@ namespace TelegramWP10
 
         private async void InitAsync() {
             try {
-                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
-                var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
+                var localFolder = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Music);
+                var appFolder = await localFolder.SaveFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
@@ -815,6 +816,7 @@ namespace TelegramWP10
                             if (lastReal == null || lastReal.RawDate.Date != newItem.RawDate.Date)
                                 _messageItems.Add(MakeSeparator(newItem.RawDate.Date, DateTime.Today));
                             _messageItems.Add(newItem);
+                            StartBotButton.Visibility = Visibility.Collapsed;
 
                             double scrollable3 = MessagesScrollViewer.ScrollableHeight;
                             double offset2 = MessagesScrollViewer.VerticalOffset;
@@ -1580,6 +1582,11 @@ namespace TelegramWP10
                         _isLoadingHistory = false;
                         LoadingIndicator.Visibility = Visibility.Collapsed;
                         MessagesListView.Visibility = Visibility.Visible;
+                        // Кнопка Старт для ботов с пустой историей
+                        if (_currentChatIsBot && _messageItems.Count == 0)
+                            StartBotButton.Visibility = Visibility.Visible;
+                        else
+                            StartBotButton.Visibility = Visibility.Collapsed;
                         if (_messageItems.Count > 0) {
                             if (_pendingScrollToMsgId != 0) {
                                 // Скроллим к конкретному сообщению из поиска
@@ -2695,6 +2702,17 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"getUser\",\"user_id\":" + chat.Id + "}");
             }
             InputBorder.Visibility = (chat.IsChannel && threadId == 0) ? Visibility.Collapsed : Visibility.Visible;
+            // Проверяем бот ли это
+            _currentChatIsBot = false;
+            StartBotButton.Visibility = Visibility.Collapsed;
+            if (_rawChatsDict.ContainsKey(chat.Id)) {
+                var rawC = _rawChatsDict[chat.Id] as Newtonsoft.Json.Linq.JObject;
+                long botUserId = rawC?["type"]?["user_id"]?.ToObject<long>() ?? 0;
+                if (botUserId != 0 && _usersDict.ContainsKey(botUserId)) {
+                    string utype = _usersDict[botUserId]["type"]?["@type"]?.ToString() ?? "";
+                    _currentChatIsBot = utype == "userTypeBot";
+                }
+            }
             // Аватарка
             if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
             else ChatHeaderAvatarBrush.ImageSource = null;
@@ -3058,6 +3076,16 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId +
                     ",\"from_message_id\":" + _pinnedMessageId + ",\"offset\":-10,\"limit\":20}");
             }
+        }
+
+        private void StartBotButton_Click(object sender, RoutedEventArgs e) {
+            if (_currentChatId == 0) return;
+            StartBotButton.Visibility = Visibility.Collapsed;
+            // Отправляем /start
+            string req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                ",\"input_message_content\":{\"@type\":\"inputMessageText\"" +
+                ",\"text\":{\"@type\":\"formattedText\",\"text\":\"/start\"}}}";
+            TdJson.SendUtf8(_client, req);
         }
 
         private void AudioSlider_ManipulationStarted(object sender, Windows.UI.Xaml.Input.ManipulationStartedRoutedEventArgs e) {

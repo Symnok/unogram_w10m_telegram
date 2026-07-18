@@ -753,6 +753,13 @@
             </Grid>
 
             <StackPanel x:Name="InputPanel" Grid.Row="3">
+                <!-- Кнопка Старт для ботов -->
+                <Button x:Name="StartBotButton" Content="▶ Старт"
+                        Visibility="Collapsed" Click="StartBotButton_Click"
+                        HorizontalAlignment="Center" Margin="0,8,0,8"
+                        Background="#2AABEE" Foreground="White"
+                        FontSize="16" FontWeight="SemiBold"
+                        Padding="40,12" CornerRadius="20"/>
                 <!-- Панель предпросмотра цитаты -->
                 <Grid x:Name="ReplyPreviewPanel" Visibility="Collapsed" Background="#1A1A1A" Padding="10,6">
                     <Grid.ColumnDefinitions>
