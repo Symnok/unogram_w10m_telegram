@@ -1334,7 +1334,6 @@ namespace TelegramWP10
                             });
                             break;
                         }
-                        }
                         if (_loadingArchiveIds) {
                             // Pre-fetch: сохраняем id архивных чатов, потом грузим главный список
                             _loadingArchiveIds = false;
