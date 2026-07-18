@@ -157,6 +157,7 @@ namespace TelegramWP10
         public MainPage()
         {
             this.InitializeComponent();
+            Log("APP_VERSION=2026.07.18.PIN_FIX");
             _client = TdJson.td_json_client_create();
             ChatListView.ItemsSource = _chatListItems;
             MessagesListView.ItemsSource = _messageItems;
@@ -636,10 +637,14 @@ namespace TelegramWP10
                         var pos = positions.FirstOrDefault(p => p["list"]?["@type"]?.ToString() == targetListType
                                   || p["list"]?["@type"]?.ToString() == "chatListMain");
                         chatItem.IsPinned = pos?["is_pinned"]?.ToObject<bool>() ?? false;
+                        Log("PIN[1] updateNewChat chatId=" + chatId + " title=" + chatItem.Title + " isPinned=" + chatItem.IsPinned + " posCount=" + positions.Count);
+                    } else {
+                        Log("PIN[1] updateNewChat chatId=" + chatId + " title=" + chatItem.Title + " positions=null/empty");
                     }
-                    // Применяем pending position если updateChatPosition пришёл раньше
                     if (_pendingPinnedPositions.ContainsKey(chatId)) {
-                        chatItem.IsPinned = _pendingPinnedPositions[chatId];
+                        bool pendingPin = _pendingPinnedPositions[chatId];
+                        Log("PIN[1] applying pending isPinned=" + pendingPin + " for chatId=" + chatId);
+                        chatItem.IsPinned = pendingPin;
                         _pendingPinnedPositions.Remove(chatId);
                     }
 
@@ -1047,18 +1052,22 @@ namespace TelegramWP10
                     if (ucpId != 0) {
                         var ucpPos = update["position"];
                         bool ucpPinned = ucpPos?["is_pinned"]?.ToObject<bool>() ?? false;
+                        string ucpListType = ucpPos?["list"]?["@type"]?.ToString() ?? "?";
+                        Log("PIN[2] updateChatPosition chatId=" + ucpId + " isPinned=" + ucpPinned + " list=" + ucpListType + " inDict=" + _chatsDict.ContainsKey(ucpId));
                         if (_chatsDict.ContainsKey(ucpId)) {
                             _chatsDict[ucpId].IsPinned = ucpPinned;
                             var allItem = _allChatItems.FirstOrDefault(ch => ch.Id == ucpId);
                             if (allItem != null) allItem.IsPinned = ucpPinned;
                             var ucpList = _archiveChatItems.Any(ch => ch.Id == ucpId) ? _archiveChatItems : _chatListItems;
                             var ucpItem = ucpList.FirstOrDefault(ch => ch.Id == ucpId);
+                            Log("PIN[2] inChatList=" + (ucpItem != null) + " listCount=" + ucpList.Count);
                             if (ucpItem != null) {
                                 ucpList.Remove(ucpItem);
                                 InsertAfterPinned(ucpList, ucpItem);
+                                Log("PIN[2] re-inserted at=" + ucpList.IndexOf(ucpItem));
                             }
                         } else {
-                            // Чат ещё не загружен — сохраняем pending
+                            Log("PIN[2] chat not in dict yet — saving to pending");
                             _pendingPinnedPositions[ucpId] = ucpPinned;
                         }
                     }
@@ -1764,6 +1773,9 @@ namespace TelegramWP10
                 if (_loadingChats) {
                     _loadingChats = false;
                     _mainListLoaded = true;
+                    Log("PIN[6] list loaded count=" + _chatListItems.Count);
+                    for (int pi2 = 0; pi2 < Math.Min(_chatListItems.Count, 15); pi2++)
+                        Log("PIN[6] [" + pi2 + "] " + _chatListItems[pi2].Title + " pinned=" + _chatListItems[pi2].IsPinned);
                     LoadNextFolder();
                 }
                 if (_loadingArchive) {
@@ -1787,11 +1799,13 @@ namespace TelegramWP10
                             }
                         } else {
                             if (!_chatListItems.Contains(existing)) {
+                                Log("PIN[3] LoadNextChat adding chatId=" + existing.Id + " title=" + existing.Title + " isPinned=" + existing.IsPinned + " listSizeBefore=" + _chatListItems.Count);
                                 if (existing.IsPinned) {
                                     int insertAt = 0;
                                     for (int pi = 0; pi < _chatListItems.Count; pi++)
                                         if (_chatListItems[pi].IsPinned) insertAt = pi + 1;
                                     _chatListItems.Insert(insertAt, existing);
+                                    Log("PIN[3] inserted at=" + insertAt);
                                 } else {
                                     _chatListItems.Add(existing);
                                 }
@@ -1911,16 +1925,20 @@ namespace TelegramWP10
         // Закреплённый чат всегда вставляется в самый верх (позиция 0)
         private void InsertAfterPinned(ObservableCollection<ChatItem> list, ChatItem item) {
             if (item.IsPinned) {
-                list.Insert(0, item);
+                // Вставляем после других закреплённых
+                int pinnedIdx = 0;
+                for (int i = 0; i < list.Count; i++)
+                    if (list[i].IsPinned) pinnedIdx = i + 1;
+                list.Insert(pinnedIdx, item);
+                Log("PIN[5] InsertAfterPinned PINNED chatId=" + item.Id + " at=" + pinnedIdx);
                 return;
             }
-            // Вставляем сразу после последнего закреплённого
             int insertAt = 0;
             for (int i = 0; i < list.Count; i++) {
                 if (list[i].IsPinned) insertAt = i + 1;
-                // Не делаем break — перебираем все элементы чтобы найти последний закреплённый
             }
             list.Insert(insertAt, item);
+            Log("PIN[5] InsertAfterPinned UNPINNED chatId=" + item.Id + " at=" + insertAt);
         }
 
         private void MoveChatToTop(long chatId) {
@@ -3336,13 +3354,16 @@ namespace TelegramWP10
             if (!_chatsDict.ContainsKey(chatId)) return;
             bool newPinned = !_chatsDict[chatId].IsPinned;
             string listType = _archiveChatIds.Contains(chatId) ? "chatListArchive" : "chatListMain";
+            Log("PIN[4] PinChat_Click chatId=" + chatId + " currentIsPinned=" + _chatsDict[chatId].IsPinned + " newPinned=" + newPinned + " listType=" + listType);
             var req = new JObject {
                 ["@type"] = "toggleChatIsPinned",
                 ["chat_list"] = new JObject { ["@type"] = listType },
                 ["chat_id"] = chatId,
                 ["is_pinned"] = newPinned
             };
-            TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
+            string reqStr = req.ToString(Newtonsoft.Json.Formatting.None);
+            Log("PIN[4] sending: " + reqStr);
+            TdJson.SendUtf8(_client, reqStr);
         }
 
         private void ArchiveChat_Click(object sender, RoutedEventArgs e) {
