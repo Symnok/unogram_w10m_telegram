@@ -1201,10 +1201,11 @@ namespace TelegramWP10
 
                 case "users":
                     var contactUserIds = update["user_ids"] as JArray;
-                    Log("CONTACTS case users user_ids=" + (contactUserIds?.Count.ToString() ?? "null"));
+                    Log("CONTACTS case users count=" + (contactUserIds?.Count.ToString() ?? "null"));
                     if (contactUserIds != null) {
-                        var t = Task.Run(async () => {
-                            try { await HandleContactsLoaded(contactUserIds); }
+                        var uids = contactUserIds;
+                        var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, async () => {
+                            try { await HandleContactsLoaded(uids); }
                             catch (Exception ex) { Log("CONTACTS ERR: " + ex.Message); }
                         });
                     }
@@ -1356,56 +1357,56 @@ namespace TelegramWP10
                         // Результаты поиска — если поисковый запрос активен
                         if (!string.IsNullOrEmpty(_searchQuery) && !_loadingArchiveIds && !_loadingChats && _pendingFolderLoad == 0) {
                             Log("SEARCH case chats count=" + chatIds.Count + " q=" + _searchQuery + " extra=" + (update["@extra"]?.ToString() ?? "none"));
-                            var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                                var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                                 foreach (var cId in chatIds) {
                                     long id = (long)cId;
-                                    if (_chatsDict.ContainsKey(id) && !_searchAllResults.Any(r => r.ChatId == id && r.Type == SearchResultItem.ResultType.Chat)) {
-                                        if (!_searchAllResults.Any(r => r.IsHeader && r.Title == "Чаты"))
-                                            _searchAllResults.Insert(0, new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Чаты" });
-                                        var srChat = _chatsDict[id];
-                                        string srUsername = "";
-                                        if (_rawChatsDict.ContainsKey(id)) {
-                                            var raw = _rawChatsDict[id] as Newtonsoft.Json.Linq.JObject;
-                                            srUsername = raw?["username"]?.ToString()
-                                                      ?? raw?["usernames"]?["editable_username"]?.ToString()
-                                                      ?? raw?["type"]?["username"]?.ToString()
-                                                      ?? raw?["type"]?["usernames"]?["editable_username"]?.ToString()
-                                                      ?? "";
-                                            // Для супергрупп/каналов — берём из _supergroupDict
-                                            if (string.IsNullOrEmpty(srUsername)) {
-                                                long sgId = raw?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
-                                                if (sgId != 0 && _supergroupDict.ContainsKey(sgId)) {
-                                                    var sg3 = _supergroupDict[sgId];
-                                                    srUsername = sg3["username"]?.ToString()
-                                                              ?? sg3["usernames"]?["editable_username"]?.ToString() ?? "";
-                                                }
-                                                // Если не нашли — запрашиваем
-                                                if (string.IsNullOrEmpty(srUsername) && sgId != 0)
-                                                    TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroup\",\"supergroup_id\":" + sgId + "}");
+                                    if (_searchAllResults.Any(r => r.ChatId == id && r.Type == SearchResultItem.ResultType.Chat)) continue;
+                                    if (!_searchAllResults.Any(r => r.IsHeader && r.Title == "Чаты"))
+                                        _searchAllResults.Insert(0, new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Чаты" });
+                                    // Берём данные из _chatsDict или _rawChatsDict
+                                    string srTitle = _chatsDict.ContainsKey(id) ? _chatsDict[id].Title : "";
+                                    BitmapImage srPhoto = _chatsDict.ContainsKey(id) ? _chatsDict[id].Photo : null;
+                                    string srUsername = "";
+                                    if (_rawChatsDict.ContainsKey(id)) {
+                                        var raw = _rawChatsDict[id] as Newtonsoft.Json.Linq.JObject;
+                                        if (string.IsNullOrEmpty(srTitle)) srTitle = raw?["title"]?.ToString() ?? "";
+                                        srUsername = raw?["username"]?.ToString()
+                                                  ?? raw?["usernames"]?["editable_username"]?.ToString()
+                                                  ?? raw?["type"]?["username"]?.ToString()
+                                                  ?? raw?["type"]?["usernames"]?["editable_username"]?.ToString()
+                                                  ?? "";
+                                        // Для супергрупп — ищем в _supergroupDict
+                                        if (string.IsNullOrEmpty(srUsername)) {
+                                            long sgId = raw?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
+                                            if (sgId != 0 && _supergroupDict.ContainsKey(sgId)) {
+                                                var sg3 = _supergroupDict[sgId];
+                                                srUsername = sg3["username"]?.ToString()
+                                                          ?? sg3["usernames"]?["editable_username"]?.ToString() ?? "";
                                             }
+                                            if (string.IsNullOrEmpty(srUsername) && sgId != 0)
+                                                TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroup\",\"supergroup_id\":" + sgId + "}");
                                         }
-                                        string srSubtitle = !string.IsNullOrEmpty(srUsername)
-                                            ? "@" + srUsername
-                                            : srChat.LastMessage;
-                                        var srItem = new SearchResultItem {
-                                            Type = SearchResultItem.ResultType.Chat,
-                                            ChatId = id, Title = srChat.Title,
-                                            Subtitle = srSubtitle, Photo = srChat.Photo
-                                        };
-                                        _searchAllResults.Add(srItem);
-                                        // Если фото нет — запускаем загрузку
-                                        if (srChat.Photo == null && _rawChatsDict.ContainsKey(id)) {
-                                            var rawCh = _rawChatsDict[id] as Newtonsoft.Json.Linq.JObject;
-                                            var phSmallSr = rawCh?["photo"]?["small"];
-                                            if (phSmallSr != null) {
-                                                long phFid = phSmallSr["id"]?.ToObject<long>() ?? 0;
-                                                string phPath = phSmallSr["local"]?["path"]?.ToString();
-                                                if (!string.IsNullOrEmpty(phPath))
-                                                    { var t2 = UpdateAvatarSearchResult(srItem, phPath); }
-                                                else if (phFid > 0) {
-                                                    _fileToSearchResult[phFid] = srItem;
-                                                    TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + phFid + ",\"priority\":10,\"synchronous\":false}");
-                                                }
+                                    }
+                                    if (string.IsNullOrEmpty(srTitle)) continue;
+                                    string srSubtitle = !string.IsNullOrEmpty(srUsername) ? "@" + srUsername : "";
+                                    var srItem = new SearchResultItem {
+                                        Type = SearchResultItem.ResultType.Chat,
+                                        ChatId = id, Title = srTitle,
+                                        Subtitle = srSubtitle, Photo = srPhoto
+                                    };
+                                    _searchAllResults.Add(srItem);
+                                    // Если фото нет — запускаем загрузку
+                                    if (srPhoto == null && _rawChatsDict.ContainsKey(id)) {
+                                        var rawCh = _rawChatsDict[id] as Newtonsoft.Json.Linq.JObject;
+                                        var phSmallSr = rawCh?["photo"]?["small"];
+                                        if (phSmallSr != null) {
+                                            long phFid = phSmallSr["id"]?.ToObject<long>() ?? 0;
+                                            string phPath = phSmallSr["local"]?["path"]?.ToString();
+                                            if (!string.IsNullOrEmpty(phPath))
+                                                { var t2 = UpdateAvatarSearchResult(srItem, phPath); }
+                                            else if (phFid > 0) {
+                                                _fileToSearchResult[phFid] = srItem;
+                                                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + phFid + ",\"priority\":10,\"synchronous\":false}");
                                             }
                                         }
                                     }
