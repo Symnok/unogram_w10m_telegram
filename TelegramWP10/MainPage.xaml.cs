@@ -585,9 +585,9 @@ namespace TelegramWP10
                     break;
 
                 case "updateNewChat":
-                    var c = update["chat"];
-                    long chatId = (long)c["id"];
-                    _rawChatsDict[chatId] = c; // сохраняем сырой JSON для last_read_inbox_message_id
+                    var chatUpd = update["chat"];
+                    long chatId = (long)chatUpd["id"];
+                    _rawChatsDict[chatId] = chatUpd; // сохраняем сырой JSON для last_read_inbox_message_id
                     // Если пришёл updateNewChat — TDLib уже авторизован (сессия сохранена)
                     if (!_isAuthorized) {
                         _isAuthorized = true;
@@ -602,21 +602,21 @@ namespace TelegramWP10
                         TdJson.SendUtf8(_client, "{\"@type\":\"getMe\"}");
                     }
                     if (!_chatsDict.ContainsKey(chatId)) {
-                        bool isChannel = c["type"]?["@type"]?.ToString() == "chatTypeSupergroup"
-                            && (c["type"]?["is_channel"]?.ToObject<bool>() ?? false);
-                        long initOutboxRead = c["last_read_outbox_message_id"]?.ToObject<long>() ?? 0;
-                        _chatsDict[chatId] = new ChatItem { Id = chatId, Title = c["title"]?.ToString(), OutboxReadId = initOutboxRead > 0 ? initOutboxRead : 0, IsChannel = isChannel };
+                        bool isChannel = chatUpd["type"]?["@type"]?.ToString() == "chatTypeSupergroup"
+                            && (chatUpd["type"]?["is_channel"]?.ToObject<bool>() ?? false);
+                        long initOutboxRead = chatUpd["last_read_outbox_message_id"]?.ToObject<long>() ?? 0;
+                        _chatsDict[chatId] = new ChatItem { Id = chatId, Title = chatUpd["title"]?.ToString(), OutboxReadId = initOutboxRead > 0 ? initOutboxRead : 0, IsChannel = isChannel };
                     }
                     var chatItem = _chatsDict[chatId];
                     // Заполняем последнее сообщение
-                    var lastMsg = c["last_message"];
+                    var lastMsg = chatUpd["last_message"];
                     if (lastMsg != null) FillChatLastMessage(chatItem, lastMsg, c);
                     // Непрочитанные
-                    chatItem.UnreadCount = c["unread_count"]?.ToObject<int>() ?? 0;
-                    chatItem.IsMarkedUnread = c["is_marked_as_unread"]?.ToObject<bool>() ?? false;
+                    chatItem.UnreadCount = chatUpd["unread_count"]?.ToObject<int>() ?? 0;
+                    chatItem.IsMarkedUnread = chatUpd["is_marked_as_unread"]?.ToObject<bool>() ?? false;
                     // _archiveChatIds заполняется ДО загрузки главного списка — надёжнее чем positions
                     // (при bump positions уже содержит chatListMain вместо chatListArchive)
-                    var positions = c["positions"] as JArray;
+                    var positions = chatUpd["positions"] as JArray;
                     bool isArchiveChat = _archiveChatIds.Contains(chatId) ||
                         (positions != null && positions.Any(p => p["list"]?["@type"]?.ToString() == "chatListArchive"));
                     bool isMainChat = !isArchiveChat;
@@ -635,7 +635,7 @@ namespace TelegramWP10
                         _pendingGetChat.Remove(chatId);
                         LoadNextChat(); // продолжаем очередь
                     }
-                    var phSmall = c["photo"]?["small"];
+                    var phSmall = chatUpd["photo"]?["small"];
                     if (phSmall != null) {
                         long phFileId = (long)phSmall["id"];
                         _fileToChatId[phFileId] = chatId;
@@ -1323,11 +1323,11 @@ namespace TelegramWP10
                                     if (_chatsDict.ContainsKey(id) && !_searchAllResults.Any(r => r.ChatId == id && r.Type == SearchResultItem.ResultType.Chat)) {
                                         if (!_searchAllResults.Any(r => r.IsHeader && r.Title == "Чаты"))
                                             _searchAllResults.Insert(0, new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Чаты" });
-                                        var c = _chatsDict[id];
+                                        var chatItem = _chatsDict[id];
                                         _searchAllResults.Add(new SearchResultItem {
                                             Type = SearchResultItem.ResultType.Chat,
-                                            ChatId = id, Title = c.Title,
-                                            Subtitle = c.LastMessage, Photo = c.Photo
+                                            ChatId = id, Title = chatItem.Title,
+                                            Subtitle = chatItem.LastMessage, Photo = chatItem.Photo
                                         });
                                     }
                                 }
