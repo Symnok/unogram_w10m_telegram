@@ -1237,6 +1237,28 @@ namespace TelegramWP10
                     }
                     break;
 
+                case "userFullInfo":
+                    // Bio пользователя
+                    if (ProfileOverlay.Visibility == Visibility.Visible) {
+                        string bio = update["bio"]?["text"]?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(bio)) {
+                            ProfileBio.Text = bio;
+                            ProfileBioPanel.Visibility = Visibility.Visible;
+                        }
+                    }
+                    break;
+
+                case "supergroupFullInfo":
+                    // Description группы/канала
+                    if (ProfileOverlay.Visibility == Visibility.Visible) {
+                        string desc = update["description"]?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(desc)) {
+                            ProfileBio.Text = desc;
+                            ProfileBioPanel.Visibility = Visibility.Visible;
+                        }
+                    }
+                    break;
+
                 case "ok":
                     break;
 
@@ -3078,6 +3100,56 @@ namespace TelegramWP10
             }
         }
 
+        private void ChatHeaderProfile_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
+            if (_currentChatId == 0) return;
+            // Показываем профиль
+            ProfileOverlay.Visibility = Visibility.Visible;
+            ProfileName.Text = CurrentChatTitle.Text;
+            ProfileUsername.Visibility = Visibility.Collapsed;
+            ProfilePhonePanel.Visibility = Visibility.Collapsed;
+            ProfileBioPanel.Visibility = Visibility.Collapsed;
+            // Аватарка
+            ProfileAvatarBrush.ImageSource = ChatHeaderAvatarBrush.ImageSource;
+            // Берём данные из rawChatsDict
+            if (_rawChatsDict.ContainsKey(_currentChatId)) {
+                var raw = _rawChatsDict[_currentChatId] as Newtonsoft.Json.Linq.JObject;
+                long userId = raw?["type"]?["user_id"]?.ToObject<long>() ?? 0;
+                if (userId != 0 && _usersDict.ContainsKey(userId)) {
+                    var u = _usersDict[userId];
+                    // Username
+                    string uname = u["username"]?.ToString()
+                                ?? u["usernames"]?["editable_username"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(uname)) {
+                        ProfileUsername.Text = "@" + uname;
+                        ProfileUsername.Visibility = Visibility.Visible;
+                    }
+                    // Телефон
+                    string phone = u["phone_number"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(phone)) {
+                        ProfilePhone.Text = "+" + phone;
+                        ProfilePhonePanel.Visibility = Visibility.Visible;
+                    }
+                    // Запрашиваем bio через getUserFullInfo
+                    TdJson.SendUtf8(_client, "{\"@type\":\"getUserFullInfo\",\"user_id\":" + userId + "}");
+                } else {
+                    // Группа/канал — запрашиваем getSupergroupFullInfo
+                    long sgId = raw?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
+                    if (sgId != 0)
+                        TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroupFullInfo\",\"supergroup_id\":" + sgId + "}");
+                }
+            }
+        }
+
+        private void ProfileOverlay_Close(object sender, RoutedEventArgs e) {
+            ProfileOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void ProfileOverlay_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
+            // Закрываем при клике на фон
+            if (e.OriginalSource == ProfileOverlay)
+                ProfileOverlay.Visibility = Visibility.Collapsed;
+        }
+
         private void StartBotButton_Click(object sender, RoutedEventArgs e) {
             if (_currentChatId == 0) return;
             StartBotButton.Visibility = Visibility.Collapsed;
@@ -4372,7 +4444,7 @@ namespace TelegramWP10
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e) {
-            // Если открыт тред комментариев — возвращаемся в канал
+            ProfileOverlay.Visibility = Visibility.Collapsed;
             if (_threadMessageId != 0) {
                 long channelChatId = _threadChatId;
                 _threadMessageId = 0;
