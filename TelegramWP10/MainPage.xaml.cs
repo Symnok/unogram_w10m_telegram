@@ -610,7 +610,7 @@ namespace TelegramWP10
                     var chatItem = _chatsDict[chatId];
                     // Заполняем последнее сообщение
                     var lastMsg = chatUpd["last_message"];
-                    if (lastMsg != null) FillChatLastMessage(chatItem, lastMsg, c);
+                    if (lastMsg != null) FillChatLastMessage(chatItem, lastMsg, chatUpd);
                     // Непрочитанные
                     chatItem.UnreadCount = chatUpd["unread_count"]?.ToObject<int>() ?? 0;
                     chatItem.IsMarkedUnread = chatUpd["is_marked_as_unread"]?.ToObject<bool>() ?? false;
@@ -1323,11 +1323,11 @@ namespace TelegramWP10
                                     if (_chatsDict.ContainsKey(id) && !_searchAllResults.Any(r => r.ChatId == id && r.Type == SearchResultItem.ResultType.Chat)) {
                                         if (!_searchAllResults.Any(r => r.IsHeader && r.Title == "Чаты"))
                                             _searchAllResults.Insert(0, new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Чаты" });
-                                        var chatItem = _chatsDict[id];
+                                        var srChat = _chatsDict[id];
                                         _searchAllResults.Add(new SearchResultItem {
                                             Type = SearchResultItem.ResultType.Chat,
-                                            ChatId = id, Title = chatItem.Title,
-                                            Subtitle = chatItem.LastMessage, Photo = chatItem.Photo
+                                            ChatId = id, Title = srChat.Title,
+                                            Subtitle = srChat.LastMessage, Photo = srChat.Photo
                                         });
                                     }
                                 }
