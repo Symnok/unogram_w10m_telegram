@@ -157,7 +157,6 @@ namespace TelegramWP10
         public MainPage()
         {
             this.InitializeComponent();
-            Log("APP_VERSION=2026.07.18.PIN_FIX");
             _client = TdJson.td_json_client_create();
             ChatListView.ItemsSource = _chatListItems;
             MessagesListView.ItemsSource = _messageItems;
@@ -579,6 +578,7 @@ namespace TelegramWP10
                         } else if (addedList == "chatListArchive") {
                             if (_chatListItems.Contains(addedItem)) {
                                 _chatListItems.Remove(addedItem);
+                                _allChatItems.RemoveAll(c => c.Id == addedChatId);
                                 ChatCountText.Text = _chatListItems.Count.ToString();
                             }
                             if (!_archiveChatItems.Contains(addedItem)) {
@@ -637,13 +637,10 @@ namespace TelegramWP10
                         var pos = positions.FirstOrDefault(p => p["list"]?["@type"]?.ToString() == targetListType
                                   || p["list"]?["@type"]?.ToString() == "chatListMain");
                         chatItem.IsPinned = pos?["is_pinned"]?.ToObject<bool>() ?? false;
-                        Log("PIN[1] updateNewChat chatId=" + chatId + " title=" + chatItem.Title + " isPinned=" + chatItem.IsPinned + " posCount=" + positions.Count);
                     } else {
-                        Log("PIN[1] updateNewChat chatId=" + chatId + " title=" + chatItem.Title + " positions=null/empty");
                     }
                     if (_pendingPinnedPositions.ContainsKey(chatId)) {
                         bool pendingPin = _pendingPinnedPositions[chatId];
-                        Log("PIN[1] applying pending isPinned=" + pendingPin + " for chatId=" + chatId);
                         chatItem.IsPinned = pendingPin;
                         _pendingPinnedPositions.Remove(chatId);
                     }
@@ -1055,21 +1052,17 @@ namespace TelegramWP10
                         // Игнорируем позиции папок — они не влияют на закрепление в основном списке
                         if (ucpListType == "chatListFolder") break;
                         bool ucpPinned = ucpPos?["is_pinned"]?.ToObject<bool>() ?? false;
-                        Log("PIN[2] updateChatPosition chatId=" + ucpId + " isPinned=" + ucpPinned + " list=" + ucpListType + " inDict=" + _chatsDict.ContainsKey(ucpId));
                         if (_chatsDict.ContainsKey(ucpId)) {
                             _chatsDict[ucpId].IsPinned = ucpPinned;
                             var allItem = _allChatItems.FirstOrDefault(ch => ch.Id == ucpId);
                             if (allItem != null) allItem.IsPinned = ucpPinned;
                             var ucpList = _archiveChatItems.Any(ch => ch.Id == ucpId) ? _archiveChatItems : _chatListItems;
                             var ucpItem = ucpList.FirstOrDefault(ch => ch.Id == ucpId);
-                            Log("PIN[2] inChatList=" + (ucpItem != null) + " listCount=" + ucpList.Count);
                             if (ucpItem != null) {
                                 ucpList.Remove(ucpItem);
                                 InsertAfterPinned(ucpList, ucpItem);
-                                Log("PIN[2] re-inserted at=" + ucpList.IndexOf(ucpItem));
                             }
                         } else {
-                            Log("PIN[2] chat not in dict yet — saving to pending");
                             _pendingPinnedPositions[ucpId] = ucpPinned;
                         }
                     }
@@ -1775,9 +1768,7 @@ namespace TelegramWP10
                 if (_loadingChats) {
                     _loadingChats = false;
                     _mainListLoaded = true;
-                    Log("PIN[6] list loaded count=" + _chatListItems.Count);
                     for (int pi2 = 0; pi2 < Math.Min(_chatListItems.Count, 15); pi2++)
-                        Log("PIN[6] [" + pi2 + "] " + _chatListItems[pi2].Title + " pinned=" + _chatListItems[pi2].IsPinned);
                     LoadNextFolder();
                 }
                 if (_loadingArchive) {
@@ -1801,13 +1792,11 @@ namespace TelegramWP10
                             }
                         } else {
                             if (!_chatListItems.Contains(existing)) {
-                                Log("PIN[3] LoadNextChat adding chatId=" + existing.Id + " title=" + existing.Title + " isPinned=" + existing.IsPinned + " listSizeBefore=" + _chatListItems.Count);
                                 if (existing.IsPinned) {
                                     int insertAt = 0;
                                     for (int pi = 0; pi < _chatListItems.Count; pi++)
                                         if (_chatListItems[pi].IsPinned) insertAt = pi + 1;
                                     _chatListItems.Insert(insertAt, existing);
-                                    Log("PIN[3] inserted at=" + insertAt);
                                 } else {
                                     _chatListItems.Add(existing);
                                 }
@@ -1932,7 +1921,6 @@ namespace TelegramWP10
                 for (int i = 0; i < list.Count; i++)
                     if (list[i].IsPinned) pinnedIdx = i + 1;
                 list.Insert(pinnedIdx, item);
-                Log("PIN[5] InsertAfterPinned PINNED chatId=" + item.Id + " at=" + pinnedIdx);
                 return;
             }
             int insertAt = 0;
@@ -1940,7 +1928,6 @@ namespace TelegramWP10
                 if (list[i].IsPinned) insertAt = i + 1;
             }
             list.Insert(insertAt, item);
-            Log("PIN[5] InsertAfterPinned UNPINNED chatId=" + item.Id + " at=" + insertAt);
         }
 
         private void MoveChatToTop(long chatId) {
@@ -3356,7 +3343,6 @@ namespace TelegramWP10
             if (!_chatsDict.ContainsKey(chatId)) return;
             bool newPinned = !_chatsDict[chatId].IsPinned;
             string listType = _archiveChatIds.Contains(chatId) ? "chatListArchive" : "chatListMain";
-            Log("PIN[4] PinChat_Click chatId=" + chatId + " currentIsPinned=" + _chatsDict[chatId].IsPinned + " newPinned=" + newPinned + " listType=" + listType);
             var req = new JObject {
                 ["@type"] = "toggleChatIsPinned",
                 ["chat_list"] = new JObject { ["@type"] = listType },
@@ -3364,7 +3350,6 @@ namespace TelegramWP10
                 ["is_pinned"] = newPinned
             };
             string reqStr = req.ToString(Newtonsoft.Json.Formatting.None);
-            Log("PIN[4] sending: " + reqStr);
             TdJson.SendUtf8(_client, reqStr);
         }
 
@@ -3402,7 +3387,11 @@ namespace TelegramWP10
                 await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                     var toRemove = _chatListItems.FirstOrDefault(c => c.Id == chatId);
                     if (toRemove != null) _chatListItems.Remove(toRemove);
+                    _allChatItems.RemoveAll(c => c.Id == chatId);
                     if (_chatsDict.ContainsKey(chatId)) _chatsDict.Remove(chatId);
+                    if (_pendingPinnedPositions.ContainsKey(chatId)) _pendingPinnedPositions.Remove(chatId);
+                    // Удаляем из папок
+                    foreach (var fl in _folderChatIds.Values) fl.Remove(chatId);
                 });
             }));
             dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
