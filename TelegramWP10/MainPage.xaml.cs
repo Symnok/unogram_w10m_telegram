@@ -1406,7 +1406,15 @@ namespace TelegramWP10
                                             if (string.IsNullOrEmpty(srUsername) && sgId != 0)
                                                 TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroup\",\"supergroup_id\":" + sgId + "}");
                                         }
-                                    }
+                                        // Для приватных чатов (пользователей) — берём username из _usersDict
+                                        if (string.IsNullOrEmpty(srUsername)) {
+                                            long uid3 = raw?["type"]?["user_id"]?.ToObject<long>() ?? 0;
+                                            if (uid3 != 0 && _usersDict.ContainsKey(uid3)) {
+                                                var u3 = _usersDict[uid3];
+                                                srUsername = u3["username"]?.ToString()
+                                                          ?? u3["usernames"]?["editable_username"]?.ToString() ?? "";
+                                            }
+                                        }
                                     if (string.IsNullOrEmpty(srTitle)) continue;
                                     string srSubtitle = !string.IsNullOrEmpty(srUsername) ? "@" + srUsername : "";
                                     var srItem = new SearchResultItem {
