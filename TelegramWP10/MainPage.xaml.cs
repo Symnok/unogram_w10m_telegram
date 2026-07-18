@@ -313,8 +313,8 @@ namespace TelegramWP10
 
         private async void InitAsync() {
             try {
-                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
-                var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
+                var localFolder = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Music);
+                var appFolder = await localFolder.SaveFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
@@ -1774,7 +1774,16 @@ namespace TelegramWP10
                             }
                         } else {
                             if (!_chatListItems.Contains(existing)) {
-                                _chatListItems.Add(existing);
+                                // Закреплённые добавляем перед незакреплёнными
+                                if (existing.IsPinned) {
+                                    int insertAt = 0;
+                                    // Вставляем после последнего закреплённого
+                                    for (int pi = 0; pi < _chatListItems.Count; pi++)
+                                        if (_chatListItems[pi].IsPinned) insertAt = pi + 1;
+                                    _chatListItems.Insert(insertAt, existing);
+                                } else {
+                                    _chatListItems.Add(existing);
+                                }
                                 if (!_allChatItems.Contains(existing))
                                     _allChatItems.Add(existing);
                                 ChatCountText.Text = _chatListItems.Count.ToString();
