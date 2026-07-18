@@ -28,6 +28,13 @@ namespace TelegramWP10
 
         public Visibility NoPhotoVisibility => _photo == null ? Visibility.Visible : Visibility.Collapsed;
 
+        private string _lastSeen = "";
+        public string LastSeen {
+            get => _lastSeen;
+            set { _lastSeen = value; OnPropertyChanged("LastSeen"); OnPropertyChanged("LastSeenVisibility"); }
+        }
+        public Visibility LastSeenVisibility => string.IsNullOrEmpty(_lastSeen) ? Visibility.Collapsed : Visibility.Visible;
+
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }

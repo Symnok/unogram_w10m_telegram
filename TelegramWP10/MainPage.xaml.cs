@@ -88,6 +88,7 @@ namespace TelegramWP10
         private long _lastReadInboxMsgId = 0;
         private long _pinnedMessageId = 0;
         private long _pendingPinnedChatId = 0;
+        private long _pendingScrollToMsgId = 0; // скролл к сообщению после открытия чата
         private Dictionary<long, long> _pinnedTextRequests = new Dictionary<long, long>(); // pinnedMsgId → serviceMsgId
         private bool _loadingChats = false;
         private bool _mainListLoaded = false; // основной список полностью загружен
@@ -1415,7 +1416,24 @@ namespace TelegramWP10
                         LoadingIndicator.Visibility = Visibility.Collapsed;
                         MessagesListView.Visibility = Visibility.Visible;
                         if (_messageItems.Count > 0) {
-                            ScrollToBottomDelayed();
+                            if (_pendingScrollToMsgId != 0) {
+                                // Скроллим к конкретному сообщению из поиска
+                                long scrollTarget = _pendingScrollToMsgId;
+                                _pendingScrollToMsgId = 0;
+                                // Ждём рендера и скроллим
+                                var st = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+                                st.Tick += (ts, te) => {
+                                    st.Stop();
+                                    var target = _messageItems.FirstOrDefault(m => !m.IsSeparator && m.Id == scrollTarget);
+                                    if (target != null)
+                                        MessagesListView.ScrollIntoView(target, ScrollIntoViewAlignment.Leading);
+                                    else
+                                        MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight, null, false);
+                                };
+                                st.Start();
+                            } else {
+                                ScrollToBottomDelayed();
+                            }
                         }
                         long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
                         if (lastMsgId != 0)
@@ -3641,7 +3659,8 @@ namespace TelegramWP10
                     contacts.Add(new ContactItem {
                         UserId   = cid2,
                         FullName = (u2["first_name"]?.ToString() + " " + u2["last_name"]?.ToString()).Trim(),
-                        Username = u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? ""
+                        Username = u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? "",
+                        LastSeen = GetLastSeenText(u2["status"])
                     });
                 } else {
                     // Нет данных — добавляем заглушку и запрашиваем
@@ -3659,6 +3678,27 @@ namespace TelegramWP10
                     if (_usersDict.ContainsKey(contact.UserId))
                         { var t = LoadContactAvatarFromUser(contact, _usersDict[contact.UserId]); }
             });
+        }
+
+        private string GetLastSeenText(JToken status) {
+            if (status == null) return "";
+            string stype = status["@type"]?.ToString() ?? "";
+            switch (stype) {
+                case "userStatusOnline": return "в сети";
+                case "userStatusOffline":
+                    int wasOnline = status["was_online"]?.ToObject<int>() ?? 0;
+                    if (wasOnline == 0) return "давно не был";
+                    var dt = DateTimeOffset.FromUnixTimeSeconds(wasOnline).LocalDateTime;
+                    var now = DateTime.Now;
+                    if (dt.Date == now.Date) return "был(а) сегодня в " + dt.ToString("HH:mm");
+                    if (dt.Date == now.Date.AddDays(-1)) return "был(а) вчера в " + dt.ToString("HH:mm");
+                    if ((now - dt).TotalDays < 7) return "был(а) " + dt.ToString("dddd в HH:mm");
+                    return "был(а) " + dt.ToString("dd.MM.yyyy");
+                case "userStatusRecently": return "недавно";
+                case "userStatusLastWeek": return "на этой неделе";
+                case "userStatusLastMonth": return "в этом месяце";
+                default: return "";
+            }
         }
 
         private async Task LoadContactAvatarFromUser(ContactItem contact, JToken user) {
@@ -3782,6 +3822,7 @@ namespace TelegramWP10
             SearchResultsView.Visibility = Visibility.Collapsed;
             ChatListView.Visibility = Visibility.Visible;
             if (FolderTabsScroll != null) FolderTabsScroll.Visibility = _folderChatIds.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            _pendingScrollToMsgId = item.MessageId;
             if (_chatsDict.ContainsKey(item.ChatId))
                 OpenChat(_chatsDict[item.ChatId], 0);
         }
