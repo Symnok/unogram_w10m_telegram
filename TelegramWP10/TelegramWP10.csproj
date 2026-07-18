@@ -54,6 +54,7 @@
     <Compile Include="ChatItem.cs" />
     <Compile Include="MessageItem.cs" />
     <Compile Include="SearchMessageItem.cs" />
+    <Compile Include="SearchResultItem.cs" />
   </ItemGroup>
 
   <ItemGroup>

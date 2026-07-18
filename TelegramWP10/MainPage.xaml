@@ -260,78 +260,38 @@
 
             <!-- Результаты поиска -->
             <!-- Результаты поиска — ScrollViewer с двумя секциями -->
-            <ScrollViewer x:Name="SearchResultsView" Grid.Row="3" Visibility="Collapsed">
-                <StackPanel>
-                    <!-- Секция: Чаты -->
-                    <TextBlock x:Name="SearchChatsHeader" Text="Чаты" Foreground="#888888"
-                               FontSize="12" FontWeight="SemiBold" Margin="12,8,12,4"
-                               Visibility="Collapsed"/>
-                    <ListView x:Name="SearchChatsList"
-                              SelectionMode="None" IsItemClickEnabled="True" ItemClick="ChatListView_ItemClick">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Padding" Value="0"/>
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Padding="12,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="44"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Ellipse Width="40" Height="40" Fill="#555555"/>
-                                    <Ellipse Width="40" Height="40">
-                                        <Ellipse.Fill>
-                                            <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
-                                        </Ellipse.Fill>
-                                    </Ellipse>
-                                    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Title}" Foreground="{Binding TitleColor}" FontSize="16" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{Binding LastMessage}" Foreground="{Binding SubtitleColor}" FontSize="13" TextTrimming="CharacterEllipsis"/>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-
-                    <!-- Секция: Сообщения -->
-                    <TextBlock x:Name="SearchMessagesHeader" Text="Сообщения" Foreground="#888888"
-                               FontSize="12" FontWeight="SemiBold" Margin="12,8,12,4"
-                               Visibility="Collapsed"/>
-                    <ListView x:Name="SearchMessagesList"
-                              SelectionMode="None" IsItemClickEnabled="True" ItemClick="SearchMessage_ItemClick">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Padding" Value="0"/>
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Padding="12,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="44"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Ellipse Width="40" Height="40" Fill="#555555"/>
-                                    <Ellipse Width="40" Height="40">
-                                        <Ellipse.Fill>
-                                            <ImageBrush ImageSource="{Binding ChatPhoto}" Stretch="UniformToFill"/>
-                                        </Ellipse.Fill>
-                                    </Ellipse>
-                                    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding ChatTitle}" Foreground="White" FontSize="15" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{Binding MessageText}" Foreground="#888888" FontSize="13" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Text="{Binding DateText}" Foreground="#666666" FontSize="11"/>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </StackPanel>
-            </ScrollViewer>
+            <!-- Результаты поиска — один ListView с секциями через Header/Footer -->
+            <ListView x:Name="SearchResultsView" Grid.Row="3" Visibility="Collapsed"
+                      SelectionMode="None" IsItemClickEnabled="True" ItemClick="SearchResult_ItemClick">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="12,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="44"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Ellipse Width="40" Height="40" Fill="#555555"/>
+                            <Ellipse Width="40" Height="40">
+                                <Ellipse.Fill>
+                                    <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="15" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding DateText}" Foreground="#666666" FontSize="11"
+                                           Visibility="{Binding DateVisibility}"/>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
 
             <Button x:Name="LogoutButton" Grid.Row="4" Content="Выход" Click="LogoutButton_Click"
                     HorizontalAlignment="Stretch" Margin="0,8,0,0"
