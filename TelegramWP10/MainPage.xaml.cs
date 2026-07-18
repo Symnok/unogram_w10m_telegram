@@ -1285,18 +1285,17 @@ namespace TelegramWP10
                     break;
 
                 case "chat":
-                    long getChatId = update["id"]?.ToObject<long>() ?? 0;
+                    long openChatId = update["id"]?.ToObject<long>() ?? 0;
                     // Открыть чат по упоминанию (searchPublicChat / createPrivateChat)
-                    if (_pendingOpenChat && getChatId != 0) {
+                    if (_pendingOpenChat && openChatId != 0) {
                         _pendingOpenChat = false;
-                        if (_chatsDict.ContainsKey(getChatId))
-                            OpenChat(_chatsDict[getChatId], 0);
-                        else {
-                            // Чат ещё не в словаре — ждём updateNewChat
-                            _pendingHistoryChatId = getChatId;
-                        }
+                        if (_chatsDict.ContainsKey(openChatId))
+                            OpenChat(_chatsDict[openChatId], 0);
+                        else
+                            _pendingHistoryChatId = openChatId;
                     }
                     // Ответ на getChat — берём pinned_message_id
+                    long getChatId = openChatId;
                     long getChatId = update["id"]?.ToObject<long>() ?? 0;
                     if (getChatId != 0 && getChatId == _pendingPinnedChatId) {
                         _pendingPinnedChatId = 0;
