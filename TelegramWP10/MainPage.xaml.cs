@@ -3595,6 +3595,11 @@ namespace TelegramWP10
             ProxySettingsButton.Foreground  = CB("#AAAAAA");
             LogoutButton.Background        = CB("#AA222222");
             LogoutButton.Foreground        = CB("#FF4444");
+            // Поле поиска — тёмная тема
+            if (SearchPanel != null) SearchPanel.Background = CB("#1C1C1E");
+            if (SearchBorder != null) SearchBorder.Background = CB("#2A2A2E");
+            if (FolderTabsScroll != null) FolderTabsScroll.Background = CB("#1C1C1E");
+            UpdateFolderTabStyles();
             // Закреплённое — тёмная тема
             if (PinnedMessageBar != null) {
                 PinnedMessageBar.Background = CB("#CC1F3A52");
@@ -3651,6 +3656,12 @@ namespace TelegramWP10
             ProxySettingsButton.Foreground  = CB("#555555");
             LogoutButton.Background        = CB("#FFE5E5");
             LogoutButton.Foreground        = CB("#CC0000");
+            // Поле поиска — светлая тема
+            if (SearchPanel != null) SearchPanel.Background = CB("#EFEFF3");
+            if (SearchBorder != null) SearchBorder.Background = CB("#E0E0E5");
+            // Вкладки папок — светлый фон
+            if (FolderTabsScroll != null) FolderTabsScroll.Background = CB("#FFFFFF");
+            UpdateFolderTabStyles();
             // Закреплённое — светлая тема как в оригинальном Telegram
             if (PinnedMessageBar != null) {
                 PinnedMessageBar.Background = CB("#FFFFFF");
@@ -3724,15 +3735,21 @@ namespace TelegramWP10
         }
 
         private void UpdateFolderTabStyles() {
+            bool light = _isLightTheme;
+            var inactiveColor = light
+                ? Windows.UI.Color.FromArgb(255, 100, 100, 100)  // тёмно-серый для светлой
+                : Windows.UI.Colors.White;
             foreach (var child in FolderTabs.Children) {
                 var btn = child as Button;
                 if (btn == null) continue;
                 bool isActive = (int)(btn.Tag) == _currentFolderId;
                 btn.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(
-                    isActive ? Windows.UI.Color.FromArgb(255, 42, 171, 238) : Windows.UI.Colors.White);
+                    isActive ? Windows.UI.Color.FromArgb(255, 42, 171, 238) : inactiveColor);
                 btn.BorderBrush = new Windows.UI.Xaml.Media.SolidColorBrush(
                     isActive ? Windows.UI.Color.FromArgb(255, 42, 171, 238) : Windows.UI.Colors.Transparent);
                 btn.BorderThickness = new Thickness(0, 0, 0, isActive ? 2 : 0);
+                if (light)
+                    btn.Background = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.Transparent);
             }
         }
 

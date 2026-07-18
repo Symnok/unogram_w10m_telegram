@@ -62,7 +62,7 @@
 
             <!-- Строка поиска — вне ListView чтобы не терять фокус -->
             <Grid Grid.Row="2" Margin="0,4,0,8" x:Name="SearchPanel" Visibility="Collapsed">
-                <Border Background="#2A2A2A" CornerRadius="18" Padding="12,8">
+                <Border x:Name="SearchBorder" CornerRadius="10" Padding="12,8" Margin="8,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
