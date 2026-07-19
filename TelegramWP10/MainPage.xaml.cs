@@ -2675,8 +2675,15 @@ namespace TelegramWP10
             if (_currentChatId != 0)
                 TdJson.SendUtf8(_client, "{\"@type\":\"closeChat\",\"chat_id\":" + _currentChatId + "}");
             _currentChatId = chat.Id;
-            _currentChatIsGroup = _chatsDict.ContainsKey(chat.Id) &&
-                !_chatsDict[chat.Id].IsChannel && chat.Id < 0;
+            // Группа если тип chatTypeBasicGroup или chatTypeSupergroup не-канал
+            _currentChatIsGroup = false;
+            if (_rawChatsDict.ContainsKey(chat.Id)) {
+                var rawC = _rawChatsDict[chat.Id] as Newtonsoft.Json.Linq.JObject;
+                string ctype = rawC?["type"]?["@type"]?.ToString() ?? "";
+                bool isSupergroup = ctype == "chatTypeSupergroup";
+                bool isChannel = rawC?["type"]?["is_channel"]?.ToObject<bool>() ?? false;
+                _currentChatIsGroup = ctype == "chatTypeBasicGroup" || (isSupergroup && !isChannel);
+            }
             _pendingHistoryChatId = chat.Id;
             _historyRetryCount = 0;
             _loadingOlderHistory = false;
@@ -3051,30 +3058,31 @@ namespace TelegramWP10
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
             picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary;
             picker.FileTypeFilter.Add("*");
-            var file = await picker.PickSingleFileAsync();
-            if (file == null) return;
-            var copy = await file.CopyAsync(_filesFolder, file.Name, Windows.Storage.NameCollisionOption.ReplaceExisting);
-            string path = copy.Path.Replace("\\", "/");
-            string ext = file.FileType?.ToLower() ?? "";
-            bool isPhoto = ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" || ext == ".bmp";
-            string req;
-            if (isPhoto) {
-                // Отправляем как фото
-                req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
-                    ",\"input_message_content\":{\"@type\":\"inputMessagePhoto\"" +
-                    ",\"photo\":{\"@type\":\"inputPhoto\"" +
-                    ",\"photo\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}}" +
-                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
-            } else {
-                // Отправляем как документ
-                req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
-                    ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
-                    ",\"document\":{\"@type\":\"inputDocument\"" +
-                    ",\"document\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
-                    ",\"disable_content_type_detection\":false}" +
-                    ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+            // Выбираем несколько файлов
+            var files = await picker.PickMultipleFilesAsync();
+            if (files == null || files.Count == 0) return;
+            foreach (var file in files) {
+                var copy = await file.CopyAsync(_filesFolder, file.Name, Windows.Storage.NameCollisionOption.ReplaceExisting);
+                string path = copy.Path.Replace("\\", "/");
+                string ext = file.FileType?.ToLower() ?? "";
+                bool isPhoto = ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" || ext == ".bmp";
+                string req;
+                if (isPhoto) {
+                    req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                        ",\"input_message_content\":{\"@type\":\"inputMessagePhoto\"" +
+                        ",\"photo\":{\"@type\":\"inputPhoto\"" +
+                        ",\"photo\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}}" +
+                        ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+                } else {
+                    req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                        ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
+                        ",\"document\":{\"@type\":\"inputDocument\"" +
+                        ",\"document\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
+                        ",\"disable_content_type_detection\":false}" +
+                        ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
+                }
+                TdJson.SendUtf8(_client, req);
             }
-            TdJson.SendUtf8(_client, req);
         }
 
         private bool _pendingOpenChat = false; // ждём chat после searchPublicChat/createPrivateChat для открытия
