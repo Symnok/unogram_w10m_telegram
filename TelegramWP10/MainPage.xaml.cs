@@ -1012,10 +1012,42 @@ namespace TelegramWP10
                     }
                     break;
 
-                case "supergroup":
+                case "supergroup": {
                     long sg2Id = update["id"]?.ToObject<long>() ?? 0;
-                    if (sg2Id != 0) _supergroupDict[sg2Id] = update;
+                    if (sg2Id != 0) {
+                        _supergroupDict[sg2Id] = update;
+                        // Если это текущий чат — показываем число участников
+                        if (_rawChatsDict.ContainsKey(_currentChatId)) {
+                            var rawC3 = _rawChatsDict[_currentChatId] as Newtonsoft.Json.Linq.JObject;
+                            long curSgId = rawC3?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
+                            if (curSgId == sg2Id) {
+                                int memberCount = update["member_count"]?.ToObject<int>() ?? 0;
+                                if (memberCount > 0) {
+                                    bool isChannel = update["is_channel"]?.ToObject<bool>() ?? false;
+                                    CurrentChatStatus.Text = memberCount + (isChannel ? " подписчиков" : " участников");
+                                    CurrentChatStatus.Foreground = CB(_isLightTheme ? "#707070" : "#CCE8FF");
+                                }
+                            }
+                        }
+                    }
                     break;
+                }
+
+                case "basicGroup": {
+                    long bgId = update["id"]?.ToObject<long>() ?? 0;
+                    if (bgId != 0 && _rawChatsDict.ContainsKey(_currentChatId)) {
+                        var rawC4 = _rawChatsDict[_currentChatId] as Newtonsoft.Json.Linq.JObject;
+                        long curBgId = rawC4?["type"]?["basic_group_id"]?.ToObject<long>() ?? 0;
+                        if (curBgId == bgId) {
+                            int memberCount = update["member_count"]?.ToObject<int>() ?? 0;
+                            if (memberCount > 0) {
+                                CurrentChatStatus.Text = memberCount + " участников";
+                                CurrentChatStatus.Foreground = CB(_isLightTheme ? "#707070" : "#CCE8FF");
+                            }
+                        }
+                    }
+                    break;
+                }
 
                 case "updateUser":
                     var user = update["user"];
@@ -1262,6 +1294,22 @@ namespace TelegramWP10
                             try { await HandleContactsLoaded(uids); }
                             catch (Exception ex) { Log("CONTACTS ERR: " + ex.Message); }
                         });
+                    }
+                    break;
+
+                case "basicGroupFullInfo":
+                    if (ProfileOverlay.Visibility == Visibility.Visible) {
+                        string desc2 = update["description"]?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(desc2)) { ProfileBio.Text = desc2; ProfileBioPanel.Visibility = Visibility.Visible; }
+                        var bgMembers = update["members"] as JArray;
+                        if (bgMembers != null) ShowProfileMembers(bgMembers.Select(m => m["member_id"]?["user_id"]?.ToObject<long>() ?? 0).Where(id => id != 0).ToList());
+                    }
+                    break;
+
+                case "supergroupMembers":
+                    if (ProfileOverlay.Visibility == Visibility.Visible) {
+                        var sgMembers = update["members"] as JArray;
+                        if (sgMembers != null) ShowProfileMembers(sgMembers.Select(m => m["member_id"]?["user_id"]?.ToObject<long>() ?? 0).Where(id => id != 0).ToList());
                     }
                     break;
 
@@ -2836,10 +2884,20 @@ namespace TelegramWP10
             if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
             else ChatHeaderAvatarBrush.ImageSource = null;
             ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
-            // Закреплённое сообщение — запрашиваем напрямую
-            PinnedMessageBar.Visibility = Visibility.Collapsed;
-            PinnedMessageText.Text = "";
-            _pinnedMessageId = -1; // -1 = ждём ответ getChatPinnedMessage
+            // Статус для групп/каналов — запрашиваем число участников
+            if (_currentChatIsGroup || chat.IsChannel) {
+                CurrentChatStatus.Text = "загрузка...";
+                if (_rawChatsDict.ContainsKey(chat.Id)) {
+                    var rawC2 = _rawChatsDict[chat.Id] as Newtonsoft.Json.Linq.JObject;
+                    long sgId2 = rawC2?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
+                    long bgId2 = rawC2?["type"]?["basic_group_id"]?.ToObject<long>() ?? 0;
+                    if (sgId2 != 0)
+                        TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroup\",\"supergroup_id\":" + sgId2 + "}");
+                    else if (bgId2 != 0)
+                        TdJson.SendUtf8(_client, "{\"@type\":\"getBasicGroup\",\"basic_group_id\":" + bgId2 + "}");
+                }
+            }
+            TdJson.SendUtf8(_client, "{\"@type\":\"getChatPinnedMessage\",\"chat_id\":" + chat.Id + "}");
             TdJson.SendUtf8(_client, "{\"@type\":\"getChatPinnedMessage\",\"chat_id\":" + chat.Id + "}");
             _isLoadingHistory = true;
             LoadingIndicator.Visibility = Visibility.Visible;
@@ -3224,42 +3282,64 @@ namespace TelegramWP10
 
         private void ChatHeaderProfile_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
             if (_currentChatId == 0) return;
-            // Показываем профиль
             ProfileOverlay.Visibility = Visibility.Visible;
             ProfileName.Text = CurrentChatTitle.Text;
             ProfileUsername.Visibility = Visibility.Collapsed;
             ProfilePhonePanel.Visibility = Visibility.Collapsed;
             ProfileBioPanel.Visibility = Visibility.Collapsed;
-            // Аватарка
+            ProfileMembersPanel.Visibility = Visibility.Collapsed;
             ProfileAvatarBrush.ImageSource = ChatHeaderAvatarBrush.ImageSource;
-            // Берём данные из rawChatsDict
             if (_rawChatsDict.ContainsKey(_currentChatId)) {
                 var raw = _rawChatsDict[_currentChatId] as Newtonsoft.Json.Linq.JObject;
                 long userId = raw?["type"]?["user_id"]?.ToObject<long>() ?? 0;
+                long sgId3 = raw?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
+                long bgId3 = raw?["type"]?["basic_group_id"]?.ToObject<long>() ?? 0;
                 if (userId != 0 && _usersDict.ContainsKey(userId)) {
+                    // Приватный чат — показываем профиль пользователя
                     var u = _usersDict[userId];
-                    // Username
-                    string uname = u["username"]?.ToString()
-                                ?? u["usernames"]?["editable_username"]?.ToString() ?? "";
-                    if (!string.IsNullOrEmpty(uname)) {
-                        ProfileUsername.Text = "@" + uname;
-                        ProfileUsername.Visibility = Visibility.Visible;
-                    }
-                    // Телефон
+                    string uname = u["username"]?.ToString() ?? u["usernames"]?["editable_username"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(uname)) { ProfileUsername.Text = "@" + uname; ProfileUsername.Visibility = Visibility.Visible; }
                     string phone = u["phone_number"]?.ToString() ?? "";
-                    if (!string.IsNullOrEmpty(phone)) {
-                        ProfilePhone.Text = "+" + phone;
-                        ProfilePhonePanel.Visibility = Visibility.Visible;
-                    }
-                    // Запрашиваем bio через getUserFullInfo
+                    if (!string.IsNullOrEmpty(phone)) { ProfilePhone.Text = "+" + phone; ProfilePhonePanel.Visibility = Visibility.Visible; }
                     TdJson.SendUtf8(_client, "{\"@type\":\"getUserFullInfo\",\"user_id\":" + userId + "}");
-                } else {
-                    // Группа/канал — запрашиваем getSupergroupFullInfo
-                    long sgId = raw?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
-                    if (sgId != 0)
-                        TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroupFullInfo\",\"supergroup_id\":" + sgId + "}");
+                } else if (sgId3 != 0) {
+                    // Супергруппа/канал
+                    TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroupFullInfo\",\"supergroup_id\":" + sgId3 + "}");
+                    TdJson.SendUtf8(_client, "{\"@type\":\"getSupergroupMembers\",\"supergroup_id\":" + sgId3 + ",\"filter\":{\"@type\":\"supergroupMembersFilterRecent\"},\"offset\":0,\"limit\":50}");
+                } else if (bgId3 != 0) {
+                    // Базовая группа
+                    TdJson.SendUtf8(_client, "{\"@type\":\"getBasicGroupFullInfo\",\"basic_group_id\":" + bgId3 + "}");
                 }
             }
+        }
+
+        private void ProfileMember_Click(object sender, Windows.UI.Xaml.Controls.ItemClickEventArgs e) {
+            var contact = e.ClickedItem as ContactItem;
+            if (contact == null) return;
+            ProfileOverlay.Visibility = Visibility.Collapsed;
+            if (_chatsDict.ContainsKey(contact.UserId))
+                OpenChat(_chatsDict[contact.UserId], 0);
+            else
+                TdJson.SendUtf8(_client, "{\"@type\":\"createPrivateChat\",\"user_id\":" + contact.UserId + ",\"force\":true}");
+        }
+
+        private void ShowProfileMembers(List<long> userIds) {
+            if (ProfileMembersList == null) return;
+            var members = new System.Collections.ObjectModel.ObservableCollection<ContactItem>();
+            foreach (var uid in userIds) {
+                if (!_usersDict.ContainsKey(uid)) continue;
+                var u = _usersDict[uid];
+                var ci = new ContactItem {
+                    UserId = uid,
+                    FullName = uid == _myUserId ? "⭐ Вы" : ((u["first_name"]?.ToString() + " " + u["last_name"]?.ToString()).Trim()),
+                    Username = u["username"]?.ToString() ?? u["usernames"]?["editable_username"]?.ToString() ?? "",
+                    LastSeen = GetLastSeenText(u["status"])
+                };
+                members.Add(ci);
+                if (_usersDict.ContainsKey(uid)) { var t = LoadContactAvatarFromUser(ci, u); }
+            }
+            ProfileMembersList.ItemsSource = members;
+            ProfileMembersPanel.Visibility = members.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void ProfileOverlay_Close(object sender, RoutedEventArgs e) {

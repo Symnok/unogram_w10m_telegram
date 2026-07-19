@@ -842,6 +842,42 @@
                                 <TextBlock Text="О себе" Foreground="#888888" FontSize="12"/>
                                 <TextBlock x:Name="ProfileBio" Text="" Foreground="White" FontSize="15" TextWrapping="Wrap"/>
                             </StackPanel>
+                            <!-- Участники группы -->
+                            <StackPanel x:Name="ProfileMembersPanel" Visibility="Collapsed">
+                                <Rectangle Height="1" Fill="#333333" Margin="0,0,0,8"/>
+                                <TextBlock Text="Участники" Foreground="#888888" FontSize="12" Margin="0,0,0,8"/>
+                                <ListView x:Name="ProfileMembersList" SelectionMode="None"
+                                          IsItemClickEnabled="True" ItemClick="ProfileMember_Click"
+                                          MaxHeight="300">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Padding" Value="0"/>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Padding="0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="40"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Width="36" Height="36" Fill="#555555"/>
+                                                <Ellipse Width="36" Height="36">
+                                                    <Ellipse.Fill>
+                                                        <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
+                                                    </Ellipse.Fill>
+                                                </Ellipse>
+                                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding FullName}" Foreground="White" FontSize="14" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding LastSeen}" Foreground="#2AABEE" FontSize="11"
+                                                               Visibility="{Binding LastSeenVisibility}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
                             <!-- Кнопка закрыть -->
                             <Button Content="Закрыть" Click="ProfileOverlay_Close"
                                     HorizontalAlignment="Center" Margin="0,8,0,0"
