@@ -447,7 +447,7 @@ namespace TelegramWP10
                             var update = JObject.Parse(json);
                             string type = update["@type"]?.ToString();
                             // Логируем всё для диагностики прокси (кроме очень частых апдейтов)
-                            if (type != "updateOption" && type != "updateChatReadOutbox")
+                            if (type != "updateOption")
                             HandleUpdate(type, update);
                         } catch (Exception ex) { Log("PARSE ERR: " + ex.Message); }
                     });
