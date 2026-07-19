@@ -2434,7 +2434,12 @@ namespace TelegramWP10
                             if (outgoing && !isUploaded) {
                                 _uploadFileToMsgId[pfid] = msgId;
                                 _messagesDict[msgId] = item;
-                                item.DownloadStatus = _uploadFileToMsgId.ContainsKey(pfid) ? "⬆ ..." : "⬆ 0%";
+                                long alreadyUpl = fileToken["remote"]?["uploaded_size"]?.ToObject<long>() ?? 0;
+                                long phTotal = fileToken["expected_size"]?.ToObject<long>() ?? fileToken["size"]?.ToObject<long>() ?? 0;
+                                if (phTotal > 0 && alreadyUpl > 0)
+                                    item.DownloadStatus = "⬆ " + (int)(alreadyUpl * 100 / phTotal) + "%";
+                                else
+                                    item.DownloadStatus = "⬆ 0%";
                             }
                             if (!string.IsNullOrEmpty(phPath))
                                 { var t = UpdateMessagePhoto(msgId, phPath); }
@@ -2596,7 +2601,13 @@ namespace TelegramWP10
                             item.DownloadStatus = "📂 Открыть";
                         } else if (outgoing && !isUploaded) {
                             _uploadFileToMsgId[dfid] = msgId;
-                            item.DownloadStatus = "⬆ 0%";
+                            // Берём актуальный прогресс если updateFile уже пришёл
+                            long alreadyUploaded = docFile["remote"]?["uploaded_size"]?.ToObject<long>() ?? 0;
+                            long docTotal = docFile["expected_size"]?.ToObject<long>() ?? docFile["size"]?.ToObject<long>() ?? 0;
+                            if (docTotal > 0 && alreadyUploaded > 0)
+                                item.DownloadStatus = "⬆ " + (int)(alreadyUploaded * 100 / docTotal) + "%";
+                            else
+                                item.DownloadStatus = "⬆ 0%";
                         }
                     }
                 } else if (type == "messageVoiceNote") {
