@@ -712,16 +712,14 @@ namespace TelegramWP10
                             long fileSize = fileObj["size"]?.ToObject<long>() ?? 0;
                             long expectedSize = fileObj["expected_size"]?.ToObject<long>() ?? fileSize;
                             long totalSize = expectedSize > 0 ? expectedSize : fileSize;
-                            Log("UPLOAD[2] updateFile fid=" + fid + " isUploaded=" + isUploaded + " isUploadingActive=" + isUploadingActive + " uploaded=" + uploaded + " total=" + totalSize + " inDict=" + _uploadFileToMsgId.ContainsKey(fid));
                             if (_uploadFileToMsgId.ContainsKey(fid)) {
                                 long upMsgId = _uploadFileToMsgId[fid];
                                 if (_messagesDict.ContainsKey(upMsgId)) {
                                     var upItem = _messagesDict[upMsgId];
                                     if (isUploaded) {
                                         _uploadFileToMsgId.Remove(fid);
-                                        upItem.DownloadStatus = "";
-                                        // Для фото — обновляем превью
-                                        if (!string.IsNullOrEmpty(fpath))
+                                        upItem.DownloadStatus = upItem.IsPhoto ? "" : "📂 Открыть";
+                                        if (upItem.IsPhoto && !string.IsNullOrEmpty(fpath))
                                             { var tu = UpdateMessagePhoto(upMsgId, fpath); }
                                     } else if (isUploadingActive || uploaded > 0) {
                                         if (totalSize > 0) {
@@ -852,7 +850,6 @@ namespace TelegramWP10
                                     bool uploaded2 = ft["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
                                     if (fid2 != 0 && !uploaded2) {
                                         _uploadFileToMsgId[fid2] = newMsgId;
-                                        Log("UPLOAD[R] photo fid=" + fid2 + " msgId=" + newMsgId);
                                     }
                                 }
                             }
@@ -863,7 +860,6 @@ namespace TelegramWP10
                                 bool uploaded2 = docF["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
                                 if (fid2 != 0 && !uploaded2) {
                                     _uploadFileToMsgId[fid2] = newMsgId;
-                                    Log("UPLOAD[R] doc fid=" + fid2 + " msgId=" + newMsgId);
                                 }
                             }
                         } else if (newMsgType == "messageVideoNote") {
@@ -873,12 +869,10 @@ namespace TelegramWP10
                                 bool uploaded2 = vnF["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
                                 if (fid2 != 0 && !uploaded2) {
                                     _uploadFileToMsgId[fid2] = newMsgId;
-                                    Log("UPLOAD[R] vidnote fid=" + fid2 + " msgId=" + newMsgId);
                                 }
                             }
                         }
                     }
-                    Log("UPLOAD[0] updateNewMessage chatId=" + newMsgChatId + " currentChat=" + _currentChatId + " outgoing=" + newMsgOutgoing + " type=" + newMsgType + " isLoading=" + _isLoadingHistory);
                     if (newMsgChatId == _currentChatId && newMsg != null && !_isLoadingHistory) {
                         var newItem = ParseMessage(newMsg);
                         if (newItem != null) {
@@ -2436,13 +2430,11 @@ namespace TelegramWP10
                             bool isUploading = fileToken["remote"]?["is_uploading_active"]?.ToObject<bool>() ?? false;
                             bool isUploaded = fileToken["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
                             string phPath = fileToken["local"]?["path"]?.ToString();
-                            Log("UPLOAD[1] photo pfid=" + pfid + " outgoing=" + outgoing + " isUploading=" + isUploading + " isUploaded=" + isUploaded + " msgId=" + msgId);
                             // Регистрируем upload — либо из updateNewMessage (уже в словаре) либо свежий
                             if (outgoing && !isUploaded) {
                                 _uploadFileToMsgId[pfid] = msgId;
                                 _messagesDict[msgId] = item;
                                 item.DownloadStatus = _uploadFileToMsgId.ContainsKey(pfid) ? "⬆ ..." : "⬆ 0%";
-                                Log("UPLOAD[1] registered pfid=" + pfid + " → msgId=" + msgId);
                             }
                             if (!string.IsNullOrEmpty(phPath))
                                 { var t = UpdateMessagePhoto(msgId, phPath); }
@@ -2598,7 +2590,6 @@ namespace TelegramWP10
                         _messagesDict[msgId] = item;
                         bool isUploaded = docFile["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
                         string dPath = docFile["local"]?["path"]?.ToString();
-                        Log("UPLOAD[1] doc dfid=" + dfid + " outgoing=" + outgoing + " isUploaded=" + isUploaded + " dPath=" + dPath + " msgId=" + msgId);
                         if (!string.IsNullOrEmpty(dPath) && isUploaded) {
                             item.FilePath = dPath;
                             item.IsDownloaded = true;
