@@ -2117,12 +2117,22 @@ namespace TelegramWP10
                     : mtype == "messageVideo" && (content["video"]?["is_animation"]?.ToObject<bool>() ?? false) ? "🎞 GIF"
                     : mtype == "messageVideo" ? "🎥 Видео"
                     : mtype == "messageVoiceNote" ? "🎤 Голосовое"
+                    : mtype == "messageVideoNote" ? "⏺ Видеосообщение"
                     : mtype == "messageSticker" ? "Стикер"
                     : mtype == "messagePoll" ? "📊 Опрос"
                     : mtype == "messageDocument" ? "📄 Документ"
                     : mtype == "messageAnimation" ? "🎞 GIF"
                     : mtype == "messageCall" ? ((content["is_video"]?.ToObject<bool>() ?? false) ? "📹" : "📞") + " Звонок"
                     : mtype == "messageAudio" ? "🎵 Аудио"
+                    : mtype == "messagePinMessage" ? "📌 Закреплено сообщение"
+                    : mtype == "messageChatAddMembers" ? "➕ Добавлен участник"
+                    : mtype == "messageChatJoinByLink" ? "➕ Присоединился по ссылке"
+                    : mtype == "messageChatDeleteMember" ? "➖ Участник вышел"
+                    : mtype == "messageChatChangeTitle" ? "✏ Название изменено"
+                    : mtype == "messageChatChangePhoto" ? "🖼 Фото изменено"
+                    : mtype == "messageContactRegistered" ? "👤 Зарегистрировался в Telegram"
+                    : mtype == "messageLocation" ? "📍 Геолокация"
+                    : mtype == "messageContact" ? "👤 Контакт"
                     : "[" + mtype.Replace("message", "") + "]";
                 item.LastMessage = text;
                 long date = msg["date"]?.ToObject<long>() ?? 0;
