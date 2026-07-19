@@ -340,21 +340,40 @@ namespace TelegramWP10
         private async void RegisterBackgroundTask() {
             try {
                 var status = await BackgroundExecutionManager.RequestAccessAsync();
+                Log("BG_REG: RequestAccess status=" + status.ToString());
+
+                // Логируем все уже зарегистрированные задачи
+                Log("BG_REG: existing tasks count=" + BackgroundTaskRegistration.AllTasks.Count);
+                foreach (var t in BackgroundTaskRegistration.AllTasks)
+                    Log("BG_REG: existing task name=" + t.Value.Name + " id=" + t.Value.TaskId);
+
                 if (status == BackgroundAccessStatus.AlwaysAllowed ||
                     status == BackgroundAccessStatus.AllowedSubjectToSystemPolicy) {
                     // Удаляем старую регистрацию если есть
                     foreach (var t in BackgroundTaskRegistration.AllTasks)
-                        if (t.Value.Name == "UnogramNotifications")
+                        if (t.Value.Name == "UnogramNotifications") {
                             t.Value.Unregister(true);
+                            Log("BG_REG: unregistered old task");
+                        }
                     // Регистрируем новую
                     var builder = new BackgroundTaskBuilder();
                     builder.Name = "UnogramNotifications";
                     builder.TaskEntryPoint = "TelegramWP10.NotificationBackgroundTask";
-                    builder.SetTrigger(new TimeTrigger(15, false)); // каждые 15 минут
+                    builder.SetTrigger(new TimeTrigger(15, false));
                     builder.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
-                    builder.Register();
+                    var reg = builder.Register();
+                    Log("BG_REG: registered OK name=" + reg.Name + " id=" + reg.TaskId);
+
+                    // Проверяем что задача появилась в списке
+                    Log("BG_REG: total tasks after=" + BackgroundTaskRegistration.AllTasks.Count);
+                    foreach (var t in BackgroundTaskRegistration.AllTasks)
+                        Log("BG_REG: task name=" + t.Value.Name + " id=" + t.Value.TaskId);
+                } else {
+                    Log("BG_REG: DENIED status=" + status.ToString());
                 }
-            } catch { }
+            } catch (Exception ex) {
+                Log("BG_REG ERR: " + ex.Message);
+            }
         }
 
         private async Task FetchAndApplyProxyAsync() {
