@@ -3226,6 +3226,95 @@ namespace TelegramWP10
                 ProfileOverlay.Visibility = Visibility.Collapsed;
         }
 
+        private bool _selectionMode = false;
+        private List<MessageItem> _selectedMessages = new List<MessageItem>();
+        private List<long> _forwardMessageIds = new List<long>();
+        private long _forwardFromChatId = 0;
+
+        private void EnterSelectionMode(MessageItem item) {
+            _selectionMode = true;
+            _selectedMessages.Clear();
+            item.IsSelected = true;
+            _selectedMessages.Add(item);
+            SelectionModePanel.Visibility = Visibility.Visible;
+            SelectionCountText.Text = "Выбрано: 1";
+        }
+
+        private void ExitSelectionMode() {
+            _selectionMode = false;
+            foreach (var m in _selectedMessages) m.IsSelected = false;
+            foreach (var m in _messageItems) m.IsSelected = false;
+            _selectedMessages.Clear();
+            SelectionModePanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void MessageBubble_SelectionTapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
+            if (!_selectionMode) return;
+            var grid = sender as Windows.UI.Xaml.Controls.Grid;
+            var item = grid?.DataContext as MessageItem;
+            if (item == null || item.IsSeparator) return;
+            if (item.IsSelected) {
+                item.IsSelected = false;
+                _selectedMessages.Remove(item);
+            } else {
+                item.IsSelected = true;
+                _selectedMessages.Add(item);
+            }
+            SelectionCountText.Text = "Выбрано: " + _selectedMessages.Count;
+            if (_selectedMessages.Count == 0) ExitSelectionMode();
+        }
+
+        private void SelectionCancel_Click(object sender, RoutedEventArgs e) {
+            ExitSelectionMode();
+        }
+
+        private void SelectionDelete_Click(object sender, RoutedEventArgs e) {
+            if (_selectedMessages.Count == 0) return;
+            var ids = _selectedMessages.Select(m => m.Id).ToList();
+            string idsJson = "[" + string.Join(",", ids) + "]";
+            TdJson.SendUtf8(_client, "{\"@type\":\"deleteMessages\",\"chat_id\":" + _currentChatId +
+                ",\"message_ids\":" + idsJson + ",\"revoke\":true}");
+            foreach (var m in ids) {
+                var toRemove = _messageItems.FirstOrDefault(x => x.Id == m);
+                if (toRemove != null) _messageItems.Remove(toRemove);
+                if (_messagesDict.ContainsKey(m)) _messagesDict.Remove(m);
+            }
+            ExitSelectionMode();
+        }
+
+        private void SelectionForward_Click(object sender, RoutedEventArgs e) {
+            if (_selectedMessages.Count == 0) return;
+            // Сохраняем ID и показываем выбор чата для пересылки
+            _forwardMessageIds = _selectedMessages.Select(m => m.Id).ToList();
+            _forwardFromChatId = _currentChatId;
+            ExitSelectionMode();
+            // Открываем список чатов для выбора
+            ForwardChatOverlay.Visibility = Visibility.Visible;
+            ForwardChatList.ItemsSource = _chatListItems;
+        }
+
+        private void SelectMessage_Click(object sender, RoutedEventArgs e) {
+            if (_selectedMessageForCopy == null) return;
+            EnterSelectionMode(_selectedMessageForCopy);
+        }
+
+        private void ForwardChatOverlay_Close(object sender, RoutedEventArgs e) {
+            ForwardChatOverlay.Visibility = Visibility.Collapsed;
+            _forwardMessageIds.Clear();
+        }
+
+        private void ForwardChatList_ItemClick(object sender, ItemClickEventArgs e) {
+            var chat = e.ClickedItem as ChatItem;
+            if (chat == null || _forwardMessageIds.Count == 0) return;
+            ForwardChatOverlay.Visibility = Visibility.Collapsed;
+            string idsJson = "[" + string.Join(",", _forwardMessageIds) + "]";
+            TdJson.SendUtf8(_client, "{\"@type\":\"forwardMessages\",\"chat_id\":" + chat.Id +
+                ",\"from_chat_id\":" + _forwardFromChatId +
+                ",\"message_ids\":" + idsJson +
+                ",\"options\":{\"@type\":\"messageSendOptions\"}}");
+            _forwardMessageIds.Clear();
+        }
+
         private void StartBotButton_Click(object sender, RoutedEventArgs e) {
             if (_currentChatId == 0) return;
             StartBotButton.Visibility = Visibility.Collapsed;
@@ -4521,6 +4610,7 @@ namespace TelegramWP10
 
         private void BackButton_Click(object sender, RoutedEventArgs e) {
             ProfileOverlay.Visibility = Visibility.Collapsed;
+            if (_selectionMode) ExitSelectionMode();
             if (_threadMessageId != 0) {
                 long channelChatId = _threadChatId;
                 _threadMessageId = 0;
@@ -4600,7 +4690,14 @@ namespace TelegramWP10
             var border = sender as Border;
             if (border == null) return;
             _selectedMessageForCopy = border.DataContext as MessageItem;
+            if (_selectedMessageForCopy == null || _selectedMessageForCopy.IsSeparator) return;
             _pendingContextMsg = _selectedMessageForCopy;
+
+            // Если уже в режиме выбора — просто выделяем сообщение
+            if (_selectionMode) {
+                MessageBubble_SelectionTapped(border.Parent as Windows.UI.Xaml.Controls.Grid ?? new Windows.UI.Xaml.Controls.Grid(), null);
+                return;
+            }
 
             // Показываем/скрываем пункты редактирования и удаления в зависимости от типа сообщения
             var flyout = FlyoutBase.GetAttachedFlyout(border) as MenuFlyout;

@@ -464,9 +464,20 @@
                                     </Border>
                                 </StackPanel>
                             </Border>
-                            <!-- Пузырь сообщения -->
-                            <Border Background="{Binding BubbleBackground}" Padding="{Binding BubblePadding}" Margin="0,4" CornerRadius="10" HorizontalAlignment="{Binding Alignment}"
-                                    Visibility="{Binding MessageVisibility}"
+                            <!-- Пузырь сообщения с поддержкой выбора -->
+                            <Grid Visibility="{Binding MessageVisibility}"
+                                  Background="{Binding SelectionBackground}"
+                                  Tapped="MessageBubble_SelectionTapped">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- Чекбокс слева -->
+                                <Border Grid.Column="0" Width="32" VerticalAlignment="Center"
+                                        Visibility="{Binding CheckboxVisibility}">
+                                    <Ellipse Width="22" Height="22" Fill="#2AABEE"/>
+                                </Border>
+                                <Border Grid.Column="1" Background="{Binding BubbleBackground}" Padding="{Binding BubblePadding}" Margin="0,4" CornerRadius="10" HorizontalAlignment="{Binding Alignment}"
                                     Holding="MessageBubble_Holding">
                             <FlyoutBase.AttachedFlyout>
                                 <MenuFlyout>
@@ -480,6 +491,7 @@
                                     <MenuFlyoutSeparator/>
                                     <MenuFlyoutItem Text="↩ Ответить" Click="ReplyMessage_Click"/>
                                     <MenuFlyoutItem Text="↪ Переслать" Click="ForwardMessage_Click"/>
+                                    <MenuFlyoutItem Text="☑ Выбрать" Click="SelectMessage_Click"/>
                                     <MenuFlyoutItem Text="📋 Копировать текст" Click="CopyMessage_Click"/>
                                     <MenuFlyoutItem x:Name="MenuEdit" Text="✏ Редактировать" Click="EditMessage_Click"/>
                                     <MenuFlyoutItem x:Name="MenuPin" Text="📌 Закрепить" Click="PinMessage_Click"/>
@@ -685,11 +697,34 @@
                                         FontSize="12"/>
                             </StackPanel>
                         </Border>
+                        </Grid><!-- конец Grid выбора сообщения -->
                         </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
             </ScrollViewer>
+
+            <!-- Панель режима выбора сообщений -->
+            <Grid x:Name="SelectionModePanel" Grid.Row="3" Visibility="Collapsed"
+                  Background="#222222" Padding="10,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Content="✕" Click="SelectionCancel_Click"
+                        Background="Transparent" Foreground="White" FontSize="18" Padding="8,0"/>
+                <TextBlock x:Name="SelectionCountText" Grid.Column="1"
+                           Text="Выбрано: 0" Foreground="White" FontSize="16"
+                           VerticalAlignment="Center" Margin="8,0"/>
+                <Button Grid.Column="2" Content="↪" Click="SelectionForward_Click"
+                        Background="Transparent" Foreground="White" FontSize="20" Padding="8,0"
+                        ToolTipService.ToolTip="Переслать"/>
+                <Button Grid.Column="3" Content="🗑" Click="SelectionDelete_Click"
+                        Background="Transparent" Foreground="#FF4444" FontSize="20" Padding="8,0"
+                        ToolTipService.ToolTip="Удалить"/>
+            </Grid>
 
             <!-- Индикатор дозагрузки старых сообщений — поверх, сверху по центру -->
             <Border x:Name="OlderLoadingIndicator" Background="#CC000000" CornerRadius="16"
@@ -720,6 +755,56 @@
                     Background="#CC0088cc" Foreground="White"
                     FontSize="20" Padding="0"
                     Visibility="Collapsed">↓</Button>
+
+            <!-- Оверлей выбора чата для пересылки -->
+            <Grid x:Name="ForwardChatOverlay" Visibility="Collapsed"
+                  Background="#CC000000" Grid.Row="2">
+                <Border Background="#1C1C1E" CornerRadius="16" Margin="10,40,10,40">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Padding="16,12" Background="#2A2A2E">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Переслать в..." Foreground="White" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="✕" Click="ForwardChatOverlay_Close"
+                                    Background="Transparent" Foreground="White" FontSize="18" Padding="8,0"/>
+                        </Grid>
+                        <ListView x:Name="ForwardChatList" Grid.Row="1"
+                                  SelectionMode="None" IsItemClickEnabled="True"
+                                  ItemClick="ForwardChatList_ItemClick">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="12,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="40" Height="40" Fill="#555555"/>
+                                        <Ellipse Width="40" Height="40">
+                                            <Ellipse.Fill>
+                                                <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
+                                            </Ellipse.Fill>
+                                        </Ellipse>
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" Foreground="White"
+                                                   FontSize="16" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+                </Border>
+            </Grid>
 
             <!-- Оверлей профиля собеседника -->
             <Grid x:Name="ProfileOverlay" Visibility="Collapsed"
