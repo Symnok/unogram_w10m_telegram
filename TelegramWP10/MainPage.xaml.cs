@@ -37,7 +37,8 @@ namespace TelegramWP10
         private Dictionary<long, JToken> _supergroupDict = new Dictionary<long, JToken>();
         private Dictionary<long, long> _fileToChatId = new Dictionary<long, long>();
         private Dictionary<long, SearchResultItem> _fileToSearchResult = new Dictionary<long, SearchResultItem>();
-        private Dictionary<long, bool> _pendingPinnedPositions = new Dictionary<long, bool>(); // chatId → isPinned до updateNewChat
+        private Dictionary<long, bool> _pendingPinnedPositions = new Dictionary<long, bool>();
+        private Dictionary<long, long> _uploadFileToMsgId = new Dictionary<long, long>(); // remote file_id → msgId для прогресса upload // chatId → isPinned до updateNewChat
         private Dictionary<long, long> _fileToMsgId = new Dictionary<long, long>();
         private Dictionary<string, long> _remoteUniqueIdToMsgId = new Dictionary<string, long>(); // remote.unique_id → msgId
         private Dictionary<long, long> _videoFileIds = new Dictionary<long, long>(); // file_id → msgId только для видеофайлов
@@ -705,6 +706,23 @@ namespace TelegramWP10
                             }
                         }
                         if (fid != 0) {
+                            // Upload прогресс
+                            bool isUploadingActive = fileObj["remote"]?["is_uploading_active"]?.ToObject<bool>() ?? false;
+                            long uploaded = fileObj["remote"]?["uploaded_size"]?.ToObject<long>() ?? 0;
+                            if (_uploadFileToMsgId.ContainsKey(fid)) {
+                                long upMsgId = _uploadFileToMsgId[fid];
+                                if (_messagesDict.ContainsKey(upMsgId)) {
+                                    var upItem = _messagesDict[upMsgId];
+                                    if (isUploaded) {
+                                        _uploadFileToMsgId.Remove(fid);
+                                        upItem.DownloadStatus = "";
+                                    } else if (isUploadingActive && total > 0) {
+                                        int pct = (int)(uploaded * 100 / total);
+                                        upItem.DownloadStatus = "⬆ " + pct + "%";
+                                    }
+                                }
+                            }
+
                             if (_fileToChatId.ContainsKey(fid) && !string.IsNullOrEmpty(fpath))
                                 { var t = UpdateAvatar(_fileToChatId[fid], fpath); }
 
@@ -2269,10 +2287,17 @@ namespace TelegramWP10
                             item.FullPhotoFileId = pfid;
                             _fileToMsgId[pfid] = msgId;
                             _messagesDict[msgId] = item;
+                            // Отслеживаем upload прогресс
+                            bool isUploading = fileToken["remote"]?["is_uploading_active"]?.ToObject<bool>() ?? false;
+                            if (isUploading) {
+                                long remoteId = fileToken["remote"]?["id"] != null ? 0 : 0; // используем local file_id
+                                _uploadFileToMsgId[pfid] = msgId;
+                                item.DownloadStatus = "⬆ 0%";
+                            }
                             string phPath = fileToken["local"]?["path"]?.ToString();
                             if (!string.IsNullOrEmpty(phPath))
                                 { var t = UpdateMessagePhoto(msgId, phPath); }
-                            else
+                            else if (!isUploading)
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":10,\"synchronous\":false}");
                         }
                     }
@@ -2422,11 +2447,15 @@ namespace TelegramWP10
                         long dfid = (long)docFile["id"];
                         _fileToMsgId[dfid] = msgId;
                         _messagesDict[msgId] = item;
+                        bool docUploading = docFile["remote"]?["is_uploading_active"]?.ToObject<bool>() ?? false;
                         string dPath = docFile["local"]?["path"]?.ToString();
                         if (!string.IsNullOrEmpty(dPath)) {
                             item.FilePath = dPath;
                             item.IsDownloaded = true;
                             item.DownloadStatus = "📂 Открыть";
+                        } else if (docUploading) {
+                            _uploadFileToMsgId[dfid] = msgId;
+                            item.DownloadStatus = "⬆ 0%";
                         }
                     }
                 } else if (type == "messageVoiceNote") {
