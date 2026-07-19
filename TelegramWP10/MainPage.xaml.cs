@@ -2817,7 +2817,7 @@ namespace TelegramWP10
             ForwardOverlay.Visibility = Visibility.Collapsed;
         }
 
-        private void ForwardChatList_ItemClick(object sender, ItemClickEventArgs e) {
+        private void ForwardChatListOld_ItemClick(object sender, ItemClickEventArgs e) {
             var targetChat = e.ClickedItem as ChatItem;
             if (targetChat == null || _pendingContextMsg == null) return;
             ForwardOverlay.Visibility = Visibility.Collapsed;
