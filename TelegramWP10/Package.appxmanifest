@@ -23,7 +23,7 @@
           </uap:ShowNameOnTiles>
         </uap:DefaultTile>
         <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#000000"/>
-        <uap:LockScreen Notification="badge" BadgeLogo="Assets\Square44x44Logo.png"/>
+        <uap:LockScreen Notification="badge" BadgeLogo="Assets\Square24x24Logo.png"/>
       </uap:VisualElements>
       <Extensions>
         <Extension Category="windows.backgroundTasks" EntryPoint="TelegramWP10.NotificationBackgroundTask">
