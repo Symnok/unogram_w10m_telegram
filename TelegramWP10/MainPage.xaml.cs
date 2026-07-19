@@ -11,6 +11,7 @@ using Windows.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
+using Windows.ApplicationModel.Background;
 using Newtonsoft.Json.Linq;
 
 namespace TelegramWP10
@@ -322,13 +323,38 @@ namespace TelegramWP10
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
                 _logFile = await appFolder.CreateFileAsync(logName, CreationCollisionOption.ReplaceExisting);
+                // Сохраняем пути для BackgroundTask
                 var ls2 = Windows.Storage.ApplicationData.Current.LocalSettings;
+                ls2.Values["bg_db_path"] = _dbPath;
+                ls2.Values["bg_files_path"] = _filesFolder.Path.Replace("\\", "/");
             } catch (Exception ex) {
                 await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
                 return;
             }
+            // Регистрируем BackgroundTask для уведомлений
+            RegisterBackgroundTask();
             var _lpTask = Task.Run(() => LongPolling());
             // Прокси применяется после инициализации TDLib — см. authorizationStateWaitPhoneNumber
+        }
+
+        private async void RegisterBackgroundTask() {
+            try {
+                var status = await BackgroundExecutionManager.RequestAccessAsync();
+                if (status == BackgroundAccessStatus.AlwaysAllowed ||
+                    status == BackgroundAccessStatus.AllowedSubjectToSystemPolicy) {
+                    // Удаляем старую регистрацию если есть
+                    foreach (var t in BackgroundTaskRegistration.AllTasks)
+                        if (t.Value.Name == "UnogramNotifications")
+                            t.Value.Unregister(true);
+                    // Регистрируем новую
+                    var builder = new BackgroundTaskBuilder();
+                    builder.Name = "UnogramNotifications";
+                    builder.TaskEntryPoint = "TelegramWP10.NotificationBackgroundTask";
+                    builder.SetTrigger(new TimeTrigger(15, false)); // каждые 15 минут
+                    builder.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
+                    builder.Register();
+                }
+            } catch { }
         }
 
         private async Task FetchAndApplyProxyAsync() {
