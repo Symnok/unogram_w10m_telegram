@@ -169,14 +169,6 @@ namespace TelegramWP10
         // Разделитель дат между сообщениями разных дней
         public bool IsSeparator { get; set; } = false;
         public bool IsUnreadSeparator { get; set; } = false;
-
-        private bool _isSelected = false;
-        public bool IsSelected {
-            get => _isSelected;
-            set { _isSelected = value; OnPropertyChanged("IsSelected"); OnPropertyChanged("SelectionBackground"); OnPropertyChanged("CheckboxVisibility"); }
-        }
-        public string SelectionBackground => _isSelected ? "#442AABEE" : "#00000000";
-        public Visibility CheckboxVisibility => _isSelected ? Visibility.Visible : Visibility.Collapsed;
         public string SeparatorLabel { get; set; } = "";
         public Visibility SeparatorVisibility => IsSeparator ? Visibility.Visible : Visibility.Collapsed;
         public Visibility MessageVisibility => IsSeparator ? Visibility.Collapsed : Visibility.Visible;

@@ -464,20 +464,9 @@
                                     </Border>
                                 </StackPanel>
                             </Border>
-                            <!-- Пузырь сообщения с поддержкой выбора -->
-                            <Grid Visibility="{Binding MessageVisibility}"
-                                  Background="{Binding SelectionBackground}"
-                                  Tapped="MessageBubble_SelectionTapped">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <!-- Чекбокс слева -->
-                                <Border Grid.Column="0" Width="32" VerticalAlignment="Center"
-                                        Visibility="{Binding CheckboxVisibility}">
-                                    <Ellipse Width="22" Height="22" Fill="#2AABEE"/>
-                                </Border>
-                                <Border Grid.Column="1" Background="{Binding BubbleBackground}" Padding="{Binding BubblePadding}" Margin="0,4" CornerRadius="10" HorizontalAlignment="{Binding Alignment}"
+                            <!-- Пузырь сообщения -->
+                            <Border Background="{Binding BubbleBackground}" Padding="{Binding BubblePadding}" Margin="0,4" CornerRadius="10" HorizontalAlignment="{Binding Alignment}"
+                                    Visibility="{Binding MessageVisibility}"
                                     Holding="MessageBubble_Holding">
                             <FlyoutBase.AttachedFlyout>
                                 <MenuFlyout>
@@ -491,7 +480,6 @@
                                     <MenuFlyoutSeparator/>
                                     <MenuFlyoutItem Text="↩ Ответить" Click="ReplyMessage_Click"/>
                                     <MenuFlyoutItem Text="↪ Переслать" Click="ForwardMessage_Click"/>
-                                    <MenuFlyoutItem Text="☑ Выбрать" Click="SelectMessage_Click"/>
                                     <MenuFlyoutItem Text="📋 Копировать текст" Click="CopyMessage_Click"/>
                                     <MenuFlyoutItem x:Name="MenuEdit" Text="✏ Редактировать" Click="EditMessage_Click"/>
                                     <MenuFlyoutItem x:Name="MenuPin" Text="📌 Закрепить" Click="PinMessage_Click"/>
@@ -697,34 +685,11 @@
                                         FontSize="12"/>
                             </StackPanel>
                         </Border>
-                        </Grid><!-- конец Grid выбора сообщения -->
                         </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
             </ScrollViewer>
-
-            <!-- Панель режима выбора сообщений -->
-            <Grid x:Name="SelectionModePanel" Grid.Row="3" Visibility="Collapsed"
-                  Background="#222222" Padding="10,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Button Content="✕" Click="SelectionCancel_Click"
-                        Background="Transparent" Foreground="White" FontSize="18" Padding="8,0"/>
-                <TextBlock x:Name="SelectionCountText" Grid.Column="1"
-                           Text="Выбрано: 0" Foreground="White" FontSize="16"
-                           VerticalAlignment="Center" Margin="8,0"/>
-                <Button Grid.Column="2" Content="↪" Click="SelectionForward_Click"
-                        Background="Transparent" Foreground="White" FontSize="20" Padding="8,0"
-                        ToolTipService.ToolTip="Переслать"/>
-                <Button Grid.Column="3" Content="🗑" Click="SelectionDelete_Click"
-                        Background="Transparent" Foreground="#FF4444" FontSize="20" Padding="8,0"
-                        ToolTipService.ToolTip="Удалить"/>
-            </Grid>
 
             <!-- Индикатор дозагрузки старых сообщений — поверх, сверху по центру -->
             <Border x:Name="OlderLoadingIndicator" Background="#CC000000" CornerRadius="16"
