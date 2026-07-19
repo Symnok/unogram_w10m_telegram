@@ -252,7 +252,7 @@ namespace TelegramWP10
                     var savedMsgId = _currentAudioMsgId;
                     var savedPos = _currentAudioPosition;
                     var savedPath = _currentAudioFilePath;
-                    await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, async () => {
+                    var _ignored2 = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
                         try {
                             var item = _messagesDict[savedMsgId];
                             var player = new Windows.Media.Playback.MediaPlayer();
@@ -264,7 +264,7 @@ namespace TelegramWP10
                             _currentAudioMsgId = savedMsgId;
                             SetupPlayer(player, item, savedPos);
                             player.Play();
-                        } catch (Exception ex) {
+                        } catch {
                             _currentAudioPlayer = null;
                             _currentAudioSource = null;
                             _currentAudioFilePath = null;
@@ -322,13 +322,12 @@ namespace TelegramWP10
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
                 _logFile = await appFolder.CreateFileAsync(logName, CreationCollisionOption.ReplaceExisting);
-                // Логируем сохранённые настройки прокси
                 var ls2 = Windows.Storage.ApplicationData.Current.LocalSettings;
             } catch (Exception ex) {
                 await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
                 return;
             }
-            Task.Run(() => LongPolling());
+            var _lpTask = Task.Run(() => LongPolling());
             // Прокси применяется после инициализации TDLib — см. authorizationStateWaitPhoneNumber
         }
 
@@ -363,7 +362,7 @@ namespace TelegramWP10
                         }
                     } catch (Exception ex) { Log("PROXY parse ERR: " + ex.Message); }
                 }
-            } catch (Exception ex) {
+            } catch {
                 return;
             }
             if (parsed == null || parsed.Count == 0) return;
@@ -3154,7 +3153,7 @@ namespace TelegramWP10
             rtb.Blocks.Add(para);
         }
 
-        private async void PhotoImage_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
+        private void PhotoImage_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
             e.Handled = true;
             var img = sender as Image;
             var item = img?.DataContext as MessageItem;
@@ -3278,7 +3277,7 @@ namespace TelegramWP10
 
         private bool _pendingOpenChat = false; // ждём chat после searchPublicChat/createPrivateChat для открытия
 
-        private async void OpenMention_Click(object sender, RoutedEventArgs e) {
+        private void OpenMention_Click(object sender, RoutedEventArgs e) {
             var mentions = _selectedMessageForCopy?.Entities?.Where(en => en.Mention != null).ToList();
             if (mentions == null || mentions.Count == 0) return;
             string mention = mentions[0].Mention;
@@ -3508,8 +3507,7 @@ namespace TelegramWP10
                 _currentAudioFilePath = item.FilePath;
                 _currentAudioPosition = TimeSpan.Zero;
                 await RequestMediaSessionAsync();
-            } catch (Exception ex) {
-            }
+            } catch { }
         }
 
         // Настройка SMTC и обработчиков событий плеера. Вызывается и при старте, и при восстановлении после suspend.
@@ -3585,7 +3583,7 @@ namespace TelegramWP10
                 await _mediaCapture.StartRecordToStorageFileAsync(profile, _recordingFile);
                 _isRecording = true;
                 MicButton.Background = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 220, 50, 50));
-            } catch (Exception ex) {
+            } catch {
                 _mediaCapture?.Dispose();
                 _mediaCapture = null;
             }
@@ -3610,7 +3608,7 @@ namespace TelegramWP10
                     ",\"waveform\":\"\"}" +
                     ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
                 TdJson.SendUtf8(_client, voiceReq);
-            } catch (Exception ex) {
+            } catch {
                 _isRecording = false;
                 MicButton.Background = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.Transparent);
             }
@@ -3656,7 +3654,7 @@ namespace TelegramWP10
                         VideoNoteButton_PointerReleased(null, null);
                 };
                 _videoNoteTimer.Start();
-            } catch (Exception ex) {
+            } catch {
                 _isRecordingVideoNote = false;
                 VideoNoteOverlay.Visibility = Visibility.Collapsed;
             }
@@ -3683,7 +3681,7 @@ namespace TelegramWP10
                     ",\"duration\":" + _videoNoteSeconds +
                     ",\"length\":240}}}";
                 TdJson.SendUtf8(_client, req);
-            } catch (Exception ex) {
+            } catch {
                 _isRecordingVideoNote = false;
                 VideoNoteOverlay.Visibility = Visibility.Collapsed;
             }
@@ -3856,8 +3854,7 @@ namespace TelegramWP10
                 s.Values["proxy_socks_port"] = SocksPort.Text.Trim();
                 s.Values["proxy_socks_user"] = SocksUser.Text.Trim();
                 s.Values["proxy_socks_pass"] = SocksPass.Password;
-            } catch (Exception ex) {
-            }
+            } catch { }
         }
 
         private void LoadProxySettings() {
@@ -4376,8 +4373,7 @@ namespace TelegramWP10
                         ",\"chat_ids\":[],\"exclude_chat_ids\":[],\"return_deleted_file_statistics\":true,\"chat_limit\":0}");
                     var confirmDialog = new Windows.UI.Popups.MessageDialog("Кэш очищен.", "Готово");
                     await confirmDialog.ShowAsync();
-                } catch (Exception ex) {
-                }
+                } catch { }
             }));
             dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
             await dialog.ShowAsync();
