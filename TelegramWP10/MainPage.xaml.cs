@@ -712,6 +712,7 @@ namespace TelegramWP10
                             long fileSize = fileObj["size"]?.ToObject<long>() ?? 0;
                             long expectedSize = fileObj["expected_size"]?.ToObject<long>() ?? fileSize;
                             long totalSize = expectedSize > 0 ? expectedSize : fileSize;
+                            Log("UPLOAD[2] updateFile fid=" + fid + " isUploaded=" + isUploaded + " isUploadingActive=" + isUploadingActive + " uploaded=" + uploaded + " total=" + totalSize + " inDict=" + _uploadFileToMsgId.ContainsKey(fid));
                             if (_uploadFileToMsgId.ContainsKey(fid)) {
                                 long upMsgId = _uploadFileToMsgId[fid];
                                 if (_messagesDict.ContainsKey(upMsgId)) {
@@ -836,7 +837,9 @@ namespace TelegramWP10
                 case "updateNewMessage":
                     var newMsg = update["message"];
                     long newMsgChatId = newMsg?["chat_id"]?.ToObject<long>() ?? 0;
-                    // Игнорируем если история ещё не загружена (LoadingIndicator видим)
+                    bool newMsgOutgoing = newMsg?["is_outgoing"]?.ToObject<bool>() ?? false;
+                    string newMsgType = newMsg?["content"]?["@type"]?.ToString() ?? "";
+                    Log("UPLOAD[0] updateNewMessage chatId=" + newMsgChatId + " currentChat=" + _currentChatId + " outgoing=" + newMsgOutgoing + " type=" + newMsgType + " isLoading=" + _isLoadingHistory);
                     if (newMsgChatId == _currentChatId && newMsg != null && !_isLoadingHistory) {
                         var newItem = ParseMessage(newMsg);
                         if (newItem != null) {
@@ -2394,10 +2397,11 @@ namespace TelegramWP10
                             bool isUploading = fileToken["remote"]?["is_uploading_active"]?.ToObject<bool>() ?? false;
                             bool isUploaded = fileToken["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
                             string phPath = fileToken["local"]?["path"]?.ToString();
-                            // Для исходящих — всегда регистрируем для отслеживания upload
+                            Log("UPLOAD[1] photo pfid=" + pfid + " outgoing=" + outgoing + " isUploading=" + isUploading + " isUploaded=" + isUploaded + " msgId=" + msgId);
                             if (outgoing && !isUploaded) {
                                 _uploadFileToMsgId[pfid] = msgId;
                                 item.DownloadStatus = "⬆ 0%";
+                                Log("UPLOAD[1] registered pfid=" + pfid + " → msgId=" + msgId);
                             }
                             if (!string.IsNullOrEmpty(phPath))
                                 { var t = UpdateMessagePhoto(msgId, phPath); }
