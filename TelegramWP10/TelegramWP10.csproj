@@ -94,7 +94,6 @@
     <Compile Include="WebPDecoder.cs"/>
     <Compile Include="StickerItem.cs"/>
     <Compile Include="ContactItem.cs"/>
-    <Compile Include="BulkObservableCollection.cs"/>
     <Compile Include="NotificationBackgroundTask.cs"/>
     <Compile Include="SearchMessageItem.cs"/>
     <Compile Include="SearchResultItem.cs"/>
