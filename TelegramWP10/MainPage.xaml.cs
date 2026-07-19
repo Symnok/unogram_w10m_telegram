@@ -2968,10 +2968,10 @@ namespace TelegramWP10
 
         private void ForwardMessage_Click(object sender, RoutedEventArgs e) {
             if (_pendingContextMsg == null) return;
-            // Заполняем список чатов — main + archive
-            var allChats = _chatListItems.Concat(_archiveChatItems).ToList();
-            ForwardChatList.ItemsSource = allChats;
-            ForwardOverlay.Visibility = Visibility.Visible;
+            _forwardMessageIds = new List<long> { _pendingContextMsg.Id };
+            _forwardFromChatId = _currentChatId;
+            ForwardChatList.ItemsSource = _chatListItems.Concat(_archiveChatItems).ToList();
+            ForwardChatOverlay.Visibility = Visibility.Visible;
         }
 
         private void ForwardOverlay_Close(object sender, RoutedEventArgs e) {
