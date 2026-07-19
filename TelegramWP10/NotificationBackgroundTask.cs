@@ -52,7 +52,8 @@ namespace TelegramWP10
         private void OnCanceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason) {
             var t = Log("BG CANCELED reason=" + reason.ToString());
             try {
-                if (_client != IntPtr.Zero) // TdJson destroy not available
+                // TdJson destroy not available — клиент закроется сам
+                _ = _client;
             } catch { }
             _deferral?.Complete();
         }
