@@ -718,8 +718,8 @@ namespace TelegramWP10
                                     var upItem = _messagesDict[upMsgId];
                                     if (isUploaded) {
                                         _uploadFileToMsgId.Remove(fid);
-                                        upItem.DownloadStatus = upItem.IsPhoto ? "" : "📂 Открыть";
-                                        if (upItem.IsPhoto && !string.IsNullOrEmpty(fpath))
+                                        upItem.DownloadStatus = upItem.AttachedPhoto != null ? "" : "📂 Открыть";
+                                        if (upItem.AttachedPhoto != null && !string.IsNullOrEmpty(fpath))
                                             { var tu = UpdateMessagePhoto(upMsgId, fpath); }
                                     } else if (isUploadingActive || uploaded > 0) {
                                         if (totalSize > 0) {
