@@ -1080,9 +1080,9 @@
                                 Background="Transparent" Foreground="White" FontSize="16" Width="40" Height="40" Padding="0"/>
                     </Grid>
                     <!-- Список чатов -->
-                    <ListView x:Name="ForwardChatList" Grid.Row="1"
+                    <ListView x:Name="ForwardChatListOld" Grid.Row="1"
                               SelectionMode="None" IsItemClickEnabled="True"
-                              ItemClick="ForwardChatList_ItemClick">
+                              ItemClick="ForwardChatListOld_ItemClick">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
