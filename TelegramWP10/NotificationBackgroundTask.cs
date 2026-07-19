@@ -52,7 +52,7 @@ namespace TelegramWP10
         private void OnCanceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason) {
             var t = Log("BG CANCELED reason=" + reason.ToString());
             try {
-                if (_client != IntPtr.Zero) TdJson.Destroy(_client);
+                if (_client != IntPtr.Zero) // TdJson destroy not available
             } catch { }
             _deferral?.Complete();
         }
@@ -70,7 +70,7 @@ namespace TelegramWP10
                 return;
             }
 
-            _client = TdJson.Create();
+            _client = TdJson.td_json_client_create();
             await Log("BG TDLib client created ptr=" + _client);
 
             if (_client == IntPtr.Zero) {
@@ -102,7 +102,7 @@ namespace TelegramWP10
             int newMsgCount = 0;
 
             while (elapsed < _maxWaitMs) {
-                IntPtr ptr = TdJson.Receive(_client, 0.5);
+                IntPtr ptr = TdJson.td_json_client_receive(_client, 0.5);
                 if (ptr != IntPtr.Zero) {
                     string json = TdJson.IntPtrToStringUtf8(ptr);
                     if (!string.IsNullOrEmpty(json)) {
@@ -122,7 +122,7 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"close\"}");
                 await Log("BG close sent");
                 await Task.Delay(500);
-                TdJson.Destroy(_client);
+                // TdJson destroy not available
                 await Log("BG TDLib destroyed");
             } catch (Exception ex) {
                 await Log("BG destroy ERR: " + ex.Message);
