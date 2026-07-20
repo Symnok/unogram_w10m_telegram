@@ -342,32 +342,41 @@ namespace TelegramWP10
                 var status = await BackgroundExecutionManager.RequestAccessAsync();
                 Log("BG_REG: RequestAccess status=" + status.ToString());
 
-                // Логируем все уже зарегистрированные задачи
                 Log("BG_REG: existing tasks count=" + BackgroundTaskRegistration.AllTasks.Count);
                 foreach (var t in BackgroundTaskRegistration.AllTasks)
                     Log("BG_REG: existing task name=" + t.Value.Name + " id=" + t.Value.TaskId);
 
                 if (status == BackgroundAccessStatus.AlwaysAllowed ||
                     status == BackgroundAccessStatus.AllowedSubjectToSystemPolicy) {
-                    // Удаляем старую регистрацию если есть
+                    // Удаляем старые регистрации
                     foreach (var t in BackgroundTaskRegistration.AllTasks)
-                        if (t.Value.Name == "UnogramNotifications") {
+                        if (t.Value.Name == "UnogramNotifications" ||
+                            t.Value.Name == "UnogramNotificationsMaintenance") {
                             t.Value.Unregister(true);
-                            Log("BG_REG: unregistered old task");
+                            Log("BG_REG: unregistered " + t.Value.Name);
                         }
-                    // Регистрируем новую
-                    var builder = new BackgroundTaskBuilder();
-                    builder.Name = "UnogramNotifications";
-                    builder.TaskEntryPoint = "TelegramWP10.NotificationBackgroundTask";
-                    builder.SetTrigger(new TimeTrigger(15, false));
-                    builder.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
-                    var reg = builder.Register();
-                    Log("BG_REG: registered OK name=" + reg.Name + " id=" + reg.TaskId);
 
-                    // Проверяем что задача появилась в списке
-                    Log("BG_REG: total tasks after=" + BackgroundTaskRegistration.AllTasks.Count);
+                    // TimeTrigger — каждые 15 минут
+                    var builder1 = new BackgroundTaskBuilder();
+                    builder1.Name = "UnogramNotifications";
+                    builder1.TaskEntryPoint = "TelegramWP10.NotificationBackgroundTask";
+                    builder1.SetTrigger(new TimeTrigger(15, false));
+                    builder1.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
+                    var reg1 = builder1.Register();
+                    Log("BG_REG: TimeTrigger registered OK id=" + reg1.TaskId);
+
+                    // MaintenanceTrigger — на зарядке, каждые 15 минут
+                    var builder2 = new BackgroundTaskBuilder();
+                    builder2.Name = "UnogramNotificationsMaintenance";
+                    builder2.TaskEntryPoint = "TelegramWP10.NotificationBackgroundTask";
+                    builder2.SetTrigger(new MaintenanceTrigger(15, false));
+                    builder2.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
+                    var reg2 = builder2.Register();
+                    Log("BG_REG: MaintenanceTrigger registered OK id=" + reg2.TaskId);
+
+                    Log("BG_REG: total tasks=" + BackgroundTaskRegistration.AllTasks.Count);
                     foreach (var t in BackgroundTaskRegistration.AllTasks)
-                        Log("BG_REG: task name=" + t.Value.Name + " id=" + t.Value.TaskId);
+                        Log("BG_REG: task=" + t.Value.Name);
                 } else {
                     Log("BG_REG: DENIED status=" + status.ToString());
                 }
