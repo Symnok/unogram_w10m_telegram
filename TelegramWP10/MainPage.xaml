@@ -328,9 +328,6 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <Button x:Name="LogoutButton" Grid.Row="4" Content="Выход" Click="LogoutButton_Click"
-                    HorizontalAlignment="Stretch" Margin="0,8,0,0"
-                    Visibility="Collapsed"/>
             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,4">
                 <TextBlock x:Name="ProxyStatusText" Text="" Foreground="#555555"
                            FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"

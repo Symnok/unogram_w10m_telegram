@@ -186,7 +186,6 @@ namespace TelegramWP10
             StartPanel.Visibility = Visibility.Visible;
             LoadingIndicator.Visibility = Visibility.Collapsed;
             MessagesListView.Visibility = Visibility.Collapsed;
-            LogoutButton.Visibility = Visibility.Collapsed;
             // Таймер обновления статуса "был(а) N мин. назад"
             _statusTimer = new Windows.UI.Xaml.DispatcherTimer();
             _statusTimer.Interval = TimeSpan.FromSeconds(60);
@@ -552,7 +551,6 @@ namespace TelegramWP10
                         LoginPanel.Visibility = Visibility.Collapsed;
                         ChatListView.Visibility = Visibility.Visible;
                         if (SearchPanel != null) SearchPanel.Visibility = Visibility.Visible;
-                        LogoutButton.Visibility = Visibility.Visible;
                         if (!_proxyApplied) {
                             _proxyApplied = true;
                             ApplySavedProxy();
@@ -570,7 +568,6 @@ namespace TelegramWP10
                         _folderChatIds.Clear();
                         _mainListLoaded = false;
                         ChatListView.Visibility = Visibility.Collapsed;
-                        LogoutButton.Visibility = Visibility.Collapsed;
                         LoginPanel.Visibility = Visibility.Visible;
                         LoginStatus.Text = "Введите номер телефона";
                         PhoneInput.Text = "";
@@ -654,7 +651,6 @@ namespace TelegramWP10
                         LoginPanel.Visibility = Visibility.Collapsed;
                         ChatListView.Visibility = Visibility.Visible;
                         if (SearchPanel != null) SearchPanel.Visibility = Visibility.Visible;
-                        LogoutButton.Visibility = Visibility.Visible;
                         // Pre-fetch архива перед main — как и при обычной авторизации
                         TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":1000}");
                         _loadingArchiveIds = true;
@@ -4104,8 +4100,6 @@ namespace TelegramWP10
             ProxyStatusText.Foreground     = CB("#555555");
             ProxySettingsButton.Background  = CB("#AA333333");
             ProxySettingsButton.Foreground  = CB("#AAAAAA");
-            LogoutButton.Background        = CB("#AA222222");
-            LogoutButton.Foreground        = CB("#FF4444");
             // Поле поиска — тёмная тема
             if (SearchPanel != null) SearchPanel.Background = CB("#1C1C1E");
             if (SearchBorder != null) SearchBorder.Background = CB("#2A2A2E");
@@ -4166,8 +4160,6 @@ namespace TelegramWP10
             ProxyStatusText.Foreground     = CB("#707070");
             ProxySettingsButton.Background  = CB("#E5E5E5");
             ProxySettingsButton.Foreground  = CB("#555555");
-            LogoutButton.Background        = CB("#FFE5E5");
-            LogoutButton.Foreground        = CB("#CC0000");
             // Поле поиска — светлая тема
             if (SearchPanel != null) SearchPanel.Background = CB("#EFEFF3");
             if (SearchBorder != null) SearchBorder.Background = CB("#E0E0E5");
