@@ -96,7 +96,27 @@ namespace TelegramWP10
             int elapsed = 0;
             int updateCount = 0;
             int newMsgCount = 0;
-
+            // Сначала быстро ждём авторизации (до 10 сек)
+            int authWait = 0;
+            while (!_authorized && authWait < 10000) {
+                IntPtr ptr = TdJson.td_json_client_receive(_client, 0.1);
+                if (ptr != IntPtr.Zero) {
+                    string json = TdJson.IntPtrToStringUtf8(ptr);
+                    if (!string.IsNullOrEmpty(json)) {
+                        updateCount++;
+                        BgLog("AUTH_UPD #" + updateCount + ": " + json.Substring(0, Math.Min(json.Length, 120)));
+                        ProcessUpdate(json);
+                    }
+                }
+                authWait += 100;
+                if (_maxWaitMs == 0) break;
+            }
+            BgLog("BG auth_wait=" + authWait + " authorized=" + _authorized);
+            if (!_authorized) {
+                BgLog("BG ABORT: not authorized after " + authWait + "ms");
+                return;
+            }
+            // Теперь ждём новые сообщения (оставшееся время)
             while (elapsed < _maxWaitMs) {
                 IntPtr ptr = TdJson.td_json_client_receive(_client, 0.5);
                 if (ptr != IntPtr.Zero) {
