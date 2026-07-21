@@ -4399,6 +4399,12 @@ namespace TelegramWP10
             return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
         }
 
+        private async void ShowBgLog_Click(object sender, RoutedEventArgs e) {
+            var settings = Windows.Storage.ApplicationData.Current.LocalSettings;
+            string log = settings.Values["bg_log"] as string ?? "(пусто — задача ещё не запускалась)";
+            await new Windows.UI.Popups.MessageDialog(log, "BG Task Log").ShowAsync();
+        }
+
         private void Favorites_Click(object sender, RoutedEventArgs e) {
             // Открываем чат с самим собой (Избранное)
             if (_myUserId == 0) return;

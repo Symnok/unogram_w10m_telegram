@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel.Background;
 using Windows.UI.Notifications;
 using Windows.Data.Xml.Dom;
-using Windows.Storage;
 
 namespace TelegramWP10
 {
@@ -13,7 +12,6 @@ namespace TelegramWP10
         private IntPtr _client;
         private bool _authorized = false;
         private int _maxWaitMs = 20000;
-        private StorageFile _logFile;
 
         public async void Run(IBackgroundTaskInstance taskInstance)
         {
@@ -21,40 +19,35 @@ namespace TelegramWP10
             taskInstance.Canceled += OnCanceled;
 
             try {
-                await InitLog();
-                await Log("BG START trigger=" + taskInstance.TriggerDetails?.GetType().Name);
+                BgLog("BG START trigger=" + taskInstance.TriggerDetails?.GetType().Name
+                    + " time=" + DateTime.Now.ToString("HH:mm:ss"));
                 await RunAsync();
-                await Log("BG DONE");
+                BgLog("BG DONE time=" + DateTime.Now.ToString("HH:mm:ss"));
             } catch (Exception ex) {
-                await Log("BG CRASH: " + ex.Message);
+                BgLog("BG CRASH: " + ex.Message);
             }
             finally {
                 _deferral.Complete();
             }
         }
 
-        private async Task InitLog() {
+        // Лог пишем в LocalSettings — гарантированно работает без файловой системы
+        private void BgLog(string msg) {
             try {
-                var folder = Windows.Storage.ApplicationData.Current.LocalFolder;
-                var appFolder = await folder.GetFolderAsync("Unogram");
-                string name = "bg_log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
-                _logFile = await appFolder.CreateFileAsync(name, CreationCollisionOption.ReplaceExisting);
-            } catch { }
-        }
-
-        private async Task Log(string msg) {
-            try {
-                string line = "[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + msg + "\r\n";
-                await FileIO.AppendTextAsync(_logFile, line);
+                var settings = Windows.Storage.ApplicationData.Current.LocalSettings;
+                string existing = settings.Values["bg_log"] as string ?? "";
+                string line = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + msg + "\n";
+                string updated = existing + line;
+                // Храним последние 50 строк
+                var lines = updated.Split('\n');
+                if (lines.Length > 50)
+                    updated = string.Join("\n", lines, lines.Length - 50, 50);
+                settings.Values["bg_log"] = updated;
             } catch { }
         }
 
         private void OnCanceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason) {
-            var t = Log("BG CANCELED reason=" + reason.ToString());
-            try {
-                // TdJson destroy not available — клиент закроется сам
-                _ = _client;
-            } catch { }
+            BgLog("BG CANCELED reason=" + reason.ToString());
             _deferral?.Complete();
         }
 
@@ -63,23 +56,22 @@ namespace TelegramWP10
             string dbPath = settings.Values["bg_db_path"] as string;
             string filesPath = settings.Values["bg_files_path"] as string;
 
-            await Log("BG db_path=" + (dbPath ?? "NULL"));
-            await Log("BG files_path=" + (filesPath ?? "NULL"));
+            BgLog("BG db_path=" + (dbPath ?? "NULL"));
 
             if (string.IsNullOrEmpty(dbPath)) {
-                await Log("BG ABORT: db_path is empty");
+                BgLog("BG ABORT: db_path empty");
                 return;
             }
 
             _client = TdJson.td_json_client_create();
-            await Log("BG TDLib client created ptr=" + _client);
+            BgLog("BG client=" + _client);
 
             if (_client == IntPtr.Zero) {
-                await Log("BG ABORT: TDLib client is zero");
+                BgLog("BG ABORT: client zero");
                 return;
             }
 
-            string initJson = "{\"@type\":\"setTdlibParameters\"" +
+            TdJson.SendUtf8(_client, "{\"@type\":\"setTdlibParameters\"" +
                 ",\"use_test_dc\":false" +
                 ",\"database_directory\":\"" + EscapeJson(dbPath) + "\"" +
                 ",\"files_directory\":\"" + EscapeJson(filesPath ?? dbPath + "_files") + "\"" +
@@ -92,13 +84,11 @@ namespace TelegramWP10
                 ",\"system_language_code\":\"ru\"" +
                 ",\"device_model\":\"Windows Phone\"" +
                 ",\"application_version\":\"1.0\"" +
-                ",\"enable_storage_optimizer\":true}";
+                ",\"enable_storage_optimizer\":true}");
 
-            TdJson.SendUtf8(_client, initJson);
-            await Log("BG setTdlibParameters sent");
+            BgLog("BG params sent");
 
             int elapsed = 0;
-            int pollInterval = 200;
             int updateCount = 0;
             int newMsgCount = 0;
 
@@ -108,40 +98,33 @@ namespace TelegramWP10
                     string json = TdJson.IntPtrToStringUtf8(ptr);
                     if (!string.IsNullOrEmpty(json)) {
                         updateCount++;
-                        await Log("BG UPDATE #" + updateCount + ": " + json.Substring(0, Math.Min(json.Length, 200)));
-                        bool wasMsg = await ProcessUpdate(json);
+                        BgLog("UPD #" + updateCount + ": " + json.Substring(0, Math.Min(json.Length, 120)));
+                        bool wasMsg = ProcessUpdate(json);
                         if (wasMsg) newMsgCount++;
                     }
                 }
-                await Task.Delay(pollInterval);
-                elapsed += pollInterval;
+                await Task.Delay(200);
+                elapsed += 200;
+                if (_maxWaitMs == 0) break;
             }
 
-            await Log("BG LOOP END elapsed=" + elapsed + "ms updates=" + updateCount + " newMsgs=" + newMsgCount);
+            BgLog("BG END elapsed=" + elapsed + " updates=" + updateCount + " msgs=" + newMsgCount);
 
             try {
                 TdJson.SendUtf8(_client, "{\"@type\":\"close\"}");
-                await Log("BG close sent");
                 await Task.Delay(500);
-                // TdJson destroy not available
-                await Log("BG TDLib destroyed");
-            } catch (Exception ex) {
-                await Log("BG destroy ERR: " + ex.Message);
-            }
+            } catch { }
         }
 
-        private async Task<bool> ProcessUpdate(string json) {
+        private bool ProcessUpdate(string json) {
             try {
                 if (json.Contains("\"updateAuthorizationState\"")) {
                     if (json.Contains("authorizationStateReady")) {
                         _authorized = true;
-                        await Log("BG AUTH: ready");
+                        BgLog("BG AUTH: ready");
                     } else if (json.Contains("authorizationStateClosed")) {
-                        await Log("BG AUTH: closed — exiting");
+                        BgLog("BG AUTH: closed");
                         _maxWaitMs = 0;
-                    } else {
-                        int idx = json.IndexOf("\"@type\":", json.IndexOf("authorizationState"));
-                        await Log("BG AUTH: state=" + json.Substring(Math.Max(0, idx), Math.Min(50, json.Length - idx)));
                     }
                     return false;
                 }
@@ -149,18 +132,15 @@ namespace TelegramWP10
                 if (!_authorized) return false;
 
                 if (json.Contains("\"updateNewMessage\"")) {
-                    if (json.Contains("\"is_outgoing\":true")) {
-                        await Log("BG MSG: outgoing skipped");
-                        return false;
-                    }
+                    if (json.Contains("\"is_outgoing\":true")) return false;
                     string senderName = ExtractSenderName(json);
                     string messageText = ExtractMessageText(json);
-                    await Log("BG MSG: from=" + senderName + " text=" + messageText);
+                    BgLog("BG MSG from=" + senderName + " text=" + messageText);
                     ShowToast(senderName, messageText);
                     return true;
                 }
             } catch (Exception ex) {
-                await Log("BG ProcessUpdate ERR: " + ex.Message);
+                BgLog("BG ProcessUpdate ERR: " + ex.Message);
             }
             return false;
         }
@@ -178,14 +158,13 @@ namespace TelegramWP10
         private string ExtractMessageText(string json) {
             try {
                 int idx = json.IndexOf("\"text\":\"");
-                if (idx >= 0) { idx += 8; int end = json.IndexOf("\"", idx); if (end > idx) { string t = json.Substring(idx, end - idx); return t.Length > 100 ? t.Substring(0, 100) + "..." : t; } }
+                if (idx >= 0) { idx += 8; int end = json.IndexOf("\"", idx); if (end > idx) { string t = json.Substring(idx, end - idx); return t.Length > 80 ? t.Substring(0, 80) + "..." : t; } }
                 if (json.Contains("messagePhoto")) return "📷 Фото";
                 if (json.Contains("messageVideo")) return "🎥 Видео";
                 if (json.Contains("messageVoiceNote")) return "🎤 Голосовое";
                 if (json.Contains("messageVideoNote")) return "⏺ Видеосообщение";
                 if (json.Contains("messageSticker")) return "Стикер";
                 if (json.Contains("messageDocument")) return "📄 Документ";
-                if (json.Contains("messageAudio")) return "🎵 Аудио";
             } catch { }
             return "Сообщение";
         }

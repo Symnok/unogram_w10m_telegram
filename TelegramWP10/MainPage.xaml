@@ -125,6 +125,7 @@
                                                 <MenuFlyoutSeparator/>
                                                 <MenuFlyoutItem x:Name="ClearCacheItem" Text="🗑 Очистить кэш" Click="ClearCache_Click"/>
                                                 <MenuFlyoutItem x:Name="SoundToggleItem" Text="🔔 Звук: Вкл" Click="SoundToggle_Click"/>
+                                                <MenuFlyoutItem Text="📋 BG лог" Click="ShowBgLog_Click"/>
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>
