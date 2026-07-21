@@ -489,8 +489,10 @@ namespace TelegramWP10
             TdJson.SendUtf8(_client, p.ToString(Newtonsoft.Json.Formatting.None));
         }
 
+        private volatile bool _suspended = false;
+
         private void LongPolling() {
-            while (true) {
+            while (!_suspended) {
                 IntPtr resPtr = TdJson.td_json_client_receive(_client, 1.0);
                 if (resPtr != IntPtr.Zero) {
                     string json = TdJson.IntPtrToStringUtf8(resPtr);
@@ -499,13 +501,32 @@ namespace TelegramWP10
                         try {
                             var update = JObject.Parse(json);
                             string type = update["@type"]?.ToString();
-                            // Логируем всё для диагностики прокси (кроме очень частых апдейтов)
                             if (type != "updateOption")
                             HandleUpdate(type, update);
                         } catch (Exception ex) { Log("PARSE ERR: " + ex.Message); }
                     });
                 }
             }
+        }
+
+        public async System.Threading.Tasks.Task SuspendTdLib() {
+            try {
+                _suspended = true;
+                // Даём TDLib время завершить текущие операции
+                TdJson.SendUtf8(_client, "{\"@type\":\"close\"}");
+                await System.Threading.Tasks.Task.Delay(1000);
+            } catch { }
+        }
+
+        public void ResumeTdLib() {
+            try {
+                _suspended = false;
+                // Создаём новый клиент и перезапускаем поллинг
+                _client = TdJson.td_json_client_create();
+                var t = System.Threading.Tasks.Task.Run(() => LongPolling());
+                // Переинициализируем TDLib
+                SendParameters();
+            } catch { }
         }
 
         private void HandleUpdate(string type, JObject update) {
