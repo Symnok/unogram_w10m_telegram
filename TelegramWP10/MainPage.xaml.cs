@@ -453,7 +453,6 @@ namespace TelegramWP10
             }
         }
 
-        }
 
         private void HandleUpdate(string type, JObject update) {
             switch (type) {
@@ -4953,3 +4952,4 @@ namespace TelegramWP10
             TdJson.SendUtf8(_client, "{\"@type\":\"checkAuthenticationPassword\",\"password\":\"" + pwd + "\"}");
         }
     }
+}
