@@ -637,6 +637,33 @@
                                                Foreground="{Binding ReadStatusColor}" VerticalAlignment="Center"
                                                Visibility="{Binding ReadStatusVisibility}"/>
                                 </Grid>
+                                <!-- Link Preview -->
+                                <Border Visibility="{Binding LinkPreviewVisibility}"
+                                        Background="#22FFFFFF" CornerRadius="6"
+                                        Margin="0,6,0,2" Padding="0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="3"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Rectangle Grid.Column="0" Fill="#2AABEE" RadiusX="2" RadiusY="2"/>
+                                        <StackPanel Grid.Column="1" Margin="8,6,6,6">
+                                            <TextBlock Text="{Binding LinkPreviewSiteName}"
+                                                       Foreground="#2AABEE" FontSize="12" FontWeight="SemiBold"
+                                                       Visibility="{Binding LinkPreviewSiteVisibility}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding LinkPreviewTitle}"
+                                                       Foreground="White" FontSize="13" FontWeight="SemiBold"
+                                                       Visibility="{Binding LinkPreviewTitleVisibility}"
+                                                       TextWrapping="Wrap" MaxLines="2"/>
+                                            <TextBlock Text="{Binding LinkPreviewDescription}"
+                                                       Foreground="#CCCCCC" FontSize="12"
+                                                       Visibility="{Binding LinkPreviewDescriptionVisibility}"
+                                                       TextWrapping="Wrap" MaxLines="3"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
                                 <!-- Реакции -->
                                 <Border Visibility="{Binding ReactionsVisibility}" Background="#22FFFFFF" CornerRadius="10" Padding="6,3" Margin="0,4,0,0" HorizontalAlignment="Left">
                                     <TextBlock Text="{Binding Reactions}" Foreground="{Binding TextColor}" FontSize="14"/>

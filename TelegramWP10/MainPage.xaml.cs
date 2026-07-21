@@ -1378,6 +1378,16 @@ namespace TelegramWP10
                         if (cType == "messageText") {
                             string newText = content["text"]?["text"]?.ToString() ?? "";
                             _messagesDict[umcMsgId].Text = newText;
+                            // Обновляем link_preview если появился
+                            var lp2 = content["link_preview"];
+                            if (lp2 != null) {
+                                var item2 = _messagesDict[umcMsgId];
+                                item2.LinkPreviewUrl = lp2["url"]?.ToString() ?? "";
+                                item2.LinkPreviewSiteName = lp2["site_name"]?.ToString() ?? "";
+                                item2.LinkPreviewTitle = lp2["title"]?.ToString() ?? "";
+                                string lpDesc2 = lp2["description"]?["text"]?.ToString() ?? "";
+                                item2.LinkPreviewDescription = lpDesc2.Length > 200 ? lpDesc2.Substring(0, 200) + "..." : lpDesc2;
+                            }
                         }
                     }
                     break;
@@ -2256,6 +2266,24 @@ namespace TelegramWP10
                 string txt = type == "messageText"
                     ? content["text"]?["text"]?.ToString() ?? ""
                     : content["caption"]?["text"]?.ToString() ?? "";
+
+                // Парсим link_preview для messageText
+                if (type == "messageText") {
+                    var lp = content["link_preview"];
+                    if (lp != null) {
+                        string lpUrl = lp["url"]?.ToString() ?? "";
+                        string lpSite = lp["site_name"]?.ToString() ?? "";
+                        string lpTitle = lp["title"]?.ToString() ?? "";
+                        string lpDesc = lp["description"]?["text"]?.ToString() ?? "";
+                        // Показываем только если есть хотя бы заголовок или описание
+                        if (!string.IsNullOrEmpty(lpTitle) || !string.IsNullOrEmpty(lpDesc) || !string.IsNullOrEmpty(lpSite)) {
+                            item.LinkPreviewUrl = lpUrl;
+                            item.LinkPreviewSiteName = lpSite;
+                            item.LinkPreviewTitle = lpTitle;
+                            item.LinkPreviewDescription = lpDesc.Length > 200 ? lpDesc.Substring(0, 200) + "..." : lpDesc;
+                        }
+                    }
+                }
 
                 // Парсим entities для ссылок и упоминаний
                 var entitiesJson = type == "messageText"

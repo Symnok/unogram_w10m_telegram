@@ -169,6 +169,21 @@ namespace TelegramWP10
         // Разделитель дат между сообщениями разных дней
         public bool IsSeparator { get; set; } = false;
         public bool IsUnreadSeparator { get; set; } = false;
+
+        // Link Preview
+        private string _linkPreviewUrl = "";
+        private string _linkPreviewSiteName = "";
+        private string _linkPreviewTitle = "";
+        private string _linkPreviewDescription = "";
+
+        public string LinkPreviewUrl { get => _linkPreviewUrl; set { _linkPreviewUrl = value; OnPropertyChanged("LinkPreviewUrl"); OnPropertyChanged("LinkPreviewVisibility"); } }
+        public string LinkPreviewSiteName { get => _linkPreviewSiteName; set { _linkPreviewSiteName = value; OnPropertyChanged("LinkPreviewSiteName"); OnPropertyChanged("LinkPreviewSiteVisibility"); } }
+        public string LinkPreviewTitle { get => _linkPreviewTitle; set { _linkPreviewTitle = value; OnPropertyChanged("LinkPreviewTitle"); OnPropertyChanged("LinkPreviewTitleVisibility"); } }
+        public string LinkPreviewDescription { get => _linkPreviewDescription; set { _linkPreviewDescription = value; OnPropertyChanged("LinkPreviewDescription"); OnPropertyChanged("LinkPreviewDescriptionVisibility"); } }
+        public Visibility LinkPreviewVisibility => !string.IsNullOrEmpty(_linkPreviewUrl) ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility LinkPreviewSiteVisibility => !string.IsNullOrEmpty(_linkPreviewSiteName) ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility LinkPreviewTitleVisibility => !string.IsNullOrEmpty(_linkPreviewTitle) ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility LinkPreviewDescriptionVisibility => !string.IsNullOrEmpty(_linkPreviewDescription) ? Visibility.Visible : Visibility.Collapsed;
         public string SeparatorLabel { get; set; } = "";
         public Visibility SeparatorVisibility => IsSeparator ? Visibility.Visible : Visibility.Collapsed;
         public Visibility MessageVisibility => IsSeparator ? Visibility.Collapsed : Visibility.Visible;
