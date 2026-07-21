@@ -8,6 +8,11 @@ namespace TelegramWP10
 {
     public sealed class NotificationBackgroundTask : IBackgroundTask
     {
+        // Статический метод для ручного запуска из UI
+        public static async Task RunManual() {
+            var instance = new NotificationBackgroundTask();
+            await instance.RunAsync();
+        }
         private BackgroundTaskDeferral _deferral;
         private IntPtr _client;
         private bool _authorized = false;

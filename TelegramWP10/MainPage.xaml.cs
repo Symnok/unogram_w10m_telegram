@@ -4392,8 +4392,7 @@ namespace TelegramWP10
         }
 
         private void RunBgTask_Click(object sender, RoutedEventArgs e) {
-            var task = new NotificationBackgroundTask();
-            task.Run(new FakeBackgroundTaskInstance());
+            var t2 = NotificationBackgroundTask.RunManual();
             var t = new Windows.UI.Popups.MessageDialog("Задача запущена! Проверь BG лог через 25 сек.", "BG Task").ShowAsync();
         }
 
@@ -5014,24 +5013,5 @@ namespace TelegramWP10
             var pwd = PasswordInput.Password.Replace("\\", "\\\\").Replace("\"", "\\\"");
             TdJson.SendUtf8(_client, "{\"@type\":\"checkAuthenticationPassword\",\"password\":\"" + pwd + "\"}");
         }
-    }
-
-    // Заглушка для ручного запуска BackgroundTask из UI
-    public class FakeBackgroundTaskInstance : Windows.ApplicationModel.Background.IBackgroundTaskInstance
-    {
-        private FakeDeferral _deferral = new FakeDeferral();
-        public uint InstanceId => 0;
-        public uint Progress { get; set; }
-        public object TriggerDetails => null;
-        public uint SuspendedCount => 0;
-        public Windows.ApplicationModel.Background.BackgroundTaskRegistration Task =>
-            BackgroundTaskRegistration.AllTasks.Values.FirstOrDefault() as Windows.ApplicationModel.Background.BackgroundTaskRegistration;
-        public event Windows.ApplicationModel.Background.BackgroundCanceledEventHandler Canceled;
-        public Windows.ApplicationModel.Background.BackgroundTaskDeferral GetDeferral() => _deferral;
-    }
-
-    public class FakeDeferral : Windows.ApplicationModel.Background.BackgroundTaskDeferral
-    {
-        public new void Complete() { }
     }
 }
