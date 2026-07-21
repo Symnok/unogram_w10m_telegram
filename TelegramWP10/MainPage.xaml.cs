@@ -2267,24 +2267,6 @@ namespace TelegramWP10
                     ? content["text"]?["text"]?.ToString() ?? ""
                     : content["caption"]?["text"]?.ToString() ?? "";
 
-                // Парсим link_preview для messageText
-                if (type == "messageText") {
-                    var lp = content["link_preview"];
-                    if (lp != null) {
-                        string lpUrl = lp["url"]?.ToString() ?? "";
-                        string lpSite = lp["site_name"]?.ToString() ?? "";
-                        string lpTitle = lp["title"]?.ToString() ?? "";
-                        string lpDesc = lp["description"]?["text"]?.ToString() ?? "";
-                        // Показываем только если есть хотя бы заголовок или описание
-                        if (!string.IsNullOrEmpty(lpTitle) || !string.IsNullOrEmpty(lpDesc) || !string.IsNullOrEmpty(lpSite)) {
-                            item.LinkPreviewUrl = lpUrl;
-                            item.LinkPreviewSiteName = lpSite;
-                            item.LinkPreviewTitle = lpTitle;
-                            item.LinkPreviewDescription = lpDesc.Length > 200 ? lpDesc.Substring(0, 200) + "..." : lpDesc;
-                        }
-                    }
-                }
-
                 // Парсим entities для ссылок и упоминаний
                 var entitiesJson = type == "messageText"
                     ? content["text"]?["entities"] as Newtonsoft.Json.Linq.JArray
@@ -2327,6 +2309,21 @@ namespace TelegramWP10
                 };
 
                 var replyTo = msg["reply_to"];
+                // Парсим link_preview для messageText
+                if (type == "messageText") {
+                    var lp = content["link_preview"];
+                    if (lp != null) {
+                        string lpSite = lp["site_name"]?.ToString() ?? "";
+                        string lpTitle = lp["title"]?.ToString() ?? "";
+                        string lpDesc = lp["description"]?["text"]?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(lpTitle) || !string.IsNullOrEmpty(lpDesc) || !string.IsNullOrEmpty(lpSite)) {
+                            item.LinkPreviewUrl = lp["url"]?.ToString() ?? "";
+                            item.LinkPreviewSiteName = lpSite;
+                            item.LinkPreviewTitle = lpTitle;
+                            item.LinkPreviewDescription = lpDesc.Length > 200 ? lpDesc.Substring(0, 200) + "..." : lpDesc;
+                        }
+                    }
+                }
                 if (replyTo != null && replyTo["@type"]?.ToString() == "messageReplyToMessage") {
                     // Автор цитаты
                     var replyOrigin = replyTo["origin"];
