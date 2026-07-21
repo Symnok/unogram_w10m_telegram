@@ -4953,4 +4953,3 @@ namespace TelegramWP10
             TdJson.SendUtf8(_client, "{\"@type\":\"checkAuthenticationPassword\",\"password\":\"" + pwd + "\"}");
         }
     }
-}
