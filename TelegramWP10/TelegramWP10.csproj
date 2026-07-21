@@ -65,10 +65,15 @@
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\Square150x150Logo.png" />
     <Content Include="Assets\Square44x44Logo.png" />
-    <Content Include="Assets\Square24x24Logo.png" />
     <Content Include="Assets\Wide310x150Logo.png" />
     <Content Include="Assets\SplashScreen.png" />
     <Content Include="tdjson.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ssleay32.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="libeay32.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="tdjson.dll">
@@ -89,7 +94,6 @@
     <Compile Include="WebPDecoder.cs"/>
     <Compile Include="StickerItem.cs"/>
     <Compile Include="ContactItem.cs"/>
-    <Compile Include="NotificationBackgroundTask.cs"/>
     <Compile Include="SearchMessageItem.cs"/>
     <Compile Include="SearchResultItem.cs"/>
     <ApplicationDefinition Include="App.xaml">

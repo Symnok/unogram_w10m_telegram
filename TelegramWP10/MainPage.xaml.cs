@@ -11,7 +11,6 @@ using Windows.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
-using Windows.ApplicationModel.Background;
 using Newtonsoft.Json.Linq;
 
 namespace TelegramWP10
@@ -322,67 +321,14 @@ namespace TelegramWP10
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
                 _logFile = await appFolder.CreateFileAsync(logName, CreationCollisionOption.ReplaceExisting);
-                // Сохраняем пути для BackgroundTask
-                var ls2 = Windows.Storage.ApplicationData.Current.LocalSettings;
-                ls2.Values["bg_db_path"] = _dbPath;
-                ls2.Values["bg_files_path"] = _filesFolder.Path.Replace("\\", "/");
             } catch (Exception ex) {
                 await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
                 return;
             }
-            // Регистрируем BackgroundTask для уведомлений
-            RegisterBackgroundTask();
             var _lpTask = Task.Run(() => LongPolling());
             // Прокси применяется после инициализации TDLib — см. authorizationStateWaitPhoneNumber
         }
 
-        private async void RegisterBackgroundTask() {
-            try {
-                var status = await BackgroundExecutionManager.RequestAccessAsync();
-                Log("BG_REG: RequestAccess status=" + status.ToString());
-
-                Log("BG_REG: existing tasks count=" + BackgroundTaskRegistration.AllTasks.Count);
-                foreach (var t in BackgroundTaskRegistration.AllTasks)
-                    Log("BG_REG: existing task name=" + t.Value.Name + " id=" + t.Value.TaskId);
-
-                if (status == BackgroundAccessStatus.AlwaysAllowed ||
-                    status == BackgroundAccessStatus.AllowedSubjectToSystemPolicy) {
-                    // Удаляем старые регистрации
-                    foreach (var t in BackgroundTaskRegistration.AllTasks)
-                        if (t.Value.Name == "UnogramNotifications" ||
-                            t.Value.Name == "UnogramNotificationsMaintenance") {
-                            t.Value.Unregister(true);
-                            Log("BG_REG: unregistered " + t.Value.Name);
-                        }
-
-                    // TimeTrigger — каждые 15 минут
-                    var builder1 = new BackgroundTaskBuilder();
-                    builder1.Name = "UnogramNotifications";
-                    builder1.TaskEntryPoint = "TelegramWP10.NotificationBackgroundTask";
-                    builder1.SetTrigger(new TimeTrigger(15, false));
-                    builder1.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
-                    var reg1 = builder1.Register();
-                    Log("BG_REG: TimeTrigger registered OK id=" + reg1.TaskId);
-
-                    // MaintenanceTrigger — на зарядке, каждые 15 минут
-                    var builder2 = new BackgroundTaskBuilder();
-                    builder2.Name = "UnogramNotificationsMaintenance";
-                    builder2.TaskEntryPoint = "TelegramWP10.NotificationBackgroundTask";
-                    builder2.SetTrigger(new MaintenanceTrigger(15, false));
-                    builder2.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
-                    var reg2 = builder2.Register();
-                    Log("BG_REG: MaintenanceTrigger registered OK id=" + reg2.TaskId);
-
-                    Log("BG_REG: total tasks=" + BackgroundTaskRegistration.AllTasks.Count);
-                    foreach (var t in BackgroundTaskRegistration.AllTasks)
-                        Log("BG_REG: task=" + t.Value.Name);
-                } else {
-                    Log("BG_REG: DENIED status=" + status.ToString());
-                }
-            } catch (Exception ex) {
-                Log("BG_REG ERR: " + ex.Message);
-            }
-        }
 
         private async Task FetchAndApplyProxyAsync() {
             List<ProxyEntry> parsed = null;
@@ -489,10 +435,8 @@ namespace TelegramWP10
             TdJson.SendUtf8(_client, p.ToString(Newtonsoft.Json.Formatting.None));
         }
 
-        private volatile bool _suspended = false;
-
         private void LongPolling() {
-            while (!_suspended) {
+            while (true) {
                 IntPtr resPtr = TdJson.td_json_client_receive(_client, 1.0);
                 if (resPtr != IntPtr.Zero) {
                     string json = TdJson.IntPtrToStringUtf8(resPtr);
@@ -509,24 +453,6 @@ namespace TelegramWP10
             }
         }
 
-        public async System.Threading.Tasks.Task SuspendTdLib() {
-            try {
-                _suspended = true;
-                // Даём TDLib время завершить текущие операции
-                TdJson.SendUtf8(_client, "{\"@type\":\"close\"}");
-                await System.Threading.Tasks.Task.Delay(1000);
-            } catch { }
-        }
-
-        public void ResumeTdLib() {
-            try {
-                _suspended = false;
-                // Создаём новый клиент и перезапускаем поллинг
-                _client = TdJson.td_json_client_create();
-                var t = System.Threading.Tasks.Task.Run(() => LongPolling());
-                // Переинициализируем TDLib
-                SendParameters();
-            } catch { }
         }
 
         private void HandleUpdate(string type, JObject update) {
@@ -4412,20 +4338,8 @@ namespace TelegramWP10
             return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
         }
 
-        private void RunBgTask_Click(object sender, RoutedEventArgs e) {
-            var t2 = NotificationBackgroundTask.RunManual();
-            var t = new Windows.UI.Popups.MessageDialog("Задача запущена! Проверь BG лог через 25 сек.", "BG Task").ShowAsync();
-        }
 
-        private async void ShowBgLog_Click(object sender, RoutedEventArgs e) {
-            var settings = Windows.Storage.ApplicationData.Current.LocalSettings;
-            string log = settings.Values["bg_log"] as string ?? "(пусто — задача ещё не запускалась)";
-            await new Windows.UI.Popups.MessageDialog(log, "BG Task Log").ShowAsync();
-        }
 
-        private void ClearBgLog_Click(object sender, RoutedEventArgs e) {
-            Windows.Storage.ApplicationData.Current.LocalSettings.Values["bg_log"] = "";
-        }
 
         private void Favorites_Click(object sender, RoutedEventArgs e) {
             // Открываем чат с самим собой (Избранное)
