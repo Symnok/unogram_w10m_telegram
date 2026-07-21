@@ -126,6 +126,7 @@
                                                 <MenuFlyoutItem x:Name="ClearCacheItem" Text="🗑 Очистить кэш" Click="ClearCache_Click"/>
                                                 <MenuFlyoutItem x:Name="SoundToggleItem" Text="🔔 Звук: Вкл" Click="SoundToggle_Click"/>
                                                 <MenuFlyoutItem Text="📋 BG лог" Click="ShowBgLog_Click"/>
+                                                <MenuFlyoutItem Text="🗑 Очистить BG лог" Click="ClearBgLog_Click"/>
                                                 <MenuFlyoutItem Text="▶ Запустить BG задачу" Click="RunBgTask_Click"/>
                                                 <MenuFlyoutSeparator/>
                                                 <MenuFlyoutItem Text="🚪 Выход" Click="LogoutButton_Click"/>
