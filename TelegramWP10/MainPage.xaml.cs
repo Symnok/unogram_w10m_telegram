@@ -4946,12 +4946,53 @@ namespace TelegramWP10
         private long _replyToMessageId = 0; // id сообщения на которое отвечаем
 
         private void MessageInput_TextChanged(object sender, Windows.UI.Xaml.Controls.TextChangedEventArgs e) {
+            UpdateSendButtonState();
             if (_currentChatId == 0 || string.IsNullOrEmpty(MessageInput.Text)) return;
             // Отправляем chatActionTyping и перезапускаем таймер сброса
             TdJson.SendUtf8(_client, "{\"@type\":\"sendChatAction\",\"chat_id\":" + _currentChatId +
                 ",\"action\":{\"@type\":\"chatActionTyping\"}}");
             _typingTimer.Stop();
             _typingTimer.Start();
+        }
+
+        // ---- Переключение "микрофон / отправить" и режим видеосообщения ----
+
+        private bool _videoNoteMode = false;
+
+        /// <summary>Пустое поле — микрофон, есть текст — кнопка отправки.</summary>
+        private void UpdateSendButtonState() {
+            // Во время записи не переключаем, иначе кнопка исчезнет из-под пальца.
+            if (_isRecording || _isRecordingVideoNote) return;
+            // В режиме правки сообщения кнопка "✓" нужна даже при пустом поле.
+            bool showSend = !string.IsNullOrWhiteSpace(MessageInput.Text) || _editingMessageId != 0;
+            SendButton.Visibility = showSend ? Visibility.Visible : Visibility.Collapsed;
+            MicButton.Visibility  = showSend ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        /// <summary>Пункт меню "Видеосообщение": следующая запись будет видеокружком.</summary>
+        private void VideoNoteMode_Click(object sender, RoutedEventArgs e) {
+            SetVideoNoteMode(true);
+        }
+
+        private void SetVideoNoteMode(bool on) {
+            _videoNoteMode = on;
+            RecordGlyph.Text = on ? "⏺" : "🎤";
+            MicButton.Background = new Windows.UI.Xaml.Media.SolidColorBrush(
+                on ? Windows.UI.Color.FromArgb(255, 0, 136, 204) : Windows.UI.Colors.Transparent);
+        }
+
+        private void RecordButton_PointerPressed(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e) {
+            if (_videoNoteMode) VideoNoteButton_PointerPressed(sender, e);
+            else                MicButton_PointerPressed(sender, e);
+        }
+
+        private void RecordButton_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e) {
+            if (_videoNoteMode) {
+                VideoNoteButton_PointerReleased(sender, e);
+                SetVideoNoteMode(false);
+            } else {
+                MicButton_PointerReleased(sender, e);
+            }
         }
 
         private void MessageInput_Holding(object sender, Windows.UI.Xaml.Input.HoldingRoutedEventArgs e) {

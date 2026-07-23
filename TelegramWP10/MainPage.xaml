@@ -939,44 +939,63 @@
                 <Grid x:Name="InputBorder" Padding="10" Background="#222222">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Button Content="📎" Click="AttachFile_Click" Width="44" Height="40"
-                        Background="Transparent" Foreground="White" FontSize="18" Padding="0"/>
-                <Border x:Name="MicButton" Grid.Column="1" Width="44" Height="40"
-                        Background="Transparent" CornerRadius="8"
-                        PointerPressed="MicButton_PointerPressed" PointerReleased="MicButton_PointerReleased"
-                        PointerExited="MicButton_PointerReleased">
-                    <TextBlock Text="🎤" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-                <Border x:Name="VideoNoteButton" Grid.Column="2" Width="44" Height="40"
-                        Background="Transparent" CornerRadius="8"
-                        PointerPressed="VideoNoteButton_PointerPressed" PointerReleased="VideoNoteButton_PointerReleased"
-                        PointerExited="VideoNoteButton_PointerReleased">
-                    <TextBlock Text="⏺" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-                <Border x:Name="MessageInputBorder" Grid.Column="3" Margin="8,0"
-                        Background="#F0F2F5" BorderBrush="#D8DCE0" BorderThickness="1" CornerRadius="20" Padding="4,0">
-                <TextBox x:Name="MessageInput" PlaceholderText="Сообщение..." AcceptsReturn="True" MaxHeight="100"
-                         Background="Transparent" BorderThickness="0"
-                         Foreground="#222222" Style="{StaticResource ChatInputStyle}"
-                         TextChanged="MessageInput_TextChanged"
-                         Holding="MessageInput_Holding">
-                    <FlyoutBase.AttachedFlyout>
-                        <MenuFlyout>
-                            <MenuFlyoutItem Text="Вставить текст" Click="PasteToInput_Click"/>
+
+                <!-- Меню вложений: файл + видеосообщение -->
+                <Button x:Name="AttachMenuButton" Grid.Column="0" Content="+"
+                        Width="44" Height="40" Padding="0"
+                        Background="Transparent" Foreground="White"
+                        BorderThickness="0" FontSize="26" FontWeight="SemiBold">
+                    <Button.Flyout>
+                        <MenuFlyout Placement="Top">
+                            <MenuFlyoutItem Text="📎  Файл" Click="AttachFile_Click"/>
+                            <MenuFlyoutItem Text="⏺  Видеосообщение" Click="VideoNoteMode_Click"/>
                         </MenuFlyout>
-                    </FlyoutBase.AttachedFlyout>
-                </TextBox>
+                    </Button.Flyout>
+                </Button>
+
+                <!-- Поле ввода: смайлик внутри поля -->
+                <Border x:Name="MessageInputBorder" Grid.Column="1" Margin="8,0"
+                        Background="#F0F2F5" BorderBrush="#D8DCE0" BorderThickness="1" CornerRadius="20" Padding="2,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="StickerButton" Grid.Column="0" Content="😊" Click="StickerButton_Click"
+                                Width="36" Height="36" Padding="0" Margin="1,0,0,0"
+                                Background="Transparent" Foreground="#666666"
+                                BorderThickness="0" FontSize="18" VerticalAlignment="Bottom"/>
+                        <TextBox x:Name="MessageInput" Grid.Column="1"
+                                 PlaceholderText="Сообщение..." AcceptsReturn="True" MaxHeight="100"
+                                 Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
+                                 Foreground="#222222" Style="{StaticResource ChatInputStyle}"
+                                 TextChanged="MessageInput_TextChanged"
+                                 Holding="MessageInput_Holding">
+                            <FlyoutBase.AttachedFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="Вставить текст" Click="PasteToInput_Click"/>
+                                </MenuFlyout>
+                            </FlyoutBase.AttachedFlyout>
+                        </TextBox>
+                    </Grid>
                 </Border>
-                <!-- Кнопка стикеров -->
-                <Button x:Name="StickerButton" Grid.Column="4" Content="😊" Click="StickerButton_Click"
-                        Width="44" Height="40" Background="Transparent" Foreground="White" FontSize="20" Padding="0"/>
-                <Button x:Name="SendButton" Grid.Column="5" Content="➤" Click="SendMessage_Click" Width="50" Height="40" Background="#0088cc" Foreground="White"/>
+
+                <!-- Микрофон и отправка занимают одну ячейку и переключаются -->
+                <Grid Grid.Column="2" Width="50" Height="40">
+                    <Border x:Name="MicButton" Background="Transparent" CornerRadius="8"
+                            PointerPressed="RecordButton_PointerPressed"
+                            PointerReleased="RecordButton_PointerReleased"
+                            PointerExited="RecordButton_PointerReleased">
+                        <TextBlock x:Name="RecordGlyph" Text="🎤" FontSize="18"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Button x:Name="SendButton" Content="➤" Click="SendMessage_Click"
+                            Width="50" Height="40" Padding="0" Visibility="Collapsed"
+                            Background="#0088cc" Foreground="White"/>
+                </Grid>
             </Grid>
 
             <!-- Панель выбора стикеров — поверх сообщений снизу -->
