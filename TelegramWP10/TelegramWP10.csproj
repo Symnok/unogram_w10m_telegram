@@ -14,13 +14,14 @@
 
     <!-- Windows 10 Mobile 1709 = OS build 15254, branched from 15063 (1703).
          15063 is the newest SDK whose API surface actually exists on the device.
-         Do NOT raise these to 16299/17763/18362: MinVersion > 15254 blocks install. -->
+         Do NOT raise TargetPlatformVersion to 16299/17763/18362.
+         MinVersion 10240 covers every Windows 10 Mobile release from 1507 on;
+         anything above 10.0.15254.0 would block installation entirely. -->
     <TargetPlatformVersion>10.0.15063.0</TargetPlatformVersion>
-    <TargetPlatformMinVersion>10.0.15063.0</TargetPlatformMinVersion>
+    <TargetPlatformMinVersion>10.0.10240.0</TargetPlatformMinVersion>
 
     <MinimumVisualStudioVersion>14</MinimumVisualStudioVersion>
     <FileAlignment>512</FileAlignment>
-	<AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <PackageCertificateKeyFile>TelegramWP10_TemporaryKey.pfx</PackageCertificateKeyFile>
     <PackageCertificateThumbprint>2FEA123A6FCEA201A2EBA93410B99768417E81FB</PackageCertificateThumbprint>
@@ -124,13 +125,13 @@
     </Content>
   </ItemGroup>
 
-  <!-- Fail loudly if someone tries to build a non-ARM platform or widen the
-       supported OS range. This project is Windows 10 Mobile 1703/1709 ARM only. -->
+  <!-- Fail loudly if someone tries to build a non-ARM platform or shifts the
+       supported OS range. This project is Windows 10 Mobile, ARM only. -->
   <Target Name="EnforceArmOnlyMobile" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(Platform)' != 'ARM'"
            Text="TelegramWP10 builds for ARM only (Windows 10 Mobile). Requested platform: '$(Platform)'." />
-    <Error Condition="'$(TargetPlatformMinVersion)' != '10.0.15063.0'"
-           Text="TargetPlatformMinVersion must remain 10.0.15063.0 so that only W10M 1703/1709 are supported. Current value: '$(TargetPlatformMinVersion)'." />
+    <Error Condition="'$(TargetPlatformMinVersion)' != '10.0.10240.0'"
+           Text="TargetPlatformMinVersion must remain 10.0.10240.0. Current value: '$(TargetPlatformMinVersion)'." />
   </Target>
 
   <!-- Генерируем rd.xml на лету — не нужно хранить в репозитории -->
