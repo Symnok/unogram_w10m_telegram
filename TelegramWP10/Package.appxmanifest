@@ -1,14 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" IgnorableNamespaces="uap mp uap3">
-  <Identity Name="Unogram" Publisher="CN=Test" Version="1.0.0.0" ProcessorArchitecture="arm" />
-  <mp:PhoneIdentity PhoneProductId="12345678-1234-1234-1234-1234567890ab" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+  <!-- Publisher must match the CN of the signing certificate (see AutoSignAppx in the .csproj) -->
+  <Identity Name="Unogram" Publisher="CN=TelegramWP10" Version="1.0.1.0" ProcessorArchitecture="arm" />
+  <mp:PhoneIdentity PhoneProductId="8f3d1c62-4a7e-4b19-9c05-2ed6a4f7b310" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>Unogram</DisplayName>
     <PublisherDisplayName>Test</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.10240.0" MaxVersionTested="10.0.18362.0" />
+    <!-- Windows.Mobile restricts installation to phones only (no desktop / HoloLens / Xbox).
+         MinVersion 10.0.15063.0 admits W10M 1703 (15063) and 1709 (15254) and excludes
+         1511 (10586) and 1607 (14393). It must stay <= 10.0.15254.0 or nothing installs. -->
+    <TargetDeviceFamily Name="Windows.Mobile" MinVersion="10.0.15063.0" MaxVersionTested="10.0.15063.0" />
   </Dependencies>
   <Resources>
     <Resource Language="x-generate" />
@@ -18,12 +22,12 @@
       <uap:VisualElements DisplayName="Unogram" Description="Unogram" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile ShortName="Unogram" Wide310x150Logo="Assets\Wide310x150Logo.png">
           <uap:ShowNameOnTiles>
-            <uap:ShowOn Tile="square150x150Logo"/>
-            <uap:ShowOn Tile="wide310x150Logo"/>
+            <uap:ShowOn Tile="square150x150Logo" />
+            <uap:ShowOn Tile="wide310x150Logo" />
           </uap:ShowNameOnTiles>
         </uap:DefaultTile>
-        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#000000"/>
-        <uap:LockScreen Notification="badge" BadgeLogo="Assets\Square24x24Logo.png"/>
+        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#000000" />
+        <uap:LockScreen Notification="badge" BadgeLogo="Assets\Square24x24Logo.png" />
       </uap:VisualElements>
     </Application>
   </Applications>
