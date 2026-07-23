@@ -159,7 +159,12 @@ namespace TelegramWP10
         public MainPage()
         {
             this.InitializeComponent();
+            // Просим фоновую сессию закрыться и ждём освобождения базы.
+            BackgroundService.RequestForegroundHandover();
+            if (!BackgroundService.TryEnterTdSession(10000))
+                BackgroundService.Diag("Foreground: TDLib gate not acquired, background session still open");
             _client = TdJson.td_json_client_create();
+            ActiveClient = _client;   // видно фоновой задаче догрузки
             ChatListView.ItemsSource = _chatListItems;
             MessagesListView.ItemsSource = _messageItems;
             // Загружаем сохранённый режим прокси до старта TDLib
@@ -827,9 +832,20 @@ namespace TelegramWP10
                     }
                     break;
 
+                case "updateDeleteMessages":
+                    // Сообщение удалено (в том числе "у всех") — снимаем уведомление,
+                    // иначе оно живёт в центре уведомлений дольше самого сообщения.
+                    if (update["is_permanent"]?.ToObject<bool>() ?? false) {
+                        long delChatId = update["chat_id"]?.ToObject<long>() ?? 0;
+                        if (delChatId != 0) RemoveToastsForChat(delChatId);
+                    }
+                    break;
+
                 case "updateNewMessage":
                     var newMsg = update["message"];
                     long newMsgChatId = newMsg?["chat_id"]?.ToObject<long>() ?? 0;
+                    // Пришло сообщение в чат, которого нет в списке — вернём его.
+                    if (newMsgChatId != 0) EnsureChatInList(newMsgChatId);
                     bool newMsgOutgoing = newMsg?["is_outgoing"]?.ToObject<bool>() ?? false;
                     string newMsgType = newMsg?["content"]?["@type"]?.ToString() ?? "";
                     // Для исходящих файлов — регистрируем upload прогресс даже если чат не открыт
@@ -898,7 +914,10 @@ namespace TelegramWP10
                     if (_soundEnabled && newMsg != null) {
                         bool isOutgoing = newMsg["is_outgoing"]?.ToObject<bool>() ?? false;
                         bool isPrivate  = newMsgChatId > 0;
-                        if (!isOutgoing && isPrivate) {
+                        long sentAt     = newMsg["date"]?.ToObject<long>() ?? 0;
+                        bool isFresh    = sentAt == 0 ||
+                            DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt <= ToastMaxAgeSeconds;
+                        if (!isOutgoing && isPrivate && isFresh) {
                             // Собираем имя и текст для уведомления
                             string senderName = "";
                             if (_chatsDict.ContainsKey(newMsgChatId))
@@ -911,7 +930,7 @@ namespace TelegramWP10
                             string msgText = mc?["text"]?["text"]?.ToString()
                                           ?? mc?["caption"]?["text"]?.ToString()
                                           ?? (mc?["@type"]?.ToString()?.Replace("message","") ?? "Сообщение");
-                            ShowToastNotification(senderName, msgText);
+                            ShowToastNotification(senderName, msgText, newMsgChatId);
                         }
                     }
                     break;
@@ -1130,6 +1149,7 @@ namespace TelegramWP10
                 case "updateChatLastMessage":
                     long ulcId = update["chat_id"]?.ToObject<long>() ?? 0;
                     var ulcMsg = update["last_message"];
+                    if (ulcId != 0 && ulcMsg != null) EnsureChatInList(ulcId);
                     if (ulcId != 0 && ulcMsg != null && _chatsDict.ContainsKey(ulcId)) {
                         string ulcType = ulcMsg["content"]?["@type"]?.ToString() ?? "null";
                         FillChatLastMessage(_chatsDict[ulcId], ulcMsg, update);
@@ -1157,6 +1177,9 @@ namespace TelegramWP10
                             }
                         } else {
                             _pendingPinnedPositions[ucpId] = ucpPinned;
+                            // Ненулевой порядок означает, что чат снова в списке.
+                            string ucpOrder = ucpPos?["order"]?.ToString() ?? "0";
+                            if (ucpOrder != "0") EnsureChatInList(ucpId);
                         }
                     }
                     break;
@@ -1403,6 +1426,19 @@ namespace TelegramWP10
 
                 case "chat":
                     long openChatId = update["id"]?.ToObject<long>() ?? 0;
+                    // Ответ на восстановление удалённого чата — отдаём его
+                    // штатному обработчику, чтобы не дублировать логику вставки.
+                    if (openChatId != 0 && _pendingRestoreChatIds.Remove(openChatId)) {
+                        if (!_chatsDict.ContainsKey(openChatId)) {
+                            var restored = new JObject {
+                                ["@type"] = "updateNewChat",
+                                ["chat"] = update.DeepClone()
+                            };
+                            HandleUpdate("updateNewChat", restored);   // наполняет _chatsDict
+                        }
+                        RestoreChatIntoList(openChatId);               // и только теперь — в список
+                        MoveChatToTop(openChatId);
+                    }
                     // Открыть чат по упоминанию (searchPublicChat / createPrivateChat)
                     if (_pendingOpenChat && openChatId != 0) {
                         _pendingOpenChat = false;
@@ -2092,6 +2128,52 @@ namespace TelegramWP10
                 if (list[i].IsPinned) insertAt = i + 1;
             }
             list.Insert(insertAt, item);
+        }
+
+        /// <summary>Чаты, по которым отправлен getChat для восстановления в списке.</summary>
+        private readonly HashSet<long> _pendingRestoreChatIds = new HashSet<long>();
+
+        /// <summary>
+        /// TDLib присылает updateNewChat один раз за сессию клиента. После
+        /// удаления переписки чат исчезает из _chatsDict, и все дальнейшие
+        /// updateChatLastMessage / updateChatPosition по нему отбрасываются —
+        /// чат уже не возвращается в список до перезапуска. Дозапрашиваем чат
+        /// и прогоняем ответ через обычный путь updateNewChat.
+        /// </summary>
+        private void EnsureChatInList(long chatId) {
+            if (chatId == 0) return;
+            if (_loadingChats || _loadingArchive || _loadingArchiveIds) return;
+
+            bool inDict  = _chatsDict.ContainsKey(chatId);
+            bool visible = _chatListItems.Any(c => c.Id == chatId)
+                        || _archiveChatItems.Any(c => c.Id == chatId);
+            if (inDict && visible) return;
+
+            if (inDict) { RestoreChatIntoList(chatId); return; }  // getChat не нужен
+
+            if (!_pendingRestoreChatIds.Add(chatId)) return;      // запрос уже в пути
+            TdJson.SendUtf8(_client, "{\"@type\":\"getChat\",\"chat_id\":" + chatId + "}");
+        }
+
+        /// <summary>
+        /// updateNewChat заполняет только _chatsDict — в видимый список чаты
+        /// попадают исключительно через LoadNextChat. Для восстановленного чата
+        /// этой очереди уже нет, поэтому вставляем сами.
+        /// </summary>
+        private void RestoreChatIntoList(long chatId) {
+            if (!_chatsDict.ContainsKey(chatId)) return;
+            var item = _chatsDict[chatId];
+            bool toArchive = _archiveChatIds.Contains(chatId);
+            var list = toArchive ? _archiveChatItems : _chatListItems;
+            if (list.Any(c => c.Id == chatId)) return;
+
+            InsertAfterPinned(list, item);
+            if (toArchive) {
+                UpdateArchiveUnreadBadge();
+            } else {
+                if (!_allChatItems.Any(c => c.Id == chatId)) _allChatItems.Add(item);
+                ChatCountText.Text = _chatListItems.Count.ToString();
+            }
         }
 
         private void MoveChatToTop(long chatId) {
@@ -2876,6 +2958,7 @@ namespace TelegramWP10
             if (_currentChatId != 0)
                 TdJson.SendUtf8(_client, "{\"@type\":\"closeChat\",\"chat_id\":" + _currentChatId + "}");
             _currentChatId = chat.Id;
+            RemoveToastsForChat(chat.Id);   // чат открыт — уведомления по нему больше не нужны
             // Группа если тип chatTypeBasicGroup или chatTypeSupergroup не-канал
             _currentChatIsGroup = false;
             if (_rawChatsDict.ContainsKey(chat.Id)) {
@@ -4331,7 +4414,22 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
         }
 
-        private void ShowToastNotification(string title, string body) {
+        private const string ToastGroup = "unogram";
+
+        private static string ToastTagForChat(long chatId) {
+            // Tag ограничен по длине, поэтому только цифры без знака.
+            return "c" + (chatId < 0 ? "n" : "") + System.Math.Abs(chatId).ToString();
+        }
+
+        /// <summary>Убирает из центра уведомлений всё, что относится к чату.</summary>
+        private static void RemoveToastsForChat(long chatId) {
+            try {
+                Windows.UI.Notifications.ToastNotificationManager.History
+                    .Remove(ToastTagForChat(chatId), ToastGroup);
+            } catch { }
+        }
+
+        private void ShowToastNotification(string title, string body, long chatId) {
             try {
                 // Строим XML вручную — полный контроль над звуком
                 string xml = $@"<toast duration=""short"">
@@ -4346,6 +4444,10 @@ namespace TelegramWP10
                 var toastXml = new Windows.Data.Xml.Dom.XmlDocument();
                 toastXml.LoadXml(xml);
                 var toast = new Windows.UI.Notifications.ToastNotification(toastXml);
+                // Tag/Group нужны, чтобы уведомление можно было потом убрать из
+                // центра уведомлений — без них History.Remove адресовать нечего.
+                toast.Tag = ToastTagForChat(chatId);
+                toast.Group = ToastGroup;
                 // Без ExpirationTime — уведомление живёт стандартное время
                 // Показываем из любого потока через Dispatcher
                 var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
@@ -4954,6 +5056,16 @@ namespace TelegramWP10
             _typingTimer.Stop();
             _typingTimer.Start();
         }
+
+        /// <summary>Клиент TDLib текущего процесса — читает BackgroundService.</summary>
+        public static IntPtr ActiveClient = IntPtr.Zero;
+
+        /// <summary>
+        /// После разблокировки TDLib отдаёт весь накопившийся backlog как
+        /// updateNewMessage. Без этого порога пользователь получает пачку
+        /// уведомлений о сообщениях, которые он прямо сейчас и открыл.
+        /// </summary>
+        private const int ToastMaxAgeSeconds = 60;
 
         // ---- Переключение "микрофон / отправить" и режим видеосообщения ----
 

@@ -20,10 +20,13 @@
 
     <MinimumVisualStudioVersion>14</MinimumVisualStudioVersion>
     <FileAlignment>512</FileAlignment>
+	<AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <PackageCertificateKeyFile>TelegramWP10_TemporaryKey.pfx</PackageCertificateKeyFile>
     <PackageCertificateThumbprint>2FEA123A6FCEA201A2EBA93410B99768417E81FB</PackageCertificateThumbprint>
     <GenerateAppxPackageOnBuild>true</GenerateAppxPackageOnBuild>
+    <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
+    <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
     <AppxBundle>Never</AppxBundle>
     <AppxBundlePlatforms>ARM</AppxBundlePlatforms>
     <UapAppxPackageBuildMode>SideloadOnly</UapAppxPackageBuildMode>
@@ -72,6 +75,7 @@
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="TdJson.cs" />
+    <Compile Include="BackgroundService.cs" />
     <Compile Include="ChatItem.cs" />
     <Compile Include="MessageItem.cs" />
     <Compile Include="WebPDecoder.cs" />
