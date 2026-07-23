@@ -5,7 +5,34 @@ Not a browser wrapper — a local UWP application.
 
 **Target platform:** Windows 10 Mobile 1703 (build 15063) and 1709 (build 15254), ARM only.
 
-**Upstream repository:** <https://github.com/nallion/tdlib_wp10>
+---
+
+## About this fork
+
+This is a fork of [nallion/tdlib_wp10](https://github.com/nallion/tdlib_wp10) with the
+build configuration reworked for a specific target: Windows 10 Mobile 1703 and 1709 on
+ARM, sideloaded onto a real device. The application source is unchanged — everything
+below concerns how it builds and deploys, and describes **this fork**, not upstream.
+
+What diverges from upstream:
+
+| Area | Upstream | This fork |
+|---|---|---|
+| Project type GUID | invalid placeholder — solution won't load in VS 2017 | correct UWP flavor GUID |
+| Solution project GUID | not valid hexadecimal, didn't match the csproj | matches `<ProjectGuid>` |
+| SDK targeting | `10.0.18362.0`, min `10.0.10240.0` | `10.0.15063.0`, min `10.0.15063.0` |
+| Device family | `Windows.Universal` | `Windows.Mobile` |
+| Platforms | `Release\|ARM` only | `Debug\|ARM` and `Release\|ARM`, non-ARM builds rejected |
+| Signing | custom `AutoSignAppx` target calling `MakeCert` | `PackageCertificateKeyFile` / `PackageCertificateThumbprint` |
+| Certificate | none in repo | test `.pfx` committed, no password |
+| Versioning | fixed at `1.0.0.0` | `AppxAutoIncrementPackageRevision` enabled |
+| UWP runtime package | `6.2.14` (needs min 16299) | `6.0.15` |
+| Packaging | `.appxbundle` | plain `.appx`, `SideloadOnly` |
+| Manifest publisher | `CN=Test`, mismatched the signing certificate | `CN=TelegramWP10`, matches |
+| Content items | `tdjson.dll` listed twice | de-duplicated |
+
+If you're comparing files against upstream and something looks unfamiliar, this table is
+probably why.
 
 ---
 
@@ -280,7 +307,12 @@ Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq "<thumbprint>" 
 
 Unogram is developed by [nallion](https://github.com/nallion). The upstream repository —
 source, releases and issue tracker — is at
-<https://github.com/nallion/tdlib_wp10>. Report bugs there rather than here.
+<https://github.com/nallion/tdlib_wp10>. Report application bugs there, not here; this
+fork only changes the build configuration.
 
 Built on [TDLib](https://github.com/tdlib/td) by the Telegram team, licensed under
 Boost Software License 1.0.
+
+The committed test certificate is specific to this fork and should not be carried into an
+upstream pull request — a signing key is reasonable in a personal fork, but in the
+canonical repository it would mean every future contributor signs as the same publisher.
