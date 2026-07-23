@@ -1,19 +1,10 @@
 image: Visual Studio 2017
-
 platform: ARM
-
 configuration: Release
-
 before_build:
-  - ps: >-
-      (Get-Content TelegramWP10\TelegramWP10.csproj) -replace
-      '10\.0\.18362\.0', '10.0.17763.0' |
-      Set-Content TelegramWP10\TelegramWP10.csproj
   - nuget restore TelegramWP10.sln
-
 build:
   project: TelegramWP10.sln
   verbosity: minimal
-
 after_build:
-  - ps: Get-ChildItem -Recurse -Filter "*.appx" | % { Push-AppveyorArtifact $_.FullName }
+  - ps: Get-ChildItem -Recurse -Include *.appx,*.appxbundle | % { Push-AppveyorArtifact $_.FullName }
