@@ -366,8 +366,7 @@ Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq "<thumbprint>" 
 
 Unogram is developed by [nallion](https://github.com/nallion). The upstream repository —
 source, releases and issue tracker — is at
-<https://github.com/nallion/tdlib_wp10>. Report application bugs there, not here; this
-fork only changes the build configuration.
+<https://github.com/nallion/tdlib_wp10>.
 
 Built on [TDLib](https://github.com/tdlib/td) by the Telegram team, licensed under
 Boost Software License 1.0.
