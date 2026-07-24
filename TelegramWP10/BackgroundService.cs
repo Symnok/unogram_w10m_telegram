@@ -9,30 +9,31 @@ using Newtonsoft.Json.Linq;
 namespace TelegramWP10
 {
     /// <summary>
-    /// Фоновая работа в рамках того, что реально разрешает Windows 10 Mobile.
+    /// Background work, within what Windows 10 Mobile actually permits.
     ///
-    /// Постоянно живущего процесса на Mobile получить нельзя:
-    ///   * ControlChannelTrigger и SocketActivityTrigger требуют StreamSocket,
-    ///     а сокет TDLib живёт внутри нативной tdjson.dll и наружу не отдаётся;
-    ///   * extendedExecutionUnconstrained на Mobile не поддерживается;
-    ///   * PushNotificationTrigger требует регистрации пакета в Store (WNS).
+    /// A permanently running process is not achievable on Mobile:
+    ///   * ControlChannelTrigger and SocketActivityTrigger both need a
+    ///     StreamSocket, and TDLib's socket lives inside native tdjson.dll;
+    ///   * extendedExecutionUnconstrained is not honoured on Mobile;
+    ///   * PushNotificationTrigger needs a Store-registered package (WNS).
     ///
-    /// Остаётся два разрешённых механизма, оба реализованы здесь:
-    ///   1. ExtendedExecutionSession — короткая отсрочка приостановки, чтобы
-    ///      соединение не рвалось при быстром сворачивании.
-    ///   2. TimeTrigger раз в 15 минут (single-process) — догрузка и toast.
+    /// Three mechanisms are implemented here:
+    ///   1. ExtendedExecutionSession — a short suspension grace window so the
+    ///      connection survives a quick minimise.
+    ///   2. Location-tracking keep-alive — optional, off by default.
+    ///   3. TimeTrigger every 15 minutes (single-process) — catch-up and toast.
     /// </summary>
     public sealed class BackgroundService
     {
         public const string CatchUpTaskName = "UnogramCatchUp";
-        /// <summary>Поднимать при любом изменении регистрации задачи.</summary>
+        /// <summary>Increment whenever the task registration changes.</summary>
         private const int RegistrationVersion = 4;
 
-        /// <summary>Держится, пока в этом процессе открыт клиент TDLib.</summary>
+        /// <summary>Held while this process has a TDLib client open.</summary>
         public const string TdSessionMutexName = "Unogram.TdSession";
         private const uint CatchUpIntervalMinutes = 15;
 
-        /// <summary>Сколько держим процесс живым в задаче догрузки.</summary>
+        /// <summary>How long the catch-up task keeps the process awake.</summary>
         private const int CatchUpDrainSeconds = 20;
 
         private static BackgroundService _instance;
@@ -45,29 +46,29 @@ namespace TelegramWP10
 
         private ExtendedExecutionSession _session;
 
-        /// <summary>Приложение сейчас на экране. Ставится из App.</summary>
+        /// <summary>App is on screen. Set from App.</summary>
         public static bool IsInForeground = true;
 
         /// <summary>
-        /// Идёт фоновая догрузка. Отдельный флаг, а не вывод из IsInForeground:
-        /// при активации фоновой задачи приостановленный процесс размораживается
-        /// и может прислать Resuming, из-за чего IsInForeground станет true
-        /// ровно тогда, когда мы в фоне.
+        /// Catch-up is running. A separate flag rather than something inferred
+        /// from IsInForeground: activating the background task un-freezes a
+        /// suspended process, which may raise Resuming and set IsInForeground
+        /// to true at exactly the moment we are in the background.
         /// </summary>
         public static volatile bool IsCatchUpRunning = false;
 
         // ------------------------------------------------------------------
-        // 1. Отсрочка приостановки
+        // 1. Suspension grace window
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Запрашивается из App.OnSuspending внутри deferral. Окно короткое и
-        /// системой не гарантируется — это защита от разрыва соединения при
-        /// быстром переключении приложений, а не фоновый режим.
+        /// Requested from App.OnSuspending inside the deferral. The window is
+        /// short and not guaranteed — it protects against losing the connection
+        /// when switching apps briefly, and is not a background mode.
         /// </summary>
         public async Task<bool> RequestGraceWindowAsync()
         {
-            // Постоянная сессия уже держит процесс — второе продление не нужно.
+            // The keep-alive session already holds the process; no second extension needed.
             if (_keepAliveSession != null)
             {
                 Diag("Suspend: keep-alive session active, no grace window needed");
@@ -77,8 +78,8 @@ namespace TelegramWP10
             ClearSession();
 
             if (await TryRequestAsync(ExtendedExecutionReason.Unspecified)) return true;
-            // Некоторые сборки Mobile отдают Unspecified только в foreground —
-            // при отказе пробуем причину, предназначенную для приостановки.
+            // Some Mobile builds grant Unspecified only in the foreground, so on
+            // refusal try the reason intended for suspension.
             return await TryRequestAsync(ExtendedExecutionReason.SavingData);
         }
 
@@ -86,7 +87,7 @@ namespace TelegramWP10
         {
             var session = new ExtendedExecutionSession();
             session.Reason = reason;
-            session.Description = "Дочитываем обновления Telegram";
+            session.Description = Loc.T("session_grace");
             session.Revoked += OnSessionRevoked;
 
             try
@@ -109,7 +110,7 @@ namespace TelegramWP10
             return false;
         }
 
-        /// <summary>Вызывается при возобновлении — окно больше не нужно.</summary>
+        /// <summary>Called on resume — the window is no longer needed.</summary>
         public void ReleaseGraceWindow()
         {
             ClearSession();
@@ -129,30 +130,30 @@ namespace TelegramWP10
 
         private void OnSessionRevoked(object sender, ExtendedExecutionRevokedEventArgs args)
         {
-            // Reason == SystemPolicy означает, что система забрала окно раньше срока.
+            // Reason == SystemPolicy means the system reclaimed the window early.
             Diag("ExtendedExecution REVOKED: " + args.Reason);
             ClearSession();
         }
 
         // ------------------------------------------------------------------
-        // 1b. Постоянная работа в фоне (location tracking)
+        // 1b. Always-on background mode (location tracking)
         // ------------------------------------------------------------------
         //
-        // ExtendedExecutionReason.LocationTracking — единственный режим
-        // продлённого выполнения, который Microsoft документирует как
-        // продолжающий работать при заблокированном экране на Mobile.
-        // Сессия привязана к реальному отслеживанию позиции: без живой
-        // подписки на Geolocator система вправе её отобрать.
+        // ExtendedExecutionReason.LocationTracking is the only extended
+        // execution mode Microsoft documents as continuing to run with the
+        // screen locked on Mobile. The session is premised on genuinely
+        // tracking position: without a live Geolocator subscription the system
+        // may revoke it.
         //
-        // Ценой этого приложение запрашивает доступ к геопозиции и тратит
-        // заметно больше батареи, поэтому по умолчанию режим выключен.
+        // The cost is a location permission prompt and noticeably higher
+        // battery use, so the mode is off by default.
 
         private ExtendedExecutionSession _keepAliveSession;
         private Windows.Devices.Geolocation.Geolocator _geolocator;
 
         private const string KeepAliveSettingKey = "keepalive_enabled";
 
-        /// <summary>Пользователь включил постоянную работу в фоне.</summary>
+        /// <summary>User has enabled always-on background mode.</summary>
         public static bool KeepAliveEnabled
         {
             get
@@ -174,12 +175,13 @@ namespace TelegramWP10
             }
         }
 
-        /// <summary>Держим ли сейчас сессию продлённого выполнения.</summary>
+        /// <summary>Whether an extended execution session is currently held.</summary>
         public bool KeepAliveActive { get { return _keepAliveSession != null; } }
 
         /// <summary>
-        /// Возвращает false, если пользователь отказал в доступе к геопозиции
-        /// или система не дала сессию — вызывающий код должен это показать.
+        /// Returns false if location access was refused on a build without
+        /// coarse fallback, or the system denied the session. The caller is
+        /// expected to surface that.
         /// </summary>
         public async Task<bool> StartKeepAliveAsync()
         {
@@ -188,20 +190,21 @@ namespace TelegramWP10
             bool coarseAvailable = false;
             try
             {
-                // Минимально возможная нагрузка: сеть/вышки вместо GPS, редкие
-                // отчёты, большой порог перемещения. Позиция нам не нужна —
-                // нужна живая подписка, оправдывающая сессию.
+                // Lightest possible configuration: network and cell towers
+                // instead of GPS, infrequent reports, large movement threshold.
+                // We do not want the position — only a live subscription that
+                // justifies the session.
                 _geolocator = new Windows.Devices.Geolocation.Geolocator();
                 _geolocator.DesiredAccuracy = Windows.Devices.Geolocation.PositionAccuracy.Default;
                 _geolocator.DesiredAccuracyInMeters = 3000;
-                _geolocator.MovementThreshold = 1000;      // метров
-                _geolocator.ReportInterval = 600000;       // 10 минут, это подсказка
+                _geolocator.MovementThreshold = 1000;      // metres
+                _geolocator.ReportInterval = 600000;       // 10 minutes; a hint only
 
-                // Грубая геопозиция: координаты размываются минимум до 4 км и
-                // работают даже при выключенном для приложения переключателе
-                // геолокации. Точная позиция нам не нужна вообще.
-                // Метод появился в 10.0.14393, а минимальная версия — 10240,
-                // поэтому проверяем наличие.
+                // Coarse location: positions are obfuscated to at least a 4 km
+                // radius and work even when the app-specific location switch is
+                // off. We have no use for a precise position at all.
+                // The method arrived in 10.0.14393 and our minimum is 10240,
+                // so check for it before calling.
                 if (Windows.Foundation.Metadata.ApiInformation.IsMethodPresent(
                         "Windows.Devices.Geolocation.Geolocator",
                         "AllowFallbackToConsentlessPositions"))
@@ -219,9 +222,9 @@ namespace TelegramWP10
                 return false;
             }
 
-            // Разрешение всё равно запрашиваем — с ним система охотнее держит
-            // сессию. Но отказ фатален только там, где грубая позиция недоступна
-            // (сборки старше 14393).
+            // Ask for permission anyway — the system is more willing to keep
+            // the session when it is granted. A refusal is only fatal where
+            // coarse positions are unavailable (builds older than 14393).
             Windows.Devices.Geolocation.GeolocationAccessStatus access =
                 Windows.Devices.Geolocation.GeolocationAccessStatus.Unspecified;
             try
@@ -247,7 +250,7 @@ namespace TelegramWP10
 
             var session = new ExtendedExecutionSession();
             session.Reason = ExtendedExecutionReason.LocationTracking;
-            session.Description = "Unogram остаётся на связи";
+            session.Description = Loc.T("session_keepAlive");
             session.Revoked += OnKeepAliveRevoked;
 
             try
@@ -302,8 +305,8 @@ namespace TelegramWP10
         private void OnPositionChanged(Windows.Devices.Geolocation.Geolocator sender,
                                        Windows.Devices.Geolocation.PositionChangedEventArgs args)
         {
-            // Позиция нам не нужна и никуда не отправляется. Подписка существует
-            // только чтобы сессия LocationTracking оставалась обоснованной.
+            // The position is unused and never transmitted. The subscription
+            // exists solely to keep the LocationTracking session justified.
         }
 
         private void OnGeolocatorStatusChanged(Windows.Devices.Geolocation.Geolocator sender,
@@ -319,8 +322,8 @@ namespace TelegramWP10
             Diag("KeepAlive: REVOKED " + args.Reason);
             StopKeepAlive();
 
-            // SystemPolicy обычно означает нехватку ресурсов. Пробуем ещё раз
-            // через минуту; если снова откажут — остаётся TimeTrigger.
+            // SystemPolicy usually means resource pressure. Retry once after a
+            // minute; if refused again, the TimeTrigger remains as fallback.
             if (args.Reason == ExtendedExecutionRevokedReason.SystemPolicy && KeepAliveEnabled)
             {
                 await Task.Delay(TimeSpan.FromMinutes(1));
@@ -330,13 +333,13 @@ namespace TelegramWP10
         }
 
         // ------------------------------------------------------------------
-        // 2. Периодическая догрузка
+        // 2. Periodic catch-up
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Регистрирует single-process задачу по TimeTrigger. Точка входа не
-        /// задаётся: активация приходит в App.OnBackgroundActivated, отдельный
-        /// winmd-проект не нужен.
+        /// Registers a single-process TimeTrigger task. No entry point is set:
+        /// activation arrives in App.OnBackgroundActivated, so no separate winmd
+        /// project is required.
         /// </summary>
         public static async Task<bool> RegisterCatchUpTaskAsync()
         {
@@ -357,10 +360,11 @@ namespace TelegramWP10
                 access == BackgroundAccessStatus.Unspecified)
                 return false;
 
-            // Точка входа задачи менялась (in-process -> out-of-process), а
-            // BackgroundTaskRegistration её не показывает, и установка поверх
-            // старую регистрацию не чистит. Держим версию регистрации отдельно
-            // и пересоздаём задачу, когда она устарела.
+            // The task entry point has changed before (in-process ->
+            // out-of-process), BackgroundTaskRegistration does not expose it,
+            // and installing over an existing build does not clear the old
+            // registration. Track a registration version and re-create the task
+            // when it is stale.
             var settings = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
             int registeredVersion = settings.ContainsKey("bg_reg_version")
                 ? Convert.ToInt32(settings["bg_reg_version"]) : 0;
@@ -384,12 +388,13 @@ namespace TelegramWP10
             {
                 var builder = new BackgroundTaskBuilder();
                 builder.Name = CatchUpTaskName;
-                // Single-process: TaskEntryPoint не задаём, активация приходит
-                // в App.OnBackgroundActivated. Out-of-process вариант (отдельный
-                // winmd-компонент) на этом устройстве не активировался вообще —
-                // ни одной строки лога за три окна срабатывания.
-                // Без SystemCondition: условие не проверяется в момент триггера,
-                // а откладывает задачу до решения системы, что связь есть.
+                // Single-process: no TaskEntryPoint, activation arrives in
+                // App.OnBackgroundActivated. The out-of-process variant (a
+                // separate winmd component) never activated on this device —
+                // not one log line across three trigger windows.
+                // No SystemCondition: a condition is not evaluated when the
+                // trigger fires, it defers the task until the system agrees the
+                // condition holds, which on a sleeping phone can be forever.
                 builder.SetTrigger(new TimeTrigger(CatchUpIntervalMinutes, false));
                 builder.Register();
                 settings["bg_reg_version"] = RegistrationVersion;
@@ -416,7 +421,7 @@ namespace TelegramWP10
             }
         }
 
-        /// <summary>Вызывается из App.OnBackgroundActivated.</summary>
+        /// <summary>Called from App.OnBackgroundActivated.</summary>
         public static async Task RunCatchUpAsync(IBackgroundTaskInstance taskInstance)
         {
             var deferral = taskInstance.GetDeferral();
@@ -434,9 +439,10 @@ namespace TelegramWP10
 
                 if (MainPage.ActiveClient != IntPtr.Zero)
                 {
-                    // Процесс жив: LongPolling() продолжает крутиться, TDLib сам
-                    // переподключится. Пинаем сетевой слой и даём время добрать
-                    // накопившиеся апдейты — они пройдут обычным путём и поднимут toast.
+                    // Process is alive: LongPolling() keeps running and TDLib
+                    // reconnects on its own. Nudge the network layer and give it
+                    // time to drain queued updates — they take the normal path
+                    // and raise toasts.
                     Diag("Catch-up FIRED, client alive - draining");
                     TdJson.SendUtf8(MainPage.ActiveClient,
                         "{\"@type\":\"setNetworkType\",\"type\":{\"@type\":\"networkTypeOther\"}}");
@@ -464,8 +470,8 @@ namespace TelegramWP10
         }
 
         /// <summary>
-        /// Бюджет памяти фоновой задачи. На Mobile он жёстче, чем на desktop, и
-        /// именно он решает, можно ли поднимать TDLib в холодном процессе.
+        /// Background task memory budget. Tighter on Mobile than on desktop,
+        /// and it decides whether TDLib can be started in a cold process.
         /// </summary>
         private static void LogMemoryBudget(string stage)
         {
@@ -486,30 +492,31 @@ namespace TelegramWP10
         }
 
         // ------------------------------------------------------------------
-        // Холодный запуск TDLib внутри фоновой задачи
+        // Cold-start TDLib session inside the background task
         // ------------------------------------------------------------------
 
-        /// <summary>Сколько секунд качаем апдейты до принудительного закрытия.</summary>
+        /// <summary>Seconds spent pumping updates before forcing a close.</summary>
         private const int ColdSessionBudgetSeconds = 25;
 
         /// <summary>
-        /// На одну базу TDLib должен приходиться один клиент. Фоновая задача
-        /// single-process живёт в том же процессе, что и UI, поэтому доступ к
-        /// сессии сериализуем. TDLib держит lock-файл и при втором клиенте
-        /// вернёт ошибку, а не испортит базу, но гонку лучше не допускать.
+        /// One TDLib client per database. A single-process background task
+        /// lives in the same process as the UI, so session access is
+        /// serialised. TDLib holds a lock file and returns an error rather than
+        /// corrupting the database on a second client, but the race is still
+        /// better avoided.
         /// </summary>
         private static readonly System.Threading.SemaphoreSlim TdGate =
             new System.Threading.SemaphoreSlim(1, 1);
 
         private static volatile bool _handoverRequested;
 
-        /// <summary>Просит фоновую сессию закрыться — вызывать при выходе на передний план.</summary>
+        /// <summary>Asks the background session to close; call when coming to the foreground.</summary>
         public static void RequestForegroundHandover()
         {
             _handoverRequested = true;
         }
 
-        /// <summary>Занимает сессию под клиент переднего плана. Не освобождается.</summary>
+        /// <summary>Claims the session for the foreground client. Never released.</summary>
         public static bool TryEnterTdSession(int timeoutMs)
         {
             try { return TdGate.Wait(timeoutMs); } catch { return false; }
@@ -585,8 +592,8 @@ namespace TelegramWP10
                         try { u = JObject.Parse(json); } catch { continue; }
                         string type = u["@type"]?.ToString();
 
-                        // Ошибку на setTdlibParameters иначе не увидеть: она приходит
-                        // как error, а не как updateAuthorizationState.
+                        // Otherwise an error from setTdlibParameters is invisible:
+                        // it arrives as error, not updateAuthorizationState.
                         if (type == "error")
                         {
                             Diag("Cold session TDLib error: " +
@@ -610,7 +617,7 @@ namespace TelegramWP10
                             }
                             else if (state != null && state.StartsWith("authorizationStateWait"))
                             {
-                                // Не авторизованы — логиниться в фоне нельзя.
+                                // Not signed in; logging in from the background is not possible.
                                 Diag("Cold session: not signed in (" + state + ")");
                                 abort = true;
                             }
@@ -634,8 +641,9 @@ namespace TelegramWP10
                                 DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt > 3600) continue;
 
                             long chatId = m["chat_id"]?.ToObject<long>() ?? 0;
-                            // Каждый запуск задачи — новый клиент TDLib, локальный
-                            // HashSet между запусками не живёт. Держим планку в настройках.
+                            // Every task run creates a new TDLib client, so a local
+                            // HashSet does not survive between runs. Keep the
+                            // watermark in settings instead.
                             if (!IsNewerThanLastNotified(chatId, mid)) continue;
                             string title = titles.ContainsKey(chatId) ? titles[chatId] : "Unogram";
                             ShowMessageToast(title, DescribeContent(m["content"]), chatId);
@@ -651,7 +659,7 @@ namespace TelegramWP10
                      + ", elapsed=" + (int)(ColdSessionBudgetSeconds -
                          Math.Max(0, (deadline - DateTime.UtcNow).TotalSeconds)) + "s");
 
-                // Корректное закрытие: close -> ждём authorizationStateClosed -> destroy.
+                // Clean shutdown: close -> await authorizationStateClosed -> destroy.
                 CloseClient(c);
             }
             catch (Exception ex)
@@ -708,25 +716,25 @@ namespace TelegramWP10
             switch (content?["@type"]?.ToString() ?? "")
             {
                 case "messageText":      return content["text"]?["text"]?.ToString() ?? "";
-                case "messagePhoto":     return "Фото";
-                case "messageVideo":     return "Видео";
-                case "messageVoiceNote": return "Голосовое сообщение";
-                case "messageVideoNote": return "Видеосообщение";
-                case "messageSticker":   return "Стикер";
-                case "messageDocument":  return "Файл";
+                case "messagePhoto":     return Loc.T("msg_photo");
+                case "messageVideo":     return Loc.T("msg_video");
+                case "messageVoiceNote": return Loc.T("msg_voice");
+                case "messageVideoNote": return Loc.T("msg_videoNote");
+                case "messageSticker":   return Loc.T("msg_sticker");
+                case "messageDocument":  return Loc.T("msg_file");
                 case "messageAnimation": return "GIF";
-                default:                 return "Новое сообщение";
+                default:                 return Loc.T("msg_new");
             }
         }
 
         // ------------------------------------------------------------------
-        // Диагностика, переживающая смерть процесса
+        // Diagnostics that survive process death
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Debug.WriteLine виден только под отладчиком, а под отладчиком
-        /// приложение не приостанавливается — то есть ровно в интересующем нас
-        /// сценарии лога нет. Поэтому дублируем в LocalSettings и в файл.
+        /// Debug.WriteLine is only visible under a debugger, and under a
+        /// debugger the app is never suspended — so the one scenario we care
+        /// about produces no output. Mirror to LocalSettings and to a file.
         /// </summary>
         public const string LogFolderName = "Unogram";
         public const string LogFileName = "bglog.txt";
@@ -747,10 +755,10 @@ namespace TelegramWP10
         }
 
         /// <summary>
-        /// Diag() зовут и UI-поток, и фоновая задача. Без сериализации записи
-        /// накладываются друг на друга: строки теряются, а файл оказывается
-        /// почти постоянно открыт — Device Portal тогда отдаёт ошибку вместо
-        /// содержимого. Пишем по очереди и держим файл открытым минимально.
+        /// Diag() is called from both the UI thread and the background task.
+        /// Without serialisation the writes overlap: lines are lost and the file
+        /// stays open almost continuously, at which point Device Portal returns
+        /// an error instead of the contents. Write in turn, hold it briefly.
         /// </summary>
         private static readonly System.Threading.SemaphoreSlim DiagFileLock =
             new System.Threading.SemaphoreSlim(1, 1);
@@ -760,14 +768,14 @@ namespace TelegramWP10
             if (!await DiagFileLock.WaitAsync(2000)) return;
             try
             {
-                // Кладём рядом с остальными логами: LocalState\\Unogram\\.
-                // Файлы в корне LocalState Device Portal почему-то не отдаёт.
+                // Alongside the other logs in LocalState\\Unogram\\. Device Portal
+                // will not serve files sitting at the root of LocalState.
                 var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
                     .CreateFolderAsync(LogFolderName, Windows.Storage.CreationCollisionOption.OpenIfExists);
                 var file = await folder.CreateFileAsync(LogFileName,
                     Windows.Storage.CreationCollisionOption.OpenIfExists);
 
-                // Не даём логу расти бесконечно — иначе он же станет проблемой.
+                // Cap growth, or the log becomes a problem in its own right.
                 var existing = await Windows.Storage.FileIO.ReadLinesAsync(file);
                 if (existing.Count > 400)
                 {
@@ -788,26 +796,26 @@ namespace TelegramWP10
             }
         }
 
-        /// <summary>Короткая сводка для показа в UI.</summary>
+        /// <summary>Short summary for display in the UI.</summary>
         public static string GetDiagnosticsSummary()
         {
             try
             {
                 var values = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
-                string last = values.ContainsKey("bg_last") ? values["bg_last"].ToString() : "нет записей";
+                string last = values.ContainsKey("bg_last") ? values["bg_last"].ToString() : Loc.T("diag_none");
                 int n = values.ContainsKey("bg_count") ? (int)values["bg_count"] : 0;
                 bool registered = false;
                 foreach (var t in BackgroundTaskRegistration.AllTasks)
                     if (t.Value.Name == CatchUpTaskName) registered = true;
-                return "Задача зарегистрирована: " + (registered ? "да" : "нет")
-                     + "\nСобытий: " + n
-                     + "\nПоследнее: " + last;
+                return Loc.T("diag_registered") + (registered ? Loc.T("diag_yes") : Loc.T("diag_no"))
+                     + "\n" + Loc.T("diag_events") + n
+                     + "\n" + Loc.T("diag_last") + last;
             }
-            catch (Exception ex) { return "Диагностика недоступна: " + ex.Message; }
+            catch (Exception ex) { return Loc.T("diag_unavailable") + ex.Message; }
         }
 
         // ------------------------------------------------------------------
-        // Уведомления
+        // Notifications
         // ------------------------------------------------------------------
 
         public const string ToastGroup = "unogram";
@@ -818,8 +826,9 @@ namespace TelegramWP10
         }
 
         /// <summary>
-        /// Уведомляли ли уже об этом сообщении. Планка на чат живёт в настройках,
-        /// поэтому переживает перезапуск процесса и повторные догрузки.
+        /// Whether this message has already been notified. The per-chat
+        /// watermark lives in settings, so it survives process restarts and
+        /// repeated catch-up runs.
         /// </summary>
         public static bool ShouldNotify(long chatId, long messageId)
         {

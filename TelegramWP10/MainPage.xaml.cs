@@ -183,7 +183,7 @@ namespace TelegramWP10
             // Подписка на скролл идёт через x:Name="MessagesScrollViewer" в XAML — ViewChanged там же
             this.Loaded += (s, e2) => {
                 if (SoundToggleItem != null)
-                    SoundToggleItem.Text = _soundEnabled ? "🔔 Звук: Вкл" : "🔕 Звук: Выкл";
+                    ApplyLanguage();
                     if (BackgroundService.KeepAliveEnabled) {
                         var ignoredKeepAlive = BackgroundService.Instance.StartKeepAliveAsync()
                             .ContinueWith(t => {
@@ -2219,18 +2219,18 @@ namespace TelegramWP10
                 var lines = await Windows.Storage.FileIO.ReadLinesAsync(file);
                 int take = System.Math.Min(20, lines.Count);
                 tail = string.Join("\n", lines.Skip(lines.Count - take));
-            } catch { tail = "(bglog.txt пока нет)"; }
+            } catch { tail = Loc.T("diag_noLog"); }
 
             string full = text + "\n\n--- bglog.txt ---\n" + tail;
-            var dlg = new Windows.UI.Popups.MessageDialog(full, "Фоновая диагностика");
-            dlg.Commands.Add(new Windows.UI.Popups.UICommand("Копировать", cmd => {
+            var dlg = new Windows.UI.Popups.MessageDialog(full, Loc.T("diag_title"));
+            dlg.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_copy"), cmd => {
                 try {
                     var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
                     dp.SetText(full);
                     Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
                 } catch { }
             }));
-            dlg.Commands.Add(new Windows.UI.Popups.UICommand("Закрыть"));
+            dlg.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_close")));
             await dlg.ShowAsync();
         }
 
@@ -4539,6 +4539,37 @@ namespace TelegramWP10
         /// Постоянная работа в фоне. По умолчанию выключено: режим требует
         /// доступа к геопозиции и заметно расходует батарею.
         /// </summary>
+        private void Language_Click(object sender, RoutedEventArgs e) {
+            var item = sender as MenuFlyoutItem;
+            string code = item == null ? null : item.Tag as string;
+            if (string.IsNullOrEmpty(code) || code == Loc.Language) return;
+            Loc.Language = code;
+            ApplyLanguage();
+        }
+
+        /// <summary>
+        /// Re-labels everything that has a localized string. Only the settings
+        /// menu is covered so far — the rest of MainPage.xaml still holds
+        /// hard-coded Russian and needs the same treatment.
+        /// </summary>
+        private void ApplyLanguage() {
+            try {
+                FavoritesItem.Text   = Loc.T("menu_favorites");
+                ClearCacheItem.Text  = Loc.T("menu_clearCache");
+                SoundToggleItem.Text = _soundEnabled ? Loc.T("menu_sound_on") : Loc.T("menu_sound_off");
+                BgDiagItem.Text      = Loc.T("menu_bgDiag");
+                LanguageSubItem.Text = Loc.T("menu_language");
+                LogoutItem.Text      = Loc.T("menu_logout");
+                UpdateKeepAliveMenuText();
+
+                // Hebrew is right-to-left; flipping the root mirrors the whole tree.
+                var root = Window.Current.Content as FrameworkElement;
+                if (root != null)
+                    root.FlowDirection = Loc.IsRightToLeft(Loc.Language)
+                        ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            } catch { }
+        }
+
         private async void KeepAliveToggle_Click(object sender, RoutedEventArgs e) {
             if (BackgroundService.Instance.KeepAliveActive) {
                 BackgroundService.KeepAliveEnabled = false;
@@ -4548,13 +4579,8 @@ namespace TelegramWP10
             }
 
             var dialog = new Windows.UI.Popups.MessageDialog(
-                "Приложение будет получать сообщения сразу, не дожидаясь проверки раз в 15 минут.\n\n" +
-                "Для этого Windows 10 Mobile требует разрешение на доступ к геопозиции — " +
-                "это единственный способ не дать системе заморозить приложение. " +
-                "Позиция не считывается и никуда не передаётся.\n\n" +
-                "Расход батареи заметно вырастет.",
-                "Фоновый режим");
-            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Включить", async cmd => {
+                Loc.T("keepAlive_body"), Loc.T("keepAlive_title"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_enable"), async cmd => {
                 BackgroundService.KeepAliveEnabled = true;
                 bool ok = await BackgroundService.Instance.StartKeepAliveAsync();
                 UpdateKeepAliveMenuText();
@@ -4562,26 +4588,24 @@ namespace TelegramWP10
                     BackgroundService.KeepAliveEnabled = false;
                     UpdateKeepAliveMenuText();
                     await new Windows.UI.Popups.MessageDialog(
-                        "Не удалось включить фоновый режим. Проверьте, разрешён ли доступ к " +
-                        "геопозиции в настройках системы, и что приложение добавлено в " +
-                        "исключения экономии заряда.", "Фоновый режим").ShowAsync();
+                        Loc.T("keepAlive_failed"), Loc.T("keepAlive_title")).ShowAsync();
                 }
             }));
-            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_cancel")));
             await dialog.ShowAsync();
         }
 
         private void UpdateKeepAliveMenuText() {
             try {
                 KeepAliveToggleItem.Text = BackgroundService.Instance.KeepAliveActive
-                    ? "📍 Фоновый режим: Вкл" : "📍 Фоновый режим: Выкл";
+                    ? Loc.T("menu_keepAlive_on") : Loc.T("menu_keepAlive_off");
             } catch { }
         }
 
         private void SoundToggle_Click(object sender, RoutedEventArgs e) {
             _soundEnabled = !_soundEnabled;
             Windows.Storage.ApplicationData.Current.LocalSettings.Values["sound_enabled"] = _soundEnabled;
-            SoundToggleItem.Text = _soundEnabled ? "🔔 Звук: Вкл" : "🔕 Звук: Выкл";
+            SoundToggleItem.Text = _soundEnabled ? Loc.T("menu_sound_on") : Loc.T("menu_sound_off");
         }
 
         private async void ClearCache_Click(object sender, RoutedEventArgs e) {

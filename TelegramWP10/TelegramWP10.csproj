@@ -77,6 +77,7 @@
     </Compile>
     <Compile Include="TdJson.cs" />
     <Compile Include="BackgroundService.cs" />
+    <Compile Include="Loc.cs" />
     <Compile Include="ChatItem.cs" />
     <Compile Include="MessageItem.cs" />
     <Compile Include="WebPDecoder.cs" />

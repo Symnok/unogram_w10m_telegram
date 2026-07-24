@@ -11,6 +11,11 @@ namespace TelegramWP10
         public App()
         {
             this.InitializeComponent();
+            // bglog.txt only records what BackgroundService writes, so a crash on
+            // the UI thread leaves no trace. Log it before the process dies.
+            this.UnhandledException += OnUnhandledException;
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+
             this.Suspending += OnSuspending;
             this.Resuming += OnResuming;
         }
@@ -29,6 +34,41 @@ namespace TelegramWP10
             BackgroundService.IsInForeground = true;
             // Регистрация идёт после Activate(), чтобы не задерживать показ окна.
             await BackgroundService.RegisterCatchUpTaskAsync();
+        }
+
+        private void OnUnhandledException(object sender,
+            Windows.UI.Xaml.UnhandledExceptionEventArgs e)
+        {
+            try
+            {
+                var ex = e.Exception;
+                BackgroundService.Diag("CRASH: " + e.Message);
+                if (ex != null)
+                {
+                    BackgroundService.Diag("CRASH type: " + ex.GetType().FullName);
+                    if (ex.InnerException != null)
+                        BackgroundService.Diag("CRASH inner: " + ex.InnerException.Message);
+                    string st = ex.StackTrace ?? "";
+                    // The log line cap keeps this readable; the top frames are
+                    // the ones that matter.
+                    if (st.Length > 600) st = st.Substring(0, 600);
+                    BackgroundService.Diag("CRASH stack: " + st.Replace("\r\n", " | "));
+                }
+            }
+            catch { }
+            // Not marking Handled: swallowing it would hide the fault and leave
+            // the app in an unknown state.
+        }
+
+        private void OnUnobservedTaskException(object sender,
+            System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
+        {
+            try
+            {
+                BackgroundService.Diag("TASK EXCEPTION: " +
+                    (e.Exception == null ? "(null)" : e.Exception.Message));
+            }
+            catch { }
         }
 
         private async void OnSuspending(object sender, SuspendingEventArgs e)
