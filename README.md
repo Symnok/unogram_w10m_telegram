@@ -3,15 +3,15 @@
 A native Telegram client for Windows 10 Mobile, built on [TDLib](https://github.com/tdlib/td).
 Not a browser wrapper — a local UWP application.
 
-**Target platform:** Windows 10 Mobile 1703 (build 15063) and 1709 (build 15254), ARM only.
+**Target platform:** Windows 10 Mobile, ARM only. Builds against the 15063 SDK, installs on 1507 (10240) and later.
 
 ---
 
 ## About this fork
 
 This is a fork of [nallion/tdlib_wp10](https://github.com/nallion/tdlib_wp10) with the
-build configuration reworked for a specific target: Windows 10 Mobile 1703 and 1709 on
-ARM, sideloaded onto a real device. The application source is unchanged — everything
+build configuration reworked for a specific target: Windows 10 Mobile on ARM,
+sideloaded onto a real device, with background notifications. The application source is unchanged — everything
 below concerns how it builds and deploys, and describes **this fork**, not upstream.
 
 What diverges from upstream:
@@ -20,7 +20,7 @@ What diverges from upstream:
 |---|---|---|
 | Project type GUID | invalid placeholder — solution won't load in VS 2017 | correct UWP flavor GUID |
 | Solution project GUID | not valid hexadecimal, didn't match the csproj | matches `<ProjectGuid>` |
-| SDK targeting | `10.0.18362.0`, min `10.0.10240.0` | `10.0.15063.0`, min `10.0.15063.0` |
+| SDK targeting | `10.0.18362.0` (no such SDK for W10M) | `10.0.15063.0`, min `10.0.10240.0` |
 | Device family | `Windows.Universal` | `Windows.Mobile` |
 | Platforms | `Release\|ARM` only | `Debug\|ARM` and `Release\|ARM`, non-ARM builds rejected |
 | Signing | custom `AutoSignAppx` target calling `MakeCert` | `PackageCertificateKeyFile` / `PackageCertificateThumbprint` |
@@ -30,6 +30,10 @@ What diverges from upstream:
 | Packaging | `.appxbundle` | plain `.appx`, `SideloadOnly` |
 | Manifest publisher | `CN=Test`, mismatched the signing certificate | `CN=TelegramWP10`, matches |
 | Content items | `tdjson.dll` listed twice | de-duplicated |
+| Background work | none | 15-minute `TimeTrigger` catch-up with lock-screen toasts |
+| Notifications | fired twice, never removable | tagged per chat, cleared on read and on delete |
+| Compose bar | six fixed columns, ~88 epx input | three columns, ~224 epx input |
+| Deleted chats | never returned to the list | restored on new activity |
 
 If you're comparing files against upstream and something looks unfamiliar, this table is
 probably why.
@@ -42,18 +46,22 @@ probably why.
 |---|---|---|
 | Visual Studio | 2017, **15.9** | "Universal Windows Platform development" workload |
 | Windows 10 SDK | **10.0.15063.0** | Install via the VS Installer |
-| Device | W10M 1703 / 1709 | Developer mode enabled |
+| Device | Windows 10 Mobile | Developer mode enabled |
 
 For building TDLib from source you also need `git`, `cmake`, `perl`, `7z`, and `wget` on `PATH`.
 
-### Why 15063 and not 16299
+### Why the 15063 SDK
 
 Windows 10 Mobile 1709 is OS build **15254**, from the `feature2` branch. It forked from
 1703 (build 15063) and never received the desktop Fall Creators Update API surface.
 10.0.15063.0 is therefore the newest SDK whose APIs actually exist on the device.
 
-Do not raise `TargetPlatformMinVersion` above `10.0.15063.0` — the manifest `MinVersion`
-must stay at or below `10.0.15254.0` or the package will not install on a phone at all.
+`TargetPlatformMinVersion` is `10.0.10240.0`, so the package installs on every Windows 10
+Mobile release. Since the SDK is newer than the minimum, anything introduced after 1507
+needs an `ApiInformation.IsApiContractPresent` guard rather than being safe by construction.
+
+Never raise `TargetPlatformVersion` above `10.0.15063.0`, and never let `MinVersion` exceed
+`10.0.15254.0` — that blocks installation on a phone outright.
 
 ---
 
@@ -241,12 +249,64 @@ Release builds use the .NET Native toolchain and need the framework packages fro
 
 ---
 
+## Background notifications
+
+Windows 10 Mobile has no mechanism for keeping a messenger connected while the
+screen is off. `ControlChannelTrigger` and `SocketActivityTrigger` both require a
+`StreamSocket` you own, and TDLib's transport lives inside `tdjson.dll`. WNS push
+needs a Store-registered package. `extendedExecutionUnconstrained` is not honoured on
+Mobile.
+
+What this fork does instead, in `BackgroundService.cs`:
+
+- **`ExtendedExecutionSession` on suspend.** Requested inside the suspending deferral.
+  `Unspecified` is consistently denied on Mobile; `SavingData` is granted, which buys a
+  short grace window so a quick minimise doesn't tear down the connection.
+- **`TimeTrigger` every 15 minutes**, single-process — activation arrives in
+  `App.OnBackgroundActivated`, so no separate component project is needed. The task
+  un-freezes the process for ~20 seconds; `LongPolling()` resumes, TDLib reconnects and
+  delivers whatever queued up, and the normal `updateNewMessage` path raises toasts.
+- **A cold-start TDLib session** for when Windows has terminated the app entirely. It
+  opens the database, waits for `authorizationStateReady`, pumps updates, then closes
+  cleanly (`close` → `authorizationStateClosed` → `td_json_client_destroy`). Measured
+  at ~16 MB against a 70 MB background-task budget.
+
+Toast rules differ by context: on screen, only messages under a minute old notify, so
+opening the app doesn't produce a burst of toasts for backlog you're about to read. During
+catch-up (`IsCatchUpRunning`) the window widens to an hour, since reporting what arrived
+while the phone slept is the entire point. A per-chat watermark in `LocalSettings`
+(`notified_*`) prevents repeats across runs.
+
+**What to expect:** notifications up to 15 minutes late. Windows may skip runs under
+battery pressure. This is not push, and it will not feel like a live messenger.
+
+**Diagnostics.** ⚙ → 🐞 Фоновая диагностика shows registration state and the tail of
+`LocalState\Unogram\bglog.txt`, with a copy button. `Debug.WriteLine` is useless here:
+an attached debugger prevents suspension, so the scenario can't be reproduced while the
+only output channel is open.
+
+`RegistrationVersion` in `BackgroundService.cs` must be incremented whenever the trigger,
+entry point or conditions change. Installing over an existing build does not clear
+background registrations, and the old one silently wins otherwise.
+
+Do not add `SystemCondition(InternetAvailable)`. It does not test the condition when the
+trigger fires — it defers the task until Windows agrees the condition holds, which on a
+sleeping phone can be indefinitely. It was tried; the task never ran once.
+
+An out-of-process WinRT component was also tried, on the theory that the in-process task
+inherits the app's memory footprint. It never activated on device — no log output across
+three trigger windows — and the memory concern turned out to be unfounded: a genuinely
+cold in-process activation starts at ~8 MB, not the 59 MB seen when a previous process
+hadn't fully died.
+
+---
+
 ## Project configuration reference
 
 | Property | Value | Why |
 |---|---|---|
 | `TargetPlatformVersion` | `10.0.15063.0` | Newest API surface present on W10M 1709 |
-| `TargetPlatformMinVersion` | `10.0.15063.0` | Excludes 1511 (10586) and 1607 (14393) |
+| `TargetPlatformMinVersion` | `10.0.10240.0` | Installs on every W10M release |
 | `TargetDeviceFamily` | `Windows.Mobile` | Phones only — no desktop, HoloLens or Xbox |
 | `AppxBundle` | `Never` | Plain `.appx`, not a bundle |
 | `AppxBundlePlatforms` | `ARM` | ARM only |
@@ -258,8 +318,7 @@ The `EnforceArmOnlyMobile` target fails the build if the platform isn't ARM or i
 prompt was accepted by accident.
 
 `Windows.Mobile` means the package will not install on a Windows 10 PC for quick testing.
-Switch to `Windows.Universal` if you want that; the version bounds do the 1703/1709
-filtering either way.
+Switch to `Windows.Universal` if you want that.
 
 ---
 
