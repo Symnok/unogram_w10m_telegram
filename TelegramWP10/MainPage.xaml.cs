@@ -184,6 +184,14 @@ namespace TelegramWP10
             this.Loaded += (s, e2) => {
                 if (SoundToggleItem != null)
                     SoundToggleItem.Text = _soundEnabled ? "🔔 Звук: Вкл" : "🔕 Звук: Выкл";
+                    if (BackgroundService.KeepAliveEnabled) {
+                        var ignoredKeepAlive = BackgroundService.Instance.StartKeepAliveAsync()
+                            .ContinueWith(t => {
+                                var ignoredUi = Dispatcher.RunAsync(
+                                    Windows.UI.Core.CoreDispatcherPriority.Low,
+                                    () => UpdateKeepAliveMenuText());
+                            });
+                    }
             };
             // ApplyTheme вызывается в Loaded когда все элементы готовы
             this.Loaded += (s, e) => ApplyTheme();
@@ -4525,6 +4533,49 @@ namespace TelegramWP10
                 OpenChat(_chatsDict[_myUserId], 0);
             else
                 TdJson.SendUtf8(_client, "{\"@type\":\"createPrivateChat\",\"user_id\":" + _myUserId + ",\"force\":true}");
+        }
+
+        /// <summary>
+        /// Постоянная работа в фоне. По умолчанию выключено: режим требует
+        /// доступа к геопозиции и заметно расходует батарею.
+        /// </summary>
+        private async void KeepAliveToggle_Click(object sender, RoutedEventArgs e) {
+            if (BackgroundService.Instance.KeepAliveActive) {
+                BackgroundService.KeepAliveEnabled = false;
+                BackgroundService.Instance.StopKeepAlive();
+                UpdateKeepAliveMenuText();
+                return;
+            }
+
+            var dialog = new Windows.UI.Popups.MessageDialog(
+                "Приложение будет получать сообщения сразу, не дожидаясь проверки раз в 15 минут.\n\n" +
+                "Для этого Windows 10 Mobile требует разрешение на доступ к геопозиции — " +
+                "это единственный способ не дать системе заморозить приложение. " +
+                "Позиция не считывается и никуда не передаётся.\n\n" +
+                "Расход батареи заметно вырастет.",
+                "Фоновый режим");
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Включить", async cmd => {
+                BackgroundService.KeepAliveEnabled = true;
+                bool ok = await BackgroundService.Instance.StartKeepAliveAsync();
+                UpdateKeepAliveMenuText();
+                if (!ok) {
+                    BackgroundService.KeepAliveEnabled = false;
+                    UpdateKeepAliveMenuText();
+                    await new Windows.UI.Popups.MessageDialog(
+                        "Не удалось включить фоновый режим. Проверьте, разрешён ли доступ к " +
+                        "геопозиции в настройках системы, и что приложение добавлено в " +
+                        "исключения экономии заряда.", "Фоновый режим").ShowAsync();
+                }
+            }));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
+            await dialog.ShowAsync();
+        }
+
+        private void UpdateKeepAliveMenuText() {
+            try {
+                KeepAliveToggleItem.Text = BackgroundService.Instance.KeepAliveActive
+                    ? "📍 Фоновый режим: Вкл" : "📍 Фоновый режим: Выкл";
+            } catch { }
         }
 
         private void SoundToggle_Click(object sender, RoutedEventArgs e) {

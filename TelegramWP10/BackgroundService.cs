@@ -67,6 +67,13 @@ namespace TelegramWP10
         /// </summary>
         public async Task<bool> RequestGraceWindowAsync()
         {
+            // Постоянная сессия уже держит процесс — второе продление не нужно.
+            if (_keepAliveSession != null)
+            {
+                Diag("Suspend: keep-alive session active, no grace window needed");
+                return true;
+            }
+
             ClearSession();
 
             if (await TryRequestAsync(ExtendedExecutionReason.Unspecified)) return true;
@@ -125,6 +132,201 @@ namespace TelegramWP10
             // Reason == SystemPolicy означает, что система забрала окно раньше срока.
             Diag("ExtendedExecution REVOKED: " + args.Reason);
             ClearSession();
+        }
+
+        // ------------------------------------------------------------------
+        // 1b. Постоянная работа в фоне (location tracking)
+        // ------------------------------------------------------------------
+        //
+        // ExtendedExecutionReason.LocationTracking — единственный режим
+        // продлённого выполнения, который Microsoft документирует как
+        // продолжающий работать при заблокированном экране на Mobile.
+        // Сессия привязана к реальному отслеживанию позиции: без живой
+        // подписки на Geolocator система вправе её отобрать.
+        //
+        // Ценой этого приложение запрашивает доступ к геопозиции и тратит
+        // заметно больше батареи, поэтому по умолчанию режим выключен.
+
+        private ExtendedExecutionSession _keepAliveSession;
+        private Windows.Devices.Geolocation.Geolocator _geolocator;
+
+        private const string KeepAliveSettingKey = "keepalive_enabled";
+
+        /// <summary>Пользователь включил постоянную работу в фоне.</summary>
+        public static bool KeepAliveEnabled
+        {
+            get
+            {
+                try
+                {
+                    var v = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
+                    return v.ContainsKey(KeepAliveSettingKey) && (bool)v[KeepAliveSettingKey];
+                }
+                catch { return false; }
+            }
+            set
+            {
+                try
+                {
+                    Windows.Storage.ApplicationData.Current.LocalSettings.Values[KeepAliveSettingKey] = value;
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>Держим ли сейчас сессию продлённого выполнения.</summary>
+        public bool KeepAliveActive { get { return _keepAliveSession != null; } }
+
+        /// <summary>
+        /// Возвращает false, если пользователь отказал в доступе к геопозиции
+        /// или система не дала сессию — вызывающий код должен это показать.
+        /// </summary>
+        public async Task<bool> StartKeepAliveAsync()
+        {
+            if (_keepAliveSession != null) return true;
+
+            bool coarseAvailable = false;
+            try
+            {
+                // Минимально возможная нагрузка: сеть/вышки вместо GPS, редкие
+                // отчёты, большой порог перемещения. Позиция нам не нужна —
+                // нужна живая подписка, оправдывающая сессию.
+                _geolocator = new Windows.Devices.Geolocation.Geolocator();
+                _geolocator.DesiredAccuracy = Windows.Devices.Geolocation.PositionAccuracy.Default;
+                _geolocator.DesiredAccuracyInMeters = 3000;
+                _geolocator.MovementThreshold = 1000;      // метров
+                _geolocator.ReportInterval = 600000;       // 10 минут, это подсказка
+
+                // Грубая геопозиция: координаты размываются минимум до 4 км и
+                // работают даже при выключенном для приложения переключателе
+                // геолокации. Точная позиция нам не нужна вообще.
+                // Метод появился в 10.0.14393, а минимальная версия — 10240,
+                // поэтому проверяем наличие.
+                if (Windows.Foundation.Metadata.ApiInformation.IsMethodPresent(
+                        "Windows.Devices.Geolocation.Geolocator",
+                        "AllowFallbackToConsentlessPositions"))
+                {
+                    _geolocator.AllowFallbackToConsentlessPositions();
+                    coarseAvailable = true;
+                }
+
+                _geolocator.PositionChanged += OnPositionChanged;
+                _geolocator.StatusChanged += OnGeolocatorStatusChanged;
+            }
+            catch (Exception ex)
+            {
+                Diag("KeepAlive: geolocator setup failed: " + ex.Message);
+                return false;
+            }
+
+            // Разрешение всё равно запрашиваем — с ним система охотнее держит
+            // сессию. Но отказ фатален только там, где грубая позиция недоступна
+            // (сборки старше 14393).
+            Windows.Devices.Geolocation.GeolocationAccessStatus access =
+                Windows.Devices.Geolocation.GeolocationAccessStatus.Unspecified;
+            try
+            {
+                access = await Windows.Devices.Geolocation.Geolocator.RequestAccessAsync();
+            }
+            catch (Exception ex)
+            {
+                Diag("KeepAlive: RequestAccessAsync failed: " + ex.Message);
+            }
+
+            if (access != Windows.Devices.Geolocation.GeolocationAccessStatus.Allowed)
+            {
+                Diag("KeepAlive: location access " + access
+                     + (coarseAvailable ? ", continuing with coarse positions" : ", giving up"));
+                if (!coarseAvailable) { StopGeolocator(); return false; }
+            }
+            else
+            {
+                Diag("KeepAlive: location access Allowed"
+                     + (coarseAvailable ? " (coarse fallback armed)" : ""));
+            }
+
+            var session = new ExtendedExecutionSession();
+            session.Reason = ExtendedExecutionReason.LocationTracking;
+            session.Description = "Unogram остаётся на связи";
+            session.Revoked += OnKeepAliveRevoked;
+
+            try
+            {
+                var result = await session.RequestExtensionAsync();
+                if (result == ExtendedExecutionResult.Allowed)
+                {
+                    _keepAliveSession = session;
+                    Diag("KeepAlive: ALLOWED (location tracking)");
+                    return true;
+                }
+                Diag("KeepAlive: DENIED");
+            }
+            catch (Exception ex)
+            {
+                Diag("KeepAlive: RequestExtensionAsync failed: " + ex.Message);
+            }
+
+            try { session.Revoked -= OnKeepAliveRevoked; session.Dispose(); } catch { }
+            StopGeolocator();
+            return false;
+        }
+
+        public void StopKeepAlive()
+        {
+            if (_keepAliveSession != null)
+            {
+                try
+                {
+                    _keepAliveSession.Revoked -= OnKeepAliveRevoked;
+                    _keepAliveSession.Dispose();
+                }
+                catch { }
+                _keepAliveSession = null;
+                Diag("KeepAlive: stopped");
+            }
+            StopGeolocator();
+        }
+
+        private void StopGeolocator()
+        {
+            if (_geolocator == null) return;
+            try
+            {
+                _geolocator.PositionChanged -= OnPositionChanged;
+                _geolocator.StatusChanged -= OnGeolocatorStatusChanged;
+            }
+            catch { }
+            _geolocator = null;
+        }
+
+        private void OnPositionChanged(Windows.Devices.Geolocation.Geolocator sender,
+                                       Windows.Devices.Geolocation.PositionChangedEventArgs args)
+        {
+            // Позиция нам не нужна и никуда не отправляется. Подписка существует
+            // только чтобы сессия LocationTracking оставалась обоснованной.
+        }
+
+        private void OnGeolocatorStatusChanged(Windows.Devices.Geolocation.Geolocator sender,
+                                               Windows.Devices.Geolocation.StatusChangedEventArgs args)
+        {
+            if (args.Status == Windows.Devices.Geolocation.PositionStatus.Disabled ||
+                args.Status == Windows.Devices.Geolocation.PositionStatus.NotAvailable)
+                Diag("KeepAlive: geolocator status " + args.Status);
+        }
+
+        private async void OnKeepAliveRevoked(object sender, ExtendedExecutionRevokedEventArgs args)
+        {
+            Diag("KeepAlive: REVOKED " + args.Reason);
+            StopKeepAlive();
+
+            // SystemPolicy обычно означает нехватку ресурсов. Пробуем ещё раз
+            // через минуту; если снова откажут — остаётся TimeTrigger.
+            if (args.Reason == ExtendedExecutionRevokedReason.SystemPolicy && KeepAliveEnabled)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1));
+                if (KeepAliveEnabled && _keepAliveSession == null)
+                    await StartKeepAliveAsync();
+            }
         }
 
         // ------------------------------------------------------------------

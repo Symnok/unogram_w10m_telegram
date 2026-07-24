@@ -47,11 +47,15 @@ namespace TelegramWP10
             }
         }
 
-        private void OnResuming(object sender, object e)
+        private async void OnResuming(object sender, object e)
         {
             BackgroundService.IsInForeground = true;
             BackgroundService.RequestForegroundHandover();
             BackgroundService.Instance.ReleaseGraceWindow();
+        
+            // Сессию могли отобрать, пока приложение было свёрнуто.
+            if (BackgroundService.KeepAliveEnabled && !BackgroundService.Instance.KeepAliveActive)
+                await BackgroundService.Instance.StartKeepAliveAsync();
         }
 
         protected override async void OnBackgroundActivated(BackgroundActivatedEventArgs args)
