@@ -25,6 +25,11 @@ namespace TelegramWP10
     public sealed class BackgroundService
     {
         public const string CatchUpTaskName = "UnogramCatchUp";
+        /// <summary>Поднимать при любом изменении регистрации задачи.</summary>
+        private const int RegistrationVersion = 4;
+
+        /// <summary>Держится, пока в этом процессе открыт клиент TDLib.</summary>
+        public const string TdSessionMutexName = "Unogram.TdSession";
         private const uint CatchUpIntervalMinutes = 15;
 
         /// <summary>Сколько держим процесс живым в задаче догрузки.</summary>
@@ -42,6 +47,14 @@ namespace TelegramWP10
 
         /// <summary>Приложение сейчас на экране. Ставится из App.</summary>
         public static bool IsInForeground = true;
+
+        /// <summary>
+        /// Идёт фоновая догрузка. Отдельный флаг, а не вывод из IsInForeground:
+        /// при активации фоновой задачи приостановленный процесс размораживается
+        /// и может прислать Resuming, из-за чего IsInForeground станет true
+        /// ровно тогда, когда мы в фоне.
+        /// </summary>
+        public static volatile bool IsCatchUpRunning = false;
 
         // ------------------------------------------------------------------
         // 1. Отсрочка приостановки
@@ -137,27 +150,49 @@ namespace TelegramWP10
             }
 
             Diag("Background access: " + access);
-            if (access == BackgroundAccessStatus.Denied ||
-                access == BackgroundAccessStatus.DeniedByUser ||
-                access == BackgroundAccessStatus.DeniedBySystemPolicy)
+            if (access == BackgroundAccessStatus.DeniedByUser ||
+                access == BackgroundAccessStatus.DeniedBySystemPolicy ||
+                access == BackgroundAccessStatus.Unspecified)
                 return false;
 
+            // Точка входа задачи менялась (in-process -> out-of-process), а
+            // BackgroundTaskRegistration её не показывает, и установка поверх
+            // старую регистрацию не чистит. Держим версию регистрации отдельно
+            // и пересоздаём задачу, когда она устарела.
+            var settings = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
+            int registeredVersion = settings.ContainsKey("bg_reg_version")
+                ? Convert.ToInt32(settings["bg_reg_version"]) : 0;
+
+            bool exists = false;
             foreach (var t in BackgroundTaskRegistration.AllTasks)
+                if (t.Value.Name == CatchUpTaskName) exists = true;
+
+            if (exists && registeredVersion == RegistrationVersion)
             {
-                if (t.Value.Name == CatchUpTaskName)
-                {
-                    Debug.WriteLine("[BG] Catch-up task already registered");
-                    return true;
-                }
+                Diag("Catch-up task already registered (v" + registeredVersion + ")");
+                return true;
+            }
+            if (exists)
+            {
+                UnregisterCatchUpTask();
+                Diag("Re-registering catch-up task: v" + registeredVersion + " -> v" + RegistrationVersion);
             }
 
             try
             {
                 var builder = new BackgroundTaskBuilder();
                 builder.Name = CatchUpTaskName;
+                // Single-process: TaskEntryPoint не задаём, активация приходит
+                // в App.OnBackgroundActivated. Out-of-process вариант (отдельный
+                // winmd-компонент) на этом устройстве не активировался вообще —
+                // ни одной строки лога за три окна срабатывания.
+                // Без SystemCondition: условие не проверяется в момент триггера,
+                // а откладывает задачу до решения системы, что связь есть.
                 builder.SetTrigger(new TimeTrigger(CatchUpIntervalMinutes, false));
                 builder.Register();
-                Diag("Catch-up task registered (" + CatchUpIntervalMinutes + " min)");
+                settings["bg_reg_version"] = RegistrationVersion;
+                Diag("Catch-up task registered in-process, v" + RegistrationVersion
+                     + " (" + CatchUpIntervalMinutes + " min)");
                 return true;
             }
             catch (Exception ex)
@@ -190,6 +225,7 @@ namespace TelegramWP10
                 Debug.WriteLine("[BG] Catch-up cancelled: " + reason);
             };
 
+            IsCatchUpRunning = true;
             try
             {
                 LogMemoryBudget("catch-up start");
@@ -220,6 +256,7 @@ namespace TelegramWP10
             }
             finally
             {
+                IsCatchUpRunning = false;
                 deferral.Complete();
             }
         }
@@ -300,6 +337,7 @@ namespace TelegramWP10
 
                 client = TdJson.td_json_client_create();
                 if (client == IntPtr.Zero) { Diag("Cold session: client create failed"); return; }
+                LogMemoryBudget("tdjson loaded");
 
                 var parameters = new JObject {
                     ["@type"] = "setTdlibParameters",
@@ -322,14 +360,20 @@ namespace TelegramWP10
                 IntPtr c = client;
                 bool authorized = false;
                 bool abort = false;
+                string exitReason = "budget exhausted";
                 var deadline = DateTime.UtcNow.AddSeconds(ColdSessionBudgetSeconds);
                 var titles = new System.Collections.Generic.Dictionary<long, string>();
                 var seen = new System.Collections.Generic.HashSet<long>();
 
                 await Task.Run(() =>
                 {
-                    while (DateTime.UtcNow < deadline && !cancelled() && !_handoverRequested && !abort)
+                    while (true)
                     {
+                        if (DateTime.UtcNow >= deadline)  { exitReason = "budget exhausted"; break; }
+                        if (cancelled())                  { exitReason = "task cancelled"; break; }
+                        if (_handoverRequested)           { exitReason = "foreground handover"; break; }
+                        if (abort)                        { exitReason = "not signed in"; break; }
+
                         IntPtr res = TdJson.td_json_client_receive(c, 1.0);
                         if (res == IntPtr.Zero) continue;
                         string json = TdJson.IntPtrToStringUtf8(res);
@@ -339,13 +383,29 @@ namespace TelegramWP10
                         try { u = JObject.Parse(json); } catch { continue; }
                         string type = u["@type"]?.ToString();
 
+                        // Ошибку на setTdlibParameters иначе не увидеть: она приходит
+                        // как error, а не как updateAuthorizationState.
+                        if (type == "error")
+                        {
+                            Diag("Cold session TDLib error: " +
+                                 (json.Length > 200 ? json.Substring(0, 200) : json));
+                            continue;
+                        }
+
                         if (type == "updateAuthorizationState")
                         {
                             string state = u["authorization_state"]?["@type"]?.ToString();
+                            Diag("Cold session state: " + state);
                             if (state == "authorizationStateWaitTdlibParameters")
+                                {
+                                Diag("Cold session: sending tdlib parameters, db=" + dbPath);
                                 TdJson.SendUtf8(c, parameters.ToString(Newtonsoft.Json.Formatting.None));
+                            }
                             else if (state == "authorizationStateReady")
+                            {
+                                if (!authorized) LogMemoryBudget("tdlib ready");
                                 authorized = true;
+                            }
                             else if (state != null && state.StartsWith("authorizationStateWait"))
                             {
                                 // Не авторизованы — логиниться в фоне нельзя.
@@ -383,8 +443,11 @@ namespace TelegramWP10
                     }
                 });
 
-                Diag("Cold session: authorized=" + authorized + ", toasts=" + notified
-                     + (_handoverRequested ? ", handover requested" : ""));
+                Diag("Cold session ended: reason=" + exitReason
+                     + ", authorized=" + authorized
+                     + ", toasts=" + notified
+                     + ", elapsed=" + (int)(ColdSessionBudgetSeconds -
+                         Math.Max(0, (deadline - DateTime.UtcNow).TotalSeconds)) + "s");
 
                 // Корректное закрытие: close -> ждём authorizationStateClosed -> destroy.
                 CloseClient(c);
@@ -463,6 +526,9 @@ namespace TelegramWP10
         /// приложение не приостанавливается — то есть ровно в интересующем нас
         /// сценарии лога нет. Поэтому дублируем в LocalSettings и в файл.
         /// </summary>
+        public const string LogFolderName = "Unogram";
+        public const string LogFileName = "bglog.txt";
+
         public static void Diag(string message)
         {
             Debug.WriteLine("[BG] " + message);
@@ -478,16 +544,46 @@ namespace TelegramWP10
             AppendDiagFile(line);
         }
 
+        /// <summary>
+        /// Diag() зовут и UI-поток, и фоновая задача. Без сериализации записи
+        /// накладываются друг на друга: строки теряются, а файл оказывается
+        /// почти постоянно открыт — Device Portal тогда отдаёт ошибку вместо
+        /// содержимого. Пишем по очереди и держим файл открытым минимально.
+        /// </summary>
+        private static readonly System.Threading.SemaphoreSlim DiagFileLock =
+            new System.Threading.SemaphoreSlim(1, 1);
+
         private static async void AppendDiagFile(string line)
         {
+            if (!await DiagFileLock.WaitAsync(2000)) return;
             try
             {
-                var folder = Windows.Storage.ApplicationData.Current.LocalFolder;
-                var file = await folder.CreateFileAsync("bglog.txt",
+                // Кладём рядом с остальными логами: LocalState\\Unogram\\.
+                // Файлы в корне LocalState Device Portal почему-то не отдаёт.
+                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
+                    .CreateFolderAsync(LogFolderName, Windows.Storage.CreationCollisionOption.OpenIfExists);
+                var file = await folder.CreateFileAsync(LogFileName,
                     Windows.Storage.CreationCollisionOption.OpenIfExists);
-                await Windows.Storage.FileIO.AppendTextAsync(file, line + "\r\n");
+
+                // Не даём логу расти бесконечно — иначе он же станет проблемой.
+                var existing = await Windows.Storage.FileIO.ReadLinesAsync(file);
+                if (existing.Count > 400)
+                {
+                    var keep = new System.Collections.Generic.List<string>(
+                        System.Linq.Enumerable.Skip(existing, existing.Count - 200));
+                    keep.Add(line);
+                    await Windows.Storage.FileIO.WriteLinesAsync(file, keep);
+                }
+                else
+                {
+                    await Windows.Storage.FileIO.AppendTextAsync(file, line + "\r\n");
+                }
             }
             catch { }
+            finally
+            {
+                try { DiagFileLock.Release(); } catch { }
+            }
         }
 
         /// <summary>Короткая сводка для показа в UI.</summary>
@@ -517,6 +613,24 @@ namespace TelegramWP10
         public static string ToastTagForChat(long chatId)
         {
             return "c" + (chatId < 0 ? "n" : "") + Math.Abs(chatId).ToString();
+        }
+
+        /// <summary>
+        /// Уведомляли ли уже об этом сообщении. Планка на чат живёт в настройках,
+        /// поэтому переживает перезапуск процесса и повторные догрузки.
+        /// </summary>
+        public static bool ShouldNotify(long chatId, long messageId)
+        {
+            if (messageId == 0) return true;
+            try
+            {
+                var v = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
+                string key = "notified_" + chatId;
+                if (v.ContainsKey(key) && messageId <= Convert.ToInt64(v[key])) return false;
+                v[key] = messageId;
+                return true;
+            }
+            catch { return true; }
         }
 
         public static void ShowMessageToast(string title, string body, long chatId)

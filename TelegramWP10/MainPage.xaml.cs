@@ -46,6 +46,7 @@ namespace TelegramWP10
         // replyMsgId → MessageItem которому нужно заполнить ReplyToText
         private Dictionary<long, MessageItem> _replyRequests = new Dictionary<long, MessageItem>();
         private long _currentChatId = 0;
+        private System.Threading.Mutex _tdSessionMutex = null;
         private long _myUserId = 0;
         private bool _waitingForMe = false;
         private bool _contactsPendingMyId = false;
@@ -159,10 +160,13 @@ namespace TelegramWP10
         public MainPage()
         {
             this.InitializeComponent();
-            // Просим фоновую сессию закрыться и ждём освобождения базы.
-            BackgroundService.RequestForegroundHandover();
-            if (!BackgroundService.TryEnterTdSession(10000))
-                BackgroundService.Diag("Foreground: TDLib gate not acquired, background session still open");
+            // Фоновая задача теперь в отдельном процессе, поэтому база защищается
+            // именованным мьютексом: задача его проверяет и уступает приложению.
+            try {
+                _tdSessionMutex = new System.Threading.Mutex(false, BackgroundService.TdSessionMutexName);
+                try { _tdSessionMutex.WaitOne(10000); }
+                catch (System.Threading.AbandonedMutexException) { }
+            } catch { _tdSessionMutex = null; }
             _client = TdJson.td_json_client_create();
             ActiveClient = _client;   // видно фоновой задаче догрузки
             ChatListView.ItemsSource = _chatListItems;
@@ -911,13 +915,33 @@ namespace TelegramWP10
                     if (_archiveChatItems.Any(ch => ch.Id == newMsgChatId))
                         UpdateArchiveUnreadBadge();
                     // Звук и уведомление для входящих личных сообщений
+                    if (!_soundEnabled && newMsg != null && BackgroundService.IsCatchUpRunning)
+                        BackgroundService.Diag("Toast skipped: sound disabled");
                     if (_soundEnabled && newMsg != null) {
                         bool isOutgoing = newMsg["is_outgoing"]?.ToObject<bool>() ?? false;
                         bool isPrivate  = newMsgChatId > 0;
                         long sentAt     = newMsg["date"]?.ToObject<long>() ?? 0;
+                        long toastMsgId = newMsg["id"]?.ToObject<long>() ?? 0;
+                        // На переднем плане уведомляем только о свежем, иначе при
+                        // открытии приложения сыплется весь backlog. В фоне же
+                        // задача догрузки для того и нужна, чтобы сообщить о том,
+                        // что пришло, пока телефон спал — там планка шире, а от
+                        // повторов защищает отметка последнего уведомления.
+                        bool background = BackgroundService.IsCatchUpRunning
+                                       || !BackgroundService.IsInForeground;
+                        int  maxAge     = background ? CatchUpToastMaxAgeSeconds : ToastMaxAgeSeconds;
                         bool isFresh    = sentAt == 0 ||
-                            DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt <= ToastMaxAgeSeconds;
-                        if (!isOutgoing && isPrivate && isFresh) {
+                            DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt <= maxAge;
+                        bool notYetSeen = BackgroundService.ShouldNotify(newMsgChatId, toastMsgId);
+                        // В фоне записываем, почему уведомление не показано —
+                        // иначе отсутствие toast'а невозможно отличить от причин.
+                        if (background && !(!isOutgoing && isPrivate && isFresh && notYetSeen))
+                            BackgroundService.Diag("Toast skipped: sound=" + _soundEnabled
+                                + " outgoing=" + isOutgoing + " private=" + isPrivate
+                                + " fresh=" + isFresh + " age=" + (sentAt == 0 ? -1 :
+                                    DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt)
+                                + " notYetSeen=" + notYetSeen + " chat=" + newMsgChatId);
+                        if (!isOutgoing && isPrivate && isFresh && notYetSeen) {
                             // Собираем имя и текст для уведомления
                             string senderName = "";
                             if (_chatsDict.ContainsKey(newMsgChatId))
@@ -2174,6 +2198,32 @@ namespace TelegramWP10
                 if (!_allChatItems.Any(c => c.Id == chatId)) _allChatItems.Add(item);
                 ChatCountText.Text = _chatListItems.Count.ToString();
             }
+        }
+
+        /// <summary>Показывает состояние фоновой задачи и хвост bglog.txt.</summary>
+        private async void BgDiag_Click(object sender, RoutedEventArgs e) {
+            string text = BackgroundService.GetDiagnosticsSummary();
+            string tail = "";
+            try {
+                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
+                    .GetFolderAsync(BackgroundService.LogFolderName);
+                var file = await folder.GetFileAsync(BackgroundService.LogFileName);
+                var lines = await Windows.Storage.FileIO.ReadLinesAsync(file);
+                int take = System.Math.Min(20, lines.Count);
+                tail = string.Join("\n", lines.Skip(lines.Count - take));
+            } catch { tail = "(bglog.txt пока нет)"; }
+
+            string full = text + "\n\n--- bglog.txt ---\n" + tail;
+            var dlg = new Windows.UI.Popups.MessageDialog(full, "Фоновая диагностика");
+            dlg.Commands.Add(new Windows.UI.Popups.UICommand("Копировать", cmd => {
+                try {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(full);
+                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                } catch { }
+            }));
+            dlg.Commands.Add(new Windows.UI.Popups.UICommand("Закрыть"));
+            await dlg.ShowAsync();
         }
 
         private void MoveChatToTop(long chatId) {
@@ -5066,6 +5116,9 @@ namespace TelegramWP10
         /// уведомлений о сообщениях, которые он прямо сейчас и открыл.
         /// </summary>
         private const int ToastMaxAgeSeconds = 60;
+
+        /// <summary>В фоновой догрузке — всё, что пришло за последний час.</summary>
+        private const int CatchUpToastMaxAgeSeconds = 3600;
 
         // ---- Переключение "микрофон / отправить" и режим видеосообщения ----
 
