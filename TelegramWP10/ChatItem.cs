@@ -37,6 +37,10 @@ namespace TelegramWP10
         }
         public string NoPhotoVisibility => _photo == null ? "Visible" : "Collapsed";
 
+        // Заглушка при отсутствии фото: цвет из палитры по Id + инициалы из Title
+        public string AvatarColor => AvatarPlaceholder.GetColor(Id);
+        public string AvatarInitials => AvatarPlaceholder.GetInitials(Title);
+
         private string _lastMessage = "";
         public string LastMessage
         {

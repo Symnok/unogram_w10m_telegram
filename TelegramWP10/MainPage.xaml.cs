@@ -1460,16 +1460,24 @@ namespace TelegramWP10
                     long openChatId = update["id"]?.ToObject<long>() ?? 0;
                     // Ответ на восстановление удалённого чата — отдаём его
                     // штатному обработчику, чтобы не дублировать логику вставки.
+                    // Восстанавливаем в список ТОЛЬКО если чат реально состоит
+                    // в главном списке или архиве (order != "0") — иначе TDLib
+                    // просто "знает" о чате (пересылка/реплай на чужой чат),
+                    // и добавлять его в чатлист не нужно.
                     if (openChatId != 0 && _pendingRestoreChatIds.Remove(openChatId)) {
-                        if (!_chatsDict.ContainsKey(openChatId)) {
-                            var restored = new JObject {
-                                ["@type"] = "updateNewChat",
-                                ["chat"] = update.DeepClone()
-                            };
-                            HandleUpdate("updateNewChat", restored);   // наполняет _chatsDict
+                        if (TryGetActivePosition(update, out bool restoredToArchive)) {
+                            if (!_chatsDict.ContainsKey(openChatId)) {
+                                var restored = new JObject {
+                                    ["@type"] = "updateNewChat",
+                                    ["chat"] = update.DeepClone()
+                                };
+                                HandleUpdate("updateNewChat", restored);   // наполняет _chatsDict
+                            }
+                            if (restoredToArchive) _archiveChatIds.Add(openChatId);
+                            else _archiveChatIds.Remove(openChatId);
+                            RestoreChatIntoList(openChatId);               // и только теперь — в список
+                            MoveChatToTop(openChatId);
                         }
-                        RestoreChatIntoList(openChatId);               // и только теперь — в список
-                        MoveChatToTop(openChatId);
                     }
                     // Открыть чат по упоминанию (searchPublicChat / createPrivateChat)
                     if (_pendingOpenChat && openChatId != 0) {
@@ -2166,22 +2174,46 @@ namespace TelegramWP10
         private readonly HashSet<long> _pendingRestoreChatIds = new HashSet<long>();
 
         /// <summary>
+        /// TDLib присылает updateNewChat не только для чатов из реального списка —
+        /// объект чата также создаётся, когда клиент просто "узнаёт" о чате
+        /// (пересланное сообщение, ответ на чужой чат, ссылка). У такого чата
+        /// нет позиции ни в одном списке (order == "0" везде). Проверяем это
+        /// по массиву positions, чтобы отличить настоящее членство в списке от
+        /// побочного знания о чате.
+        /// </summary>
+        private bool TryGetActivePosition(JToken chatObj, out bool toArchive) {
+            toArchive = false;
+            var positions = chatObj?["positions"] as JArray;
+            if (positions == null) return false;
+            foreach (var p in positions) {
+                string order = p["order"]?.ToString() ?? "0";
+                if (order == "0") continue;
+                string listType = p["list"]?["@type"]?.ToString();
+                if (listType == "chatListArchive") { toArchive = true; return true; }
+                if (listType == "chatListMain") { toArchive = false; return true; }
+            }
+            return false;
+        }
+
+        /// <summary>
         /// TDLib присылает updateNewChat один раз за сессию клиента. После
         /// удаления переписки чат исчезает из _chatsDict, и все дальнейшие
         /// updateChatLastMessage / updateChatPosition по нему отбрасываются —
         /// чат уже не возвращается в список до перезапуска. Дозапрашиваем чат
         /// и прогоняем ответ через обычный путь updateNewChat.
+        ///
+        /// Важно: даже если чат уже есть в _chatsDict, это ещё не значит, что
+        /// он реально состоит в списке — он мог попасть туда фоново (пересылка,
+        /// реплай на чужой чат). Поэтому всегда перепроверяем актуальную
+        /// позицию через getChat, а не доверяем самому факту наличия в словаре.
         /// </summary>
         private void EnsureChatInList(long chatId) {
             if (chatId == 0) return;
             if (_loadingChats || _loadingArchive || _loadingArchiveIds) return;
 
-            bool inDict  = _chatsDict.ContainsKey(chatId);
             bool visible = _chatListItems.Any(c => c.Id == chatId)
                         || _archiveChatItems.Any(c => c.Id == chatId);
-            if (inDict && visible) return;
-
-            if (inDict) { RestoreChatIntoList(chatId); return; }  // getChat не нужен
+            if (visible) return;
 
             if (!_pendingRestoreChatIds.Add(chatId)) return;      // запрос уже в пути
             TdJson.SendUtf8(_client, "{\"@type\":\"getChat\",\"chat_id\":" + chatId + "}");
@@ -2915,6 +2947,7 @@ namespace TelegramWP10
                 if (chatId == _currentChatId) {
                     ChatHeaderAvatarBrush.ImageSource = bitmap;
                     ChatHeaderAvatarEllipse.Visibility = Windows.UI.Xaml.Visibility.Visible;
+                    ChatHeaderAvatarInitials.Text = "";
                 }
             } catch (Exception ex) { Log("UpdateAvatar ERR chat=" + chatId + " | " + ex.Message); }
         }
@@ -3103,6 +3136,8 @@ namespace TelegramWP10
             if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
             else ChatHeaderAvatarBrush.ImageSource = null;
             ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
+            ChatHeaderAvatarBorder.Fill = CB(AvatarPlaceholder.GetColor(chat.Id));
+            ChatHeaderAvatarInitials.Text = chat.Photo != null ? "" : AvatarPlaceholder.GetInitials(chat.Title);
             // Статус для групп/каналов — запрашиваем число участников
             if (_currentChatIsGroup || chat.IsChannel) {
                 CurrentChatStatus.Text = "загрузка...";
@@ -3508,6 +3543,8 @@ namespace TelegramWP10
             ProfileBioPanel.Visibility = Visibility.Collapsed;
             ProfileMembersPanel.Visibility = Visibility.Collapsed;
             ProfileAvatarBrush.ImageSource = ChatHeaderAvatarBrush.ImageSource;
+            ProfileAvatarPlaceholder.Fill = ChatHeaderAvatarBorder.Fill;
+            ProfileAvatarInitials.Text = ChatHeaderAvatarInitials.Text;
             if (_rawChatsDict.ContainsKey(_currentChatId)) {
                 var raw = _rawChatsDict[_currentChatId] as Newtonsoft.Json.Linq.JObject;
                 long userId = raw?["type"]?["user_id"]?.ToObject<long>() ?? 0;

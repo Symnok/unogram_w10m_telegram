@@ -85,6 +85,7 @@
     <Compile Include="ContactItem.cs" />
     <Compile Include="SearchMessageItem.cs" />
     <Compile Include="SearchResultItem.cs" />
+    <Compile Include="AvatarPlaceholder.cs" />
   </ItemGroup>
 
   <ItemGroup>

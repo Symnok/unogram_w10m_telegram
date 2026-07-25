@@ -236,7 +236,12 @@
                                             </Ellipse.Fill>
                                         </Ellipse>
                                         <Ellipse Width="50" Height="50" HorizontalAlignment="Left"
-                                                 Fill="#555555" Visibility="{Binding NoPhotoVisibility}"/>
+                                                 Fill="{Binding AvatarColor}" Visibility="{Binding NoPhotoVisibility}"/>
+                                        <TextBlock Text="{Binding AvatarInitials}" Width="50" Height="50"
+                                                   HorizontalAlignment="Left" TextAlignment="Center"
+                                                   Foreground="White" FontSize="19" FontWeight="SemiBold"
+                                                   Margin="0,15,0,0"
+                                                   Visibility="{Binding NoPhotoVisibility}"/>
                                         <Ellipse Width="14" Height="14" Fill="#22C55E"
                                                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                                  Margin="0,0,2,0"
@@ -320,7 +325,10 @@
                                     <ColumnDefinition Width="44"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Ellipse Width="40" Height="40" Fill="#555555"/>
+                                <Ellipse Width="40" Height="40" Fill="{Binding AvatarColor}" Visibility="{Binding NoPhotoVisibility}"/>
+                                <TextBlock Text="{Binding AvatarInitials}" Width="40" Height="40"
+                                           TextAlignment="Center" Foreground="White" FontSize="15" FontWeight="SemiBold"
+                                           Margin="0,11,0,0" Visibility="{Binding NoPhotoVisibility}"/>
                                 <Ellipse Width="40" Height="40">
                                     <Ellipse.Fill>
                                         <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
@@ -412,6 +420,9 @@
                 <StackPanel Orientation="Horizontal" Tapped="ChatHeaderProfile_Tapped" VerticalAlignment="Center">
                     <Grid Width="36" Height="36" VerticalAlignment="Center" Margin="6,0,0,0">
                         <Ellipse x:Name="ChatHeaderAvatarBorder" Width="36" Height="36" Fill="#555555"/>
+                        <TextBlock x:Name="ChatHeaderAvatarInitials" Text="" Width="36" Height="36"
+                                   TextAlignment="Center" Foreground="White" FontSize="14" FontWeight="SemiBold"
+                                   Margin="0,9,0,0"/>
                         <Ellipse x:Name="ChatHeaderAvatarEllipse" Width="36" Height="36">
                             <Ellipse.Fill>
                                 <ImageBrush x:Name="ChatHeaderAvatarBrush" Stretch="UniformToFill"/>
@@ -791,7 +802,10 @@
                                             <ColumnDefinition Width="44"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Ellipse Width="40" Height="40" Fill="#555555"/>
+                                        <Ellipse Width="40" Height="40" Fill="{Binding AvatarColor}" Visibility="{Binding NoPhotoVisibility}"/>
+                                        <TextBlock Text="{Binding AvatarInitials}" Width="40" Height="40"
+                                                   TextAlignment="Center" Foreground="White" FontSize="15" FontWeight="SemiBold"
+                                                   Margin="0,11,0,0" Visibility="{Binding NoPhotoVisibility}"/>
                                         <Ellipse Width="40" Height="40">
                                             <Ellipse.Fill>
                                                 <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
@@ -816,7 +830,10 @@
                         <StackPanel Padding="20">
                             <!-- Аватарка -->
                             <Grid Width="80" Height="80" HorizontalAlignment="Center" Margin="0,0,0,12">
-                                <Ellipse Width="80" Height="80" Fill="#555555"/>
+                                <Ellipse Width="80" Height="80" x:Name="ProfileAvatarPlaceholder" Fill="#555555"/>
+                                <TextBlock x:Name="ProfileAvatarInitials" Text="" Width="80" Height="80"
+                                           TextAlignment="Center" Foreground="White" FontSize="30" FontWeight="SemiBold"
+                                           Margin="0,24,0,0"/>
                                 <Ellipse Width="80" Height="80" x:Name="ProfileAvatarEllipse">
                                     <Ellipse.Fill>
                                         <ImageBrush x:Name="ProfileAvatarBrush" Stretch="UniformToFill"/>
@@ -863,7 +880,10 @@
                                                     <ColumnDefinition Width="40"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
-                                                <Ellipse Width="36" Height="36" Fill="#555555"/>
+                                                <Ellipse Width="36" Height="36" Fill="{Binding AvatarColor}" Visibility="{Binding NoPhotoVisibility}"/>
+                                                <TextBlock Text="{Binding AvatarInitials}" Width="36" Height="36"
+                                                           TextAlignment="Center" Foreground="White" FontSize="14" FontWeight="SemiBold"
+                                                           Margin="0,9,0,0" Visibility="{Binding NoPhotoVisibility}"/>
                                                 <Ellipse Width="36" Height="36">
                                                     <Ellipse.Fill>
                                                         <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
@@ -1094,9 +1114,13 @@
                                                 <ImageBrush ImageSource="{Binding Photo}" Stretch="UniformToFill"/>
                                             </Ellipse.Fill>
                                         </Ellipse>
-                                        <Ellipse Width="40" Height="40" Fill="#555555"
+                                        <Ellipse Width="40" Height="40" Fill="{Binding AvatarColor}"
                                                  HorizontalAlignment="Left"
                                                  Visibility="{Binding NoPhotoVisibility}"/>
+                                        <TextBlock Text="{Binding AvatarInitials}" Width="40" Height="40"
+                                                   HorizontalAlignment="Left" TextAlignment="Center"
+                                                   Foreground="White" FontSize="15" FontWeight="SemiBold"
+                                                   Margin="0,11,0,0" Visibility="{Binding NoPhotoVisibility}"/>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
                                             <TextBlock Text="{Binding FullName}" Foreground="White" FontSize="15" FontWeight="SemiBold"/>
                                             <TextBlock Text="{Binding Username}" Foreground="#888888" FontSize="12"/>

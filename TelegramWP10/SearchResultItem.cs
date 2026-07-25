@@ -24,8 +24,13 @@ namespace TelegramWP10
         private BitmapImage _photo;
         public BitmapImage Photo {
             get => _photo;
-            set { _photo = value; Notify("Photo"); }
+            set { _photo = value; Notify("Photo"); Notify("NoPhotoVisibility"); }
         }
+        public Visibility NoPhotoVisibility => _photo == null ? Visibility.Visible : Visibility.Collapsed;
+
+        // Заглушка при отсутствии фото: цвет из палитры по ChatId + инициалы из Title
+        public string AvatarColor => AvatarPlaceholder.GetColor(ChatId);
+        public string AvatarInitials => AvatarPlaceholder.GetInitials(Title);
 
         public long MessageId { get; set; }
         public string DateText { get; set; } = "";
