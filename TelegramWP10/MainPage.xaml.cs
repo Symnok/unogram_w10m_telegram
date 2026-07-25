@@ -46,6 +46,7 @@ namespace TelegramWP10
         // replyMsgId → MessageItem которому нужно заполнить ReplyToText
         private Dictionary<long, MessageItem> _replyRequests = new Dictionary<long, MessageItem>();
         private long _currentChatId = 0;
+        private System.Threading.Mutex _tdSessionMutex = null;
         private long _myUserId = 0;
         private bool _waitingForMe = false;
         private bool _contactsPendingMyId = false;
@@ -159,7 +160,15 @@ namespace TelegramWP10
         public MainPage()
         {
             this.InitializeComponent();
+            // Фоновая задача теперь в отдельном процессе, поэтому база защищается
+            // именованным мьютексом: задача его проверяет и уступает приложению.
+            try {
+                _tdSessionMutex = new System.Threading.Mutex(false, BackgroundService.TdSessionMutexName);
+                try { _tdSessionMutex.WaitOne(10000); }
+                catch (System.Threading.AbandonedMutexException) { }
+            } catch { _tdSessionMutex = null; }
             _client = TdJson.td_json_client_create();
+            ActiveClient = _client;   // видно фоновой задаче догрузки
             ChatListView.ItemsSource = _chatListItems;
             MessagesListView.ItemsSource = _messageItems;
             // Загружаем сохранённый режим прокси до старта TDLib
@@ -174,7 +183,15 @@ namespace TelegramWP10
             // Подписка на скролл идёт через x:Name="MessagesScrollViewer" в XAML — ViewChanged там же
             this.Loaded += (s, e2) => {
                 if (SoundToggleItem != null)
-                    SoundToggleItem.Text = _soundEnabled ? "🔔 Звук: Вкл" : "🔕 Звук: Выкл";
+                    ApplyLanguage();
+                    if (BackgroundService.KeepAliveEnabled) {
+                        var ignoredKeepAlive = BackgroundService.Instance.StartKeepAliveAsync()
+                            .ContinueWith(t => {
+                                var ignoredUi = Dispatcher.RunAsync(
+                                    Windows.UI.Core.CoreDispatcherPriority.Low,
+                                    () => UpdateKeepAliveMenuText());
+                            });
+                    }
             };
             // ApplyTheme вызывается в Loaded когда все элементы готовы
             this.Loaded += (s, e) => ApplyTheme();
@@ -827,9 +844,20 @@ namespace TelegramWP10
                     }
                     break;
 
+                case "updateDeleteMessages":
+                    // Сообщение удалено (в том числе "у всех") — снимаем уведомление,
+                    // иначе оно живёт в центре уведомлений дольше самого сообщения.
+                    if (update["is_permanent"]?.ToObject<bool>() ?? false) {
+                        long delChatId = update["chat_id"]?.ToObject<long>() ?? 0;
+                        if (delChatId != 0) RemoveToastsForChat(delChatId);
+                    }
+                    break;
+
                 case "updateNewMessage":
                     var newMsg = update["message"];
                     long newMsgChatId = newMsg?["chat_id"]?.ToObject<long>() ?? 0;
+                    // Пришло сообщение в чат, которого нет в списке — вернём его.
+                    if (newMsgChatId != 0) EnsureChatInList(newMsgChatId);
                     bool newMsgOutgoing = newMsg?["is_outgoing"]?.ToObject<bool>() ?? false;
                     string newMsgType = newMsg?["content"]?["@type"]?.ToString() ?? "";
                     // Для исходящих файлов — регистрируем upload прогресс даже если чат не открыт
@@ -895,10 +923,33 @@ namespace TelegramWP10
                     if (_archiveChatItems.Any(ch => ch.Id == newMsgChatId))
                         UpdateArchiveUnreadBadge();
                     // Звук и уведомление для входящих личных сообщений
+                    if (!_soundEnabled && newMsg != null && BackgroundService.IsCatchUpRunning)
+                        BackgroundService.Diag("Toast skipped: sound disabled");
                     if (_soundEnabled && newMsg != null) {
                         bool isOutgoing = newMsg["is_outgoing"]?.ToObject<bool>() ?? false;
                         bool isPrivate  = newMsgChatId > 0;
-                        if (!isOutgoing && isPrivate) {
+                        long sentAt     = newMsg["date"]?.ToObject<long>() ?? 0;
+                        long toastMsgId = newMsg["id"]?.ToObject<long>() ?? 0;
+                        // На переднем плане уведомляем только о свежем, иначе при
+                        // открытии приложения сыплется весь backlog. В фоне же
+                        // задача догрузки для того и нужна, чтобы сообщить о том,
+                        // что пришло, пока телефон спал — там планка шире, а от
+                        // повторов защищает отметка последнего уведомления.
+                        bool background = BackgroundService.IsCatchUpRunning
+                                       || !BackgroundService.IsInForeground;
+                        int  maxAge     = background ? CatchUpToastMaxAgeSeconds : ToastMaxAgeSeconds;
+                        bool isFresh    = sentAt == 0 ||
+                            DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt <= maxAge;
+                        bool notYetSeen = BackgroundService.ShouldNotify(newMsgChatId, toastMsgId);
+                        // В фоне записываем, почему уведомление не показано —
+                        // иначе отсутствие toast'а невозможно отличить от причин.
+                        if (background && !(!isOutgoing && isPrivate && isFresh && notYetSeen))
+                            BackgroundService.Diag("Toast skipped: sound=" + _soundEnabled
+                                + " outgoing=" + isOutgoing + " private=" + isPrivate
+                                + " fresh=" + isFresh + " age=" + (sentAt == 0 ? -1 :
+                                    DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt)
+                                + " notYetSeen=" + notYetSeen + " chat=" + newMsgChatId);
+                        if (!isOutgoing && isPrivate && isFresh && notYetSeen) {
                             // Собираем имя и текст для уведомления
                             string senderName = "";
                             if (_chatsDict.ContainsKey(newMsgChatId))
@@ -911,7 +962,7 @@ namespace TelegramWP10
                             string msgText = mc?["text"]?["text"]?.ToString()
                                           ?? mc?["caption"]?["text"]?.ToString()
                                           ?? (mc?["@type"]?.ToString()?.Replace("message","") ?? "Сообщение");
-                            ShowToastNotification(senderName, msgText);
+                            ShowToastNotification(senderName, msgText, newMsgChatId);
                         }
                     }
                     break;
@@ -1130,6 +1181,7 @@ namespace TelegramWP10
                 case "updateChatLastMessage":
                     long ulcId = update["chat_id"]?.ToObject<long>() ?? 0;
                     var ulcMsg = update["last_message"];
+                    if (ulcId != 0 && ulcMsg != null) EnsureChatInList(ulcId);
                     if (ulcId != 0 && ulcMsg != null && _chatsDict.ContainsKey(ulcId)) {
                         string ulcType = ulcMsg["content"]?["@type"]?.ToString() ?? "null";
                         FillChatLastMessage(_chatsDict[ulcId], ulcMsg, update);
@@ -1157,6 +1209,9 @@ namespace TelegramWP10
                             }
                         } else {
                             _pendingPinnedPositions[ucpId] = ucpPinned;
+                            // Ненулевой порядок означает, что чат снова в списке.
+                            string ucpOrder = ucpPos?["order"]?.ToString() ?? "0";
+                            if (ucpOrder != "0") EnsureChatInList(ucpId);
                         }
                     }
                     break;
@@ -1403,6 +1458,19 @@ namespace TelegramWP10
 
                 case "chat":
                     long openChatId = update["id"]?.ToObject<long>() ?? 0;
+                    // Ответ на восстановление удалённого чата — отдаём его
+                    // штатному обработчику, чтобы не дублировать логику вставки.
+                    if (openChatId != 0 && _pendingRestoreChatIds.Remove(openChatId)) {
+                        if (!_chatsDict.ContainsKey(openChatId)) {
+                            var restored = new JObject {
+                                ["@type"] = "updateNewChat",
+                                ["chat"] = update.DeepClone()
+                            };
+                            HandleUpdate("updateNewChat", restored);   // наполняет _chatsDict
+                        }
+                        RestoreChatIntoList(openChatId);               // и только теперь — в список
+                        MoveChatToTop(openChatId);
+                    }
                     // Открыть чат по упоминанию (searchPublicChat / createPrivateChat)
                     if (_pendingOpenChat && openChatId != 0) {
                         _pendingOpenChat = false;
@@ -2092,6 +2160,78 @@ namespace TelegramWP10
                 if (list[i].IsPinned) insertAt = i + 1;
             }
             list.Insert(insertAt, item);
+        }
+
+        /// <summary>Чаты, по которым отправлен getChat для восстановления в списке.</summary>
+        private readonly HashSet<long> _pendingRestoreChatIds = new HashSet<long>();
+
+        /// <summary>
+        /// TDLib присылает updateNewChat один раз за сессию клиента. После
+        /// удаления переписки чат исчезает из _chatsDict, и все дальнейшие
+        /// updateChatLastMessage / updateChatPosition по нему отбрасываются —
+        /// чат уже не возвращается в список до перезапуска. Дозапрашиваем чат
+        /// и прогоняем ответ через обычный путь updateNewChat.
+        /// </summary>
+        private void EnsureChatInList(long chatId) {
+            if (chatId == 0) return;
+            if (_loadingChats || _loadingArchive || _loadingArchiveIds) return;
+
+            bool inDict  = _chatsDict.ContainsKey(chatId);
+            bool visible = _chatListItems.Any(c => c.Id == chatId)
+                        || _archiveChatItems.Any(c => c.Id == chatId);
+            if (inDict && visible) return;
+
+            if (inDict) { RestoreChatIntoList(chatId); return; }  // getChat не нужен
+
+            if (!_pendingRestoreChatIds.Add(chatId)) return;      // запрос уже в пути
+            TdJson.SendUtf8(_client, "{\"@type\":\"getChat\",\"chat_id\":" + chatId + "}");
+        }
+
+        /// <summary>
+        /// updateNewChat заполняет только _chatsDict — в видимый список чаты
+        /// попадают исключительно через LoadNextChat. Для восстановленного чата
+        /// этой очереди уже нет, поэтому вставляем сами.
+        /// </summary>
+        private void RestoreChatIntoList(long chatId) {
+            if (!_chatsDict.ContainsKey(chatId)) return;
+            var item = _chatsDict[chatId];
+            bool toArchive = _archiveChatIds.Contains(chatId);
+            var list = toArchive ? _archiveChatItems : _chatListItems;
+            if (list.Any(c => c.Id == chatId)) return;
+
+            InsertAfterPinned(list, item);
+            if (toArchive) {
+                UpdateArchiveUnreadBadge();
+            } else {
+                if (!_allChatItems.Any(c => c.Id == chatId)) _allChatItems.Add(item);
+                ChatCountText.Text = _chatListItems.Count.ToString();
+            }
+        }
+
+        /// <summary>Показывает состояние фоновой задачи и хвост bglog.txt.</summary>
+        private async void BgDiag_Click(object sender, RoutedEventArgs e) {
+            string text = BackgroundService.GetDiagnosticsSummary();
+            string tail = "";
+            try {
+                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
+                    .GetFolderAsync(BackgroundService.LogFolderName);
+                var file = await folder.GetFileAsync(BackgroundService.LogFileName);
+                var lines = await Windows.Storage.FileIO.ReadLinesAsync(file);
+                int take = System.Math.Min(20, lines.Count);
+                tail = string.Join("\n", lines.Skip(lines.Count - take));
+            } catch { tail = Loc.T("diag_noLog"); }
+
+            string full = text + "\n\n--- bglog.txt ---\n" + tail;
+            var dlg = new Windows.UI.Popups.MessageDialog(full, Loc.T("diag_title"));
+            dlg.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_copy"), cmd => {
+                try {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(full);
+                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                } catch { }
+            }));
+            dlg.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_close")));
+            await dlg.ShowAsync();
         }
 
         private void MoveChatToTop(long chatId) {
@@ -2876,6 +3016,7 @@ namespace TelegramWP10
             if (_currentChatId != 0)
                 TdJson.SendUtf8(_client, "{\"@type\":\"closeChat\",\"chat_id\":" + _currentChatId + "}");
             _currentChatId = chat.Id;
+            RemoveToastsForChat(chat.Id);   // чат открыт — уведомления по нему больше не нужны
             // Группа если тип chatTypeBasicGroup или chatTypeSupergroup не-канал
             _currentChatIsGroup = false;
             if (_rawChatsDict.ContainsKey(chat.Id)) {
@@ -4331,7 +4472,22 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
         }
 
-        private void ShowToastNotification(string title, string body) {
+        private const string ToastGroup = "unogram";
+
+        private static string ToastTagForChat(long chatId) {
+            // Tag ограничен по длине, поэтому только цифры без знака.
+            return "c" + (chatId < 0 ? "n" : "") + System.Math.Abs(chatId).ToString();
+        }
+
+        /// <summary>Убирает из центра уведомлений всё, что относится к чату.</summary>
+        private static void RemoveToastsForChat(long chatId) {
+            try {
+                Windows.UI.Notifications.ToastNotificationManager.History
+                    .Remove(ToastTagForChat(chatId), ToastGroup);
+            } catch { }
+        }
+
+        private void ShowToastNotification(string title, string body, long chatId) {
             try {
                 // Строим XML вручную — полный контроль над звуком
                 string xml = $@"<toast duration=""short"">
@@ -4346,6 +4502,10 @@ namespace TelegramWP10
                 var toastXml = new Windows.Data.Xml.Dom.XmlDocument();
                 toastXml.LoadXml(xml);
                 var toast = new Windows.UI.Notifications.ToastNotification(toastXml);
+                // Tag/Group нужны, чтобы уведомление можно было потом убрать из
+                // центра уведомлений — без них History.Remove адресовать нечего.
+                toast.Tag = ToastTagForChat(chatId);
+                toast.Group = ToastGroup;
                 // Без ExpirationTime — уведомление живёт стандартное время
                 // Показываем из любого потока через Dispatcher
                 var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
@@ -4375,10 +4535,77 @@ namespace TelegramWP10
                 TdJson.SendUtf8(_client, "{\"@type\":\"createPrivateChat\",\"user_id\":" + _myUserId + ",\"force\":true}");
         }
 
+        /// <summary>
+        /// Постоянная работа в фоне. По умолчанию выключено: режим требует
+        /// доступа к геопозиции и заметно расходует батарею.
+        /// </summary>
+        private void Language_Click(object sender, RoutedEventArgs e) {
+            var item = sender as MenuFlyoutItem;
+            string code = item == null ? null : item.Tag as string;
+            if (string.IsNullOrEmpty(code) || code == Loc.Language) return;
+            Loc.Language = code;
+            ApplyLanguage();
+        }
+
+        /// <summary>
+        /// Re-labels everything that has a localized string. Only the settings
+        /// menu is covered so far — the rest of MainPage.xaml still holds
+        /// hard-coded Russian and needs the same treatment.
+        /// </summary>
+        private void ApplyLanguage() {
+            try {
+                FavoritesItem.Text   = Loc.T("menu_favorites");
+                ClearCacheItem.Text  = Loc.T("menu_clearCache");
+                SoundToggleItem.Text = _soundEnabled ? Loc.T("menu_sound_on") : Loc.T("menu_sound_off");
+                BgDiagItem.Text      = Loc.T("menu_bgDiag");
+                LanguageSubItem.Text = Loc.T("menu_language");
+                LogoutItem.Text      = Loc.T("menu_logout");
+                UpdateKeepAliveMenuText();
+
+                // Hebrew is right-to-left; flipping the root mirrors the whole tree.
+                var root = Window.Current.Content as FrameworkElement;
+                if (root != null)
+                    root.FlowDirection = Loc.IsRightToLeft(Loc.Language)
+                        ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            } catch { }
+        }
+
+        private async void KeepAliveToggle_Click(object sender, RoutedEventArgs e) {
+            if (BackgroundService.Instance.KeepAliveActive) {
+                BackgroundService.KeepAliveEnabled = false;
+                BackgroundService.Instance.StopKeepAlive();
+                UpdateKeepAliveMenuText();
+                return;
+            }
+
+            var dialog = new Windows.UI.Popups.MessageDialog(
+                Loc.T("keepAlive_body"), Loc.T("keepAlive_title"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_enable"), async cmd => {
+                BackgroundService.KeepAliveEnabled = true;
+                bool ok = await BackgroundService.Instance.StartKeepAliveAsync();
+                UpdateKeepAliveMenuText();
+                if (!ok) {
+                    BackgroundService.KeepAliveEnabled = false;
+                    UpdateKeepAliveMenuText();
+                    await new Windows.UI.Popups.MessageDialog(
+                        Loc.T("keepAlive_failed"), Loc.T("keepAlive_title")).ShowAsync();
+                }
+            }));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_cancel")));
+            await dialog.ShowAsync();
+        }
+
+        private void UpdateKeepAliveMenuText() {
+            try {
+                KeepAliveToggleItem.Text = BackgroundService.Instance.KeepAliveActive
+                    ? Loc.T("menu_keepAlive_on") : Loc.T("menu_keepAlive_off");
+            } catch { }
+        }
+
         private void SoundToggle_Click(object sender, RoutedEventArgs e) {
             _soundEnabled = !_soundEnabled;
             Windows.Storage.ApplicationData.Current.LocalSettings.Values["sound_enabled"] = _soundEnabled;
-            SoundToggleItem.Text = _soundEnabled ? "🔔 Звук: Вкл" : "🔕 Звук: Выкл";
+            SoundToggleItem.Text = _soundEnabled ? Loc.T("menu_sound_on") : Loc.T("menu_sound_off");
         }
 
         private async void ClearCache_Click(object sender, RoutedEventArgs e) {
@@ -4946,12 +5173,66 @@ namespace TelegramWP10
         private long _replyToMessageId = 0; // id сообщения на которое отвечаем
 
         private void MessageInput_TextChanged(object sender, Windows.UI.Xaml.Controls.TextChangedEventArgs e) {
+            UpdateSendButtonState();
             if (_currentChatId == 0 || string.IsNullOrEmpty(MessageInput.Text)) return;
             // Отправляем chatActionTyping и перезапускаем таймер сброса
             TdJson.SendUtf8(_client, "{\"@type\":\"sendChatAction\",\"chat_id\":" + _currentChatId +
                 ",\"action\":{\"@type\":\"chatActionTyping\"}}");
             _typingTimer.Stop();
             _typingTimer.Start();
+        }
+
+        /// <summary>Клиент TDLib текущего процесса — читает BackgroundService.</summary>
+        public static IntPtr ActiveClient = IntPtr.Zero;
+
+        /// <summary>
+        /// После разблокировки TDLib отдаёт весь накопившийся backlog как
+        /// updateNewMessage. Без этого порога пользователь получает пачку
+        /// уведомлений о сообщениях, которые он прямо сейчас и открыл.
+        /// </summary>
+        private const int ToastMaxAgeSeconds = 60;
+
+        /// <summary>В фоновой догрузке — всё, что пришло за последний час.</summary>
+        private const int CatchUpToastMaxAgeSeconds = 3600;
+
+        // ---- Переключение "микрофон / отправить" и режим видеосообщения ----
+
+        private bool _videoNoteMode = false;
+
+        /// <summary>Пустое поле — микрофон, есть текст — кнопка отправки.</summary>
+        private void UpdateSendButtonState() {
+            // Во время записи не переключаем, иначе кнопка исчезнет из-под пальца.
+            if (_isRecording || _isRecordingVideoNote) return;
+            // В режиме правки сообщения кнопка "✓" нужна даже при пустом поле.
+            bool showSend = !string.IsNullOrWhiteSpace(MessageInput.Text) || _editingMessageId != 0;
+            SendButton.Visibility = showSend ? Visibility.Visible : Visibility.Collapsed;
+            MicButton.Visibility  = showSend ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        /// <summary>Пункт меню "Видеосообщение": следующая запись будет видеокружком.</summary>
+        private void VideoNoteMode_Click(object sender, RoutedEventArgs e) {
+            SetVideoNoteMode(true);
+        }
+
+        private void SetVideoNoteMode(bool on) {
+            _videoNoteMode = on;
+            RecordGlyph.Text = on ? "⏺" : "🎤";
+            MicButton.Background = new Windows.UI.Xaml.Media.SolidColorBrush(
+                on ? Windows.UI.Color.FromArgb(255, 0, 136, 204) : Windows.UI.Colors.Transparent);
+        }
+
+        private void RecordButton_PointerPressed(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e) {
+            if (_videoNoteMode) VideoNoteButton_PointerPressed(sender, e);
+            else                MicButton_PointerPressed(sender, e);
+        }
+
+        private void RecordButton_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e) {
+            if (_videoNoteMode) {
+                VideoNoteButton_PointerReleased(sender, e);
+                SetVideoNoteMode(false);
+            } else {
+                MicButton_PointerReleased(sender, e);
+            }
         }
 
         private void MessageInput_Holding(object sender, Windows.UI.Xaml.Input.HoldingRoutedEventArgs e) {

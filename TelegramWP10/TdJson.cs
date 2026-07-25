@@ -15,6 +15,14 @@ namespace TelegramWP10
         [DllImport("tdjson.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr td_json_client_receive(IntPtr client, double timeout);
 
+        /// <summary>
+        /// Освобождает клиент. Вызывать ТОЛЬКО после того, как получен
+        /// authorizationStateClosed в ответ на {"@type":"close"} — иначе база
+        /// останется с незакрытым журналом.
+        /// </summary>
+        [DllImport("tdjson.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void td_json_client_destroy(IntPtr client);
+
         public static void SendUtf8(IntPtr client, string request)
         {
             if (string.IsNullOrEmpty(request)) return;

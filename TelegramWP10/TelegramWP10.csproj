@@ -11,14 +11,38 @@
     <AssemblyName>TelegramWP10</AssemblyName>
     <DefaultLanguage>ru-RU</DefaultLanguage>
     <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier>
-    <TargetPlatformVersion Condition=" '$(TargetPlatformVersion)' == '' ">10.0.18362.0</TargetPlatformVersion>
+
+    <!-- Windows 10 Mobile 1709 = OS build 15254, branched from 15063 (1703).
+         15063 is the newest SDK whose API surface actually exists on the device.
+         Do NOT raise TargetPlatformVersion to 16299/17763/18362.
+         MinVersion 10240 covers every Windows 10 Mobile release from 1507 on;
+         anything above 10.0.15254.0 would block installation entirely. -->
+    <TargetPlatformVersion>10.0.15063.0</TargetPlatformVersion>
     <TargetPlatformMinVersion>10.0.10240.0</TargetPlatformMinVersion>
+
     <MinimumVisualStudioVersion>14</MinimumVisualStudioVersion>
     <FileAlignment>512</FileAlignment>
-    <ProjectTypeGuids>{A5E7574B-450C-4C53-8BD3-B73C464AFCE0};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <WindowsTargetPlatformVersion>10.0.18362.0</WindowsTargetPlatformVersion>
-    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <PackageCertificateKeyFile>TelegramWP10_TemporaryKey.pfx</PackageCertificateKeyFile>
+    <PackageCertificateThumbprint>2FEA123A6FCEA201A2EBA93410B99768417E81FB</PackageCertificateThumbprint>
     <GenerateAppxPackageOnBuild>true</GenerateAppxPackageOnBuild>
+    <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
+    <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
+    <AppxBundle>Never</AppxBundle>
+    <AppxBundlePlatforms>ARM</AppxBundlePlatforms>
+    <UapAppxPackageBuildMode>SideloadOnly</UapAppxPackageBuildMode>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM'">
+    <OutputPath>bin\ARM\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE;NETFX_CORE;WINDOWS_UWP</DefineConstants>
+    <NoWarn>;2008</NoWarn>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <PlatformTarget>ARM</PlatformTarget>
+    <UseVSHostingProcess>false</UseVSHostingProcess>
+    <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|ARM'">
@@ -30,13 +54,14 @@
     <PlatformTarget>ARM</PlatformTarget>
     <UseVSHostingProcess>false</UseVSHostingProcess>
     <ErrorReport>prompt</ErrorReport>
-    <Prefer32Bit>true</Prefer32Bit>
     <UseDotNetNativeToolchain>true</UseDotNetNativeToolchain>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 6.0.x (.NET Native 2.0) is the line that matches uap10.0.15063.
+         6.1.x/6.2.x require min version 10.0.16299 and will fail restore here. -->
     <PackageReference Include="Microsoft.NETCore.UniversalWindowsPlatform">
-      <Version>6.2.14</Version>
+      <Version>6.0.15</Version>
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json">
       <Version>13.0.1</Version>
@@ -51,8 +76,26 @@
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="TdJson.cs" />
+    <Compile Include="BackgroundService.cs" />
+    <Compile Include="Loc.cs" />
     <Compile Include="ChatItem.cs" />
     <Compile Include="MessageItem.cs" />
+    <Compile Include="WebPDecoder.cs" />
+    <Compile Include="StickerItem.cs" />
+    <Compile Include="ContactItem.cs" />
+    <Compile Include="SearchMessageItem.cs" />
+    <Compile Include="SearchResultItem.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ApplicationDefinition Include="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </ApplicationDefinition>
+    <Page Include="MainPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
   </ItemGroup>
 
   <ItemGroup>
@@ -68,9 +111,7 @@
     <Content Include="Assets\Square24x24Logo.png" />
     <Content Include="Assets\Wide310x150Logo.png" />
     <Content Include="Assets\SplashScreen.png" />
-    <Content Include="tdjson.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!-- tdjson.dll was listed twice in the original file (duplicate-item error) -->
     <Content Include="tdjson.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -85,21 +126,14 @@
     </Content>
   </ItemGroup>
 
-  <ItemGroup>
-    <Compile Include="WebPDecoder.cs"/>
-    <Compile Include="StickerItem.cs"/>
-    <Compile Include="ContactItem.cs"/>
-    <Compile Include="SearchMessageItem.cs"/>
-    <Compile Include="SearchResultItem.cs"/>
-    <ApplicationDefinition Include="App.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </ApplicationDefinition>
-    <Page Include="MainPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-  </ItemGroup>
+  <!-- Fail loudly if someone tries to build a non-ARM platform or shifts the
+       supported OS range. This project is Windows 10 Mobile, ARM only. -->
+  <Target Name="EnforceArmOnlyMobile" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(Platform)' != 'ARM'"
+           Text="TelegramWP10 builds for ARM only (Windows 10 Mobile). Requested platform: '$(Platform)'." />
+    <Error Condition="'$(TargetPlatformMinVersion)' != '10.0.10240.0'"
+           Text="TargetPlatformMinVersion must remain 10.0.10240.0. Current value: '$(TargetPlatformMinVersion)'." />
+  </Target>
 
   <!-- Генерируем rd.xml на лету — не нужно хранить в репозитории -->
   <Target Name="GenerateRdXml" BeforeTargets="PrepareForBuild">
@@ -120,24 +154,5 @@
   </Target>
 
   <Import Project="$(MSBuildExtensionsPath)\Microsoft\WindowsXaml\v$(VisualStudioVersion)\Microsoft.Windows.UI.Xaml.CSharp.targets" />
-
-  <Target Name="AutoSignAppx" AfterTargets="_BundleAppx;GenerateAppx">
-    <PropertyGroup>
-      <CertFile>$(ProjectDir)MyTempCert.pfx</CertFile>
-      <CertPass>12345</CertPass>
-      <AppxPath>$(AppxPackageOutput)</AppxPath>
-    </PropertyGroup>
-
-    <Message Importance="High" Text="--- НАЧАЛО ПРОЦЕССА ПОДПИСИ ПАКЕТА ---" />
-
-    <Exec Condition="!Exists('$(CertFile)')" 
-          Command="MakeCert.exe -r -pe -n &quot;CN=TelegramWP10&quot; -eku 1.3.6.1.5.5.7.3.3 -ss My -len 2048 -sky exchange &quot;$(ProjectDir)TempCert.cer&quot; &amp;&amp; Pvk2Pfx.exe -pvk &quot;$(ProjectDir)TempCert.pvk&quot; -spc &quot;$(ProjectDir)TempCert.cer&quot; -pfx &quot;$(CertFile)&quot; -pi $(CertPass)" 
-          IgnoreExitCode="true" />
-    
-    <Exec Condition="Exists('$(AppxPath)')"
-          Command="SignTool.exe sign /fd SHA256 /a /f &quot;$(CertFile)&quot; /p $(CertPass) &quot;$(AppxPath)&quot;" />
-    
-    <Message Importance="High" Text="--- ПОДПИСЬ ЗАВЕРШЕНА: $(AppxPath) ---" />
-  </Target>
 
 </Project>
