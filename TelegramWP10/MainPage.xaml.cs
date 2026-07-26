@@ -4535,6 +4535,7 @@ namespace TelegramWP10
 
         private void NotifyAllChatTheme() {
             foreach (var c in _chatsDict.Values) c.NotifyThemeChanged();
+            foreach (var r in _searchAllResults) r.NotifyTitleColor();
         }
 
         private void UpdateBubbleColors() {

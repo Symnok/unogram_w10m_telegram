@@ -349,7 +349,7 @@
                                     </Ellipse.Fill>
                                 </Ellipse>
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Title}" Foreground="White" FontSize="15" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Title}" Foreground="{Binding TitleColor}" FontSize="15" FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="13" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="{Binding DateText}" Foreground="#666666" FontSize="11"
                                                Visibility="{Binding DateVisibility}"/>

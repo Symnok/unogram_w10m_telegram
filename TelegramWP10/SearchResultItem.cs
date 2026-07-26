@@ -21,6 +21,12 @@ namespace TelegramWP10
         public string Title { get; set; } = "";
         public string Subtitle { get; set; } = "";
 
+        // Цвет заголовка следует текущей теме — переиспользуем то же статическое
+        // поле, что ChatItem, чтобы не заводить второй источник истины.
+        // NotifyTitleColor() дёргается при смене темы для всех элементов списка.
+        public string TitleColor => ChatItem.ThemeTitleColor;
+        public void NotifyTitleColor() => Notify("TitleColor");
+
         private BitmapImage _photo;
         public BitmapImage Photo {
             get => _photo;
