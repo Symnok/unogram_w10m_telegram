@@ -54,6 +54,7 @@ namespace TelegramWP10
         private string _currentPhotoOverlayPath = null;   // путь к уже докачанному фото в оверлее — для кнопки "Сохранить"
         private bool _pendingPhotoSave = false;            // нажали "Сохранить" до того, как докачался полный размер
         private HashSet<long> _pendingSaveMsgIds = new HashSet<long>(); // видео/аудио, которые нужно сохранить сразу после докачки
+        private TaskCompletionSource<bool> _optimizeStorageTcs = null; // ждём storageStatistics — подтверждение, что чистка кэша реально завершена
         private long _threadMessageId = 0;
         private long _threadChatId = 0;
         private bool _currentChatIsGroup = false;
@@ -1444,6 +1445,13 @@ namespace TelegramWP10
                     break;
 
                 case "ok":
+                    break;
+
+                case "storageStatistics":
+                    // Ответ на optimizeStorage — TDLib реально закончил чистку файлов
+                    // и обновил свою внутреннюю БД (местные пути и статусы загрузки).
+                    // Только теперь безопасно считать кэш очищенным.
+                    _optimizeStorageTcs?.TrySetResult(true);
                     break;
 
                 case "updateMessageSendSucceeded": {
@@ -4811,10 +4819,21 @@ namespace TelegramWP10
             dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_clear"), async cmd => {
                 try {
                     // TDLib API — очищаем кэш файлов
+                    _optimizeStorageTcs = new TaskCompletionSource<bool>();
                     TdJson.SendUtf8(_client, "{\"@type\":\"optimizeStorage\",\"size\":0,\"ttl\":0,\"count\":0,\"immunity_delay\":0" +
                         ",\"file_types\":[{\"@type\":\"fileTypePhoto\"},{\"@type\":\"fileTypeVideo\"},{\"@type\":\"fileTypeAudio\"}" +
                         ",{\"@type\":\"fileTypeAnimation\"},{\"@type\":\"fileTypeDocument\"}]" +
                         ",\"chat_ids\":[],\"exclude_chat_ids\":[],\"return_deleted_file_statistics\":true,\"chat_limit\":0}");
+                    // Ждём реального подтверждения (storageStatistics), а не просто
+                    // сам факт отправки команды — optimizeStorage не мгновенна, и
+                    // если открыть чат раньше, чем TDLib реально дочистит файлы и
+                    // обновит свою БД, часть аудио/видео будет считаться "уже
+                    // скачанными" по старому пути и не перекачается. На случай,
+                    // если ответ вдруг не придёт — подстраховываемся таймаутом,
+                    // чтобы диалог не завис навсегда.
+                    var completed = await Task.WhenAny(_optimizeStorageTcs.Task, Task.Delay(TimeSpan.FromSeconds(15)));
+                    _optimizeStorageTcs = null;
+
                     var confirmDialog = new Windows.UI.Popups.MessageDialog(Loc.T("dlg_cacheCleared_body"), Loc.T("dlg_done_title"));
                     await confirmDialog.ShowAsync();
                 } catch { }
