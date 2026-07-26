@@ -51,6 +51,9 @@ namespace TelegramWP10
         private bool _waitingForMe = false;
         private bool _contactsPendingMyId = false;
         private long _fullPhotoMsgId = 0;
+        private string _currentPhotoOverlayPath = null;   // путь к уже докачанному фото в оверлее — для кнопки "Сохранить"
+        private bool _pendingPhotoSave = false;            // нажали "Сохранить" до того, как докачался полный размер
+        private HashSet<long> _pendingSaveMsgIds = new HashSet<long>(); // видео/аудио, которые нужно сохранить сразу после докачки
         private long _threadMessageId = 0;
         private long _threadChatId = 0;
         private bool _currentChatIsGroup = false;
@@ -831,6 +834,7 @@ namespace TelegramWP10
                                         if (isCompleted && isVideoFile && !string.IsNullOrEmpty(fpath)) {
                                             msgItem.FilePath = fpath;
                                             msgItem.VideoDownloadProgress = null;
+                                            if (_pendingSaveMsgIds.Remove(mid)) SaveAndToast(fpath, Windows.Storage.KnownFolders.VideosLibrary);
                                         } else if (isVideoFile && total > 0) {
                                             int pct = (int)(downloaded * 100 / total);
                                             msgItem.VideoDownloadProgress = "⏳ " + pct + "%";
@@ -850,6 +854,7 @@ namespace TelegramWP10
                                         if (isCompleted && !string.IsNullOrEmpty(fpath)) {
                                             msgItem.FilePath = fpath;
                                             msgItem.AudioPlayStatus = "▶";
+                                            if (_pendingSaveMsgIds.Remove(mid)) SaveAndToast(fpath, Windows.Storage.KnownFolders.MusicLibrary);
                                         } else if (total > 0) {
                                             int pct = (int)(downloaded * 100 / total);
                                             msgItem.AudioPlayStatus = "⏳" + pct + "%";
@@ -3446,6 +3451,8 @@ namespace TelegramWP10
             PhotoOverlay.Visibility = Visibility.Visible;
             PhotoOverlayImage.Source = item.AttachedPhoto;
             PhotoOverlayStatus.Text = Loc.T("status_loadingFullSize");
+            _currentPhotoOverlayPath = null;
+            _pendingPhotoSave = false;
 
             if (item.FullPhotoFileId == 0) { PhotoOverlayStatus.Text = ""; return; }
 
@@ -3458,6 +3465,16 @@ namespace TelegramWP10
             PhotoOverlay.Visibility = Visibility.Collapsed;
             PhotoOverlayImage.Source = null;
             _fullPhotoMsgId = 0;
+            _currentPhotoOverlayPath = null;
+            _pendingPhotoSave = false;
+        }
+
+        /// <summary>Кнопка "💾" в полноэкранном просмотре фото.</summary>
+        private void PhotoOverlaySave_Click(object sender, RoutedEventArgs e) {
+            if (!string.IsNullOrEmpty(_currentPhotoOverlayPath))
+                SaveAndToast(_currentPhotoOverlayPath, Windows.Storage.KnownFolders.PicturesLibrary);
+            else
+                _pendingPhotoSave = true; // полный размер ещё не докачался — сохраним, как только будет готов
         }
 
         private async Task ShowFullPhoto(string path) {
@@ -3468,6 +3485,11 @@ namespace TelegramWP10
                     await bitmap.SetSourceAsync(stream);
                     PhotoOverlayImage.Source = bitmap;
                     PhotoOverlayStatus.Text = "";
+                }
+                _currentPhotoOverlayPath = path;
+                if (_pendingPhotoSave) {
+                    _pendingPhotoSave = false;
+                    SaveAndToast(path, Windows.Storage.KnownFolders.PicturesLibrary);
                 }
             } catch (Exception ex) { Log("FULLPHOTO ERR: " + ex.Message); }
         }
@@ -3574,6 +3596,24 @@ namespace TelegramWP10
             } else {
                 string username = mention.TrimStart('@');
                 TdJson.SendUtf8(_client, "{\"@type\":\"searchPublicChat\",\"username\":\"" + username + "\"}");
+            }
+        }
+
+        /// <summary>Пункт "💾 Сохранить" в контекстном меню сообщения с видео.</summary>
+        private void SaveVideoMessage_Click(object sender, RoutedEventArgs e) {
+            var item = _selectedMessageForCopy;
+            if (item == null) return;
+            if (!string.IsNullOrEmpty(item.FilePath)) {
+                SaveAndToast(item.FilePath, Windows.Storage.KnownFolders.VideosLibrary);
+                return;
+            }
+            // Ещё не скачано — докачиваем и сохраняем сразу по завершении
+            _pendingSaveMsgIds.Add(item.Id);
+            foreach (var kv in _videoFileIds) {
+                if (kv.Value == item.Id) {
+                    TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + kv.Key + ",\"priority\":32,\"synchronous\":false}");
+                    break;
+                }
             }
         }
 
@@ -3740,6 +3780,22 @@ namespace TelegramWP10
             var slider = sender as Windows.UI.Xaml.Controls.Slider;
             if (slider == null) return;
             _currentAudioPlayer.PlaybackSession.Position = TimeSpan.FromSeconds(slider.Value);
+        }
+
+        /// <summary>Значок "💾" в пузыре аудио.</summary>
+        private void SaveAudio_Click(object sender, RoutedEventArgs e) {
+            var btn = sender as Button;
+            if (btn?.Tag == null) return;
+            long msgId = (long)btn.Tag;
+            if (!_messagesDict.ContainsKey(msgId)) return;
+            var item = _messagesDict[msgId];
+            if (!string.IsNullOrEmpty(item.FilePath)) {
+                SaveAndToast(item.FilePath, Windows.Storage.KnownFolders.MusicLibrary);
+            } else {
+                // Аудио уже докачивается фоном с момента появления сообщения —
+                // просто помечаем, что нужно сохранить, как только будет готово.
+                _pendingSaveMsgIds.Add(msgId);
+            }
         }
 
         private async void AudioButton_Click(object sender, RoutedEventArgs e) {
@@ -4610,6 +4666,25 @@ namespace TelegramWP10
             } catch { }
         }
 
+        /// <summary>Копирует уже скачанный локальный файл в общую библиотеку (Фото/Видео/Музыка).</summary>
+        private async Task<bool> SaveFileToLibraryAsync(string sourcePath, Windows.Storage.StorageFolder targetFolder) {
+            try {
+                if (string.IsNullOrEmpty(sourcePath)) return false;
+                var srcFile = await StorageFile.GetFileFromPathAsync(sourcePath);
+                await srcFile.CopyAsync(targetFolder, srcFile.Name, Windows.Storage.NameCollisionOption.GenerateUniqueName);
+                return true;
+            } catch (Exception ex) {
+                Log("SAVE ERR: " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>Сохраняет файл и показывает лёгкий тост с результатом (fire-and-forget).</summary>
+        private async void SaveAndToast(string sourcePath, Windows.Storage.StorageFolder targetFolder) {
+            bool ok = await SaveFileToLibraryAsync(sourcePath, targetFolder);
+            ShowToastNotification(Loc.T(ok ? "toast_saved" : "toast_save_failed"), "", 0);
+        }
+
         private void ShowToastNotification(string title, string body, long chatId) {
             try {
                 // Строим XML вручную — полный контроль над звуком
@@ -5206,6 +5281,8 @@ namespace TelegramWP10
                                 mfi.Visibility = Visibility.Collapsed;
                             }
                         }
+                        if (mfi.Name == "MenuSaveVideo")
+                            mfi.Visibility = (_selectedMessageForCopy?.IsVideo == true) ? Visibility.Visible : Visibility.Collapsed;
                     }
                 }
             }

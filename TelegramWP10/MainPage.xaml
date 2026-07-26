@@ -516,6 +516,7 @@
                                     <MenuFlyoutItem x:Name="MenuEdit" Text="{Binding [msgmenu_edit], Source={StaticResource Loc}}" Click="EditMessage_Click"/>
                                     <MenuFlyoutItem x:Name="MenuPin" Text="{Binding [msgmenu_pin], Source={StaticResource Loc}}" Click="PinMessage_Click"/>
                                     <MenuFlyoutItem x:Name="MenuMention" Text="{Binding [msgmenu_mention], Source={StaticResource Loc}}" Click="OpenMention_Click" Visibility="Collapsed"/>
+                                    <MenuFlyoutItem x:Name="MenuSaveVideo" Text="{Binding [msgmenu_save], Source={StaticResource Loc}}" Click="SaveVideoMessage_Click" Visibility="Collapsed"/>
                                     <MenuFlyoutItem x:Name="MenuDeleteSelf" Text="{Binding [msgmenu_delete], Source={StaticResource Loc}}" Click="DeleteMessageSelf_Click"/>
                                     <MenuFlyoutItem x:Name="MenuDeleteAll" Text="{Binding [msgmenu_deleteAll], Source={StaticResource Loc}}" Click="DeleteMessageAll_Click"/>
                                 </MenuFlyout>
@@ -633,6 +634,7 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <Button Content="{Binding AudioPlayStatus}" Tag="{Binding Id}" Click="AudioButton_Click"
                                                 Width="40" Height="40" Background="#0088cc" Foreground="White" FontSize="16"
@@ -655,6 +657,9 @@
                                                 <TextBlock Grid.Column="1" Text="{Binding AudioDuration}" Foreground="#AAAAAA" FontSize="11"/>
                                             </Grid>
                                         </StackPanel>
+                                        <Button Grid.Column="2" Content="💾" Tag="{Binding Id}" Click="SaveAudio_Click"
+                                                Width="32" Height="32" Background="Transparent" Foreground="White" FontSize="14"
+                                                Padding="0" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
 
@@ -1214,6 +1219,10 @@
             <Button Content="✕" Click="PhotoOverlay_Tapped"
                     HorizontalAlignment="Right" VerticalAlignment="Top"
                     Margin="0,8,8,0" Width="44" Height="44"
+                    Background="#88000000" Foreground="White" FontSize="18" Padding="0"/>
+            <Button Content="💾" Click="PhotoOverlaySave_Click"
+                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,8,60,0" Width="44" Height="44"
                     Background="#88000000" Foreground="White" FontSize="18" Padding="0"/>
             <TextBlock x:Name="PhotoOverlayStatus" Text="" Foreground="White"
                        VerticalAlignment="Bottom" HorizontalAlignment="Center"
