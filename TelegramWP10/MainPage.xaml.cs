@@ -157,6 +157,8 @@ namespace TelegramWP10
         private HashSet<long> _archiveChatIds = new HashSet<long>(); // id чатов архива
         private HashSet<long> _pendingGetChat = new HashSet<long>(); // id запрошенных через getChat из LoadNextChat
 
+        private Windows.UI.ViewManagement.InputPane _inputPane;
+
         public MainPage()
         {
             this.InitializeComponent();
@@ -171,6 +173,13 @@ namespace TelegramWP10
             ActiveClient = _client;   // видно фоновой задаче догрузки
             ChatListView.ItemsSource = _chatListItems;
             MessagesListView.ItemsSource = _messageItems;
+            // Клавиатура сама не должна двигать всю страницу — иначе система
+            // тащит вверх весь визуальный узел (включая шапку чата в Grid.Row="0"),
+            // пытаясь показать поле ввода. Подрезаем снизу только область
+            // сообщений и явно сообщаем системе, что сами держим фокус в кадре.
+            _inputPane = Windows.UI.ViewManagement.InputPane.GetForCurrentView();
+            _inputPane.Showing += InputPane_Showing;
+            _inputPane.Hiding += InputPane_Hiding;
             // Загружаем сохранённый режим прокси до старта TDLib
             var ls = Windows.Storage.ApplicationData.Current.LocalSettings;
             if (ls.Values.ContainsKey("proxy_mode"))
@@ -1892,6 +1901,28 @@ namespace TelegramWP10
         }
 
         private double _prevScrollOffset = 0;
+
+        /// <summary>
+        /// Появление клавиатуры. По умолчанию UWP сама паникует и сдвигает
+        /// (транслирует) всю страницу целиком, чтобы сфокусированное поле
+        /// ввода осталось видно — вместе с ним уезжает и шапка чата. Вместо
+        /// этого подрезаем снизу Grid чата (MessagesPanel) на высоту
+        /// перекрытой клавиатурой области — сжимается только строка "*"
+        /// со списком сообщений, шапка (Row 0) и поле ввода (Row 3) остаются
+        /// на местах. EnsuredFocusedElementInView=true отключает системный
+        /// автопан поверх нашего.
+        /// </summary>
+        private void InputPane_Showing(Windows.UI.ViewManagement.InputPane sender, Windows.UI.ViewManagement.InputPaneVisibilityEventArgs args) {
+            if (MessagesPanel.Visibility == Visibility.Visible) {
+                MessagesPanel.Margin = new Thickness(0, 0, 0, args.OccludedRect.Height);
+            }
+            args.EnsuredFocusedElementInView = true;
+        }
+
+        private void InputPane_Hiding(Windows.UI.ViewManagement.InputPane sender, Windows.UI.ViewManagement.InputPaneVisibilityEventArgs args) {
+            MessagesPanel.Margin = new Thickness(0);
+            args.EnsuredFocusedElementInView = true;
+        }
 
         private void MessagesScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e) {
             double offset    = MessagesScrollViewer.VerticalOffset;
