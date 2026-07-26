@@ -2327,32 +2327,6 @@ namespace TelegramWP10
             }
         }
 
-        /// <summary>Показывает состояние фоновой задачи и хвост bglog.txt.</summary>
-        private async void BgDiag_Click(object sender, RoutedEventArgs e) {
-            string text = BackgroundService.GetDiagnosticsSummary();
-            string tail = "";
-            try {
-                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
-                    .GetFolderAsync(BackgroundService.LogFolderName);
-                var file = await folder.GetFileAsync(BackgroundService.LogFileName);
-                var lines = await Windows.Storage.FileIO.ReadLinesAsync(file);
-                int take = System.Math.Min(20, lines.Count);
-                tail = string.Join("\n", lines.Skip(lines.Count - take));
-            } catch { tail = Loc.T("diag_noLog"); }
-
-            string full = text + "\n\n--- bglog.txt ---\n" + tail;
-            var dlg = new Windows.UI.Popups.MessageDialog(full, Loc.T("diag_title"));
-            dlg.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_copy"), cmd => {
-                try {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(full);
-                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
-                } catch { }
-            }));
-            dlg.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_close")));
-            await dlg.ShowAsync();
-        }
-
         private void MoveChatToTop(long chatId) {
             var list = _inArchive ? _archiveChatItems : _chatListItems;
             var item = list.FirstOrDefault(c => c.Id == chatId);
@@ -4706,7 +4680,6 @@ namespace TelegramWP10
                 FavoritesItem.Text   = Loc.T("menu_favorites");
                 ClearCacheItem.Text  = Loc.T("menu_clearCache");
                 SoundToggleItem.Text = _soundEnabled ? Loc.T("menu_sound_on") : Loc.T("menu_sound_off");
-                BgDiagItem.Text      = Loc.T("menu_bgDiag");
                 LanguageSubItem.Text = Loc.T("menu_language");
                 LogoutItem.Text      = Loc.T("menu_logout");
                 UpdateKeepAliveMenuText();

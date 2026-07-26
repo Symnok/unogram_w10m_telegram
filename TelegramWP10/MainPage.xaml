@@ -149,8 +149,6 @@
                                                     <MenuFlyoutItem Text="עברית"      Tag="he" Click="Language_Click"/>
                                                 </MenuFlyoutSubItem>
                                                 <MenuFlyoutSeparator/>
-                                                <MenuFlyoutItem x:Name="BgDiagItem" Text="🐞 Background diagnostics" Click="BgDiag_Click"/>
-                                                <MenuFlyoutSeparator/>
                                                 <MenuFlyoutItem x:Name="LogoutItem" Text="🚪 Log out" Click="LogoutButton_Click"/>
                                             </MenuFlyout>
                                         </Button.Flyout>

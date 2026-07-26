@@ -120,7 +120,6 @@ namespace TelegramWP10
             { "menu_sound_off", Row("🔕 Sound: Off", "🔕 Звук: Выкл", "🔕 Звук: Вимк", "🔕 צליל: כבוי") },
             { "menu_keepAlive_on", Row("📍 Background mode: On", "📍 Фоновый режим: Вкл", "📍 Фоновий режим: Увімк", "📍 מצב רקע: פועל") },
             { "menu_keepAlive_off", Row("📍 Background mode: Off", "📍 Фоновый режим: Выкл", "📍 Фоновий режим: Вимк", "📍 מצב רקע: כבוי") },
-            { "menu_bgDiag", Row("🐞 Background diagnostics", "🐞 Фоновая диагностика", "🐞 Фонова діагностика", "🐞 אבחון רקע") },
             { "menu_language", Row("🌐 Language", "🌐 Язык", "🌐 Мова", "🌐 שפה") },
             { "menu_logout", Row("🚪 Log out", "🚪 Выход", "🚪 Вихід", "🚪 התנתקות") },
 
@@ -156,7 +155,6 @@ namespace TelegramWP10
                 "לא ניתן להפעיל מצב רקע. ודא שגישה למיקום מאושרת בהגדרות המערכת ושהיישום נמצא ברשימת החריגים של חוסך הסוללה.") },
 
             // ---- diagnostics ----
-            { "diag_title", Row("Background diagnostics", "Фоновая диагностика", "Фонова діагностика", "אבחון רקע") },
             { "diag_registered", Row("Task registered: ", "Задача зарегистрирована: ", "Завдання зареєстровано: ", "משימה רשומה: ") },
             { "diag_yes", Row("yes", "да", "так", "כן") },
             { "diag_no", Row("no", "нет", "ні", "לא") },
@@ -164,7 +162,6 @@ namespace TelegramWP10
             { "diag_last", Row("Last: ", "Последнее: ", "Останнє: ", "אחרון: ") },
             { "diag_none", Row("no entries", "нет записей", "немає записів", "אין רשומות") },
             { "diag_unavailable", Row("Diagnostics unavailable: ", "Диагностика недоступна: ", "Діагностика недоступна: ", "אבחון לא זמין: ") },
-            { "diag_noLog", Row("(no bglog.txt yet)", "(bglog.txt пока нет)", "(bglog.txt ще немає)", "(עדיין אין bglog.txt)") },
 
             // ---- message previews in notifications ----
             { "msg_photo", Row("Photo", "Фото", "Фото", "תמונה") },
