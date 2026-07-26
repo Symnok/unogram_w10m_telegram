@@ -5,6 +5,6 @@ RANDOM_MSG=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 10)
 
 echo $RANDOM_MSG
 git add -A
-#git commit -m "$RANDOM_MSG"_nallion
-git commit -m "Attach + button in white theme must be black"
+git commit -m "$RANDOM_MSG"_nallion
+#git commit -m "Attach + button in white theme must be black"
 git push
