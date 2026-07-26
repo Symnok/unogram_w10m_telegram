@@ -173,6 +173,7 @@ namespace UnogramBackground
                 IntPtr c = client;
                 var deadline = DateTime.UtcNow.AddSeconds(SessionBudgetSeconds);
                 var titles = new Dictionary<long, string>();
+                var privateChats = new HashSet<long>(); // только личные чаты (chatTypePrivate) — не группы/каналы
                 var seen = new HashSet<long>();
                 bool abort = false;
 
@@ -218,12 +219,19 @@ namespace UnogramBackground
                             long cid = u["chat"]?["id"]?.ToObject<long>() ?? 0;
                             string t = u["chat"]?["title"]?.ToString();
                             if (cid != 0 && !string.IsNullOrEmpty(t)) titles[cid] = t;
+                            // Личка — единственный тип, для которого шлём фоновые уведомления.
+                            // Группы, супергруппы и каналы (chatTypeBasicGroup/Supergroup) отсеиваются.
+                            string chatType = u["chat"]?["type"]?["@type"]?.ToString();
+                            if (cid != 0 && chatType == "chatTypePrivate") privateChats.Add(cid);
                         }
                         else if (type == "updateNewMessage" && authorized)
                         {
                             var m = u["message"];
                             if (m == null) continue;
                             if (m["is_outgoing"]?.ToObject<bool>() ?? false) continue;
+
+                            long chatId = m["chat_id"]?.ToObject<long>() ?? 0;
+                            if (!privateChats.Contains(chatId)) continue; // не личка — пропускаем
 
                             long mid = m["id"]?.ToObject<long>() ?? 0;
                             if (mid != 0 && !seen.Add(mid)) continue;
@@ -233,7 +241,6 @@ namespace UnogramBackground
                                 DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt > MaxMessageAgeSeconds)
                                 continue;
 
-                            long chatId = m["chat_id"]?.ToObject<long>() ?? 0;
                             if (!IsNewerThanLastNotified(chatId, mid)) continue;
 
                             string title = titles.ContainsKey(chatId) ? titles[chatId] : "Unogram";
