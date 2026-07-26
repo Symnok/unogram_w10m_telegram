@@ -70,6 +70,20 @@
                 <Button x:Name="CodeButton" Content="{Binding [ui_signIn], Source={StaticResource Loc}}" Click="SendCode_Click" Visibility="Collapsed" HorizontalAlignment="Stretch"/>
                 <PasswordBox x:Name="PasswordInput" Header="{Binding [login_password2fa], Source={StaticResource Loc}}" Visibility="Collapsed" Margin="0,10"/>
                 <Button x:Name="PasswordButton" Content="{Binding [ui_confirm], Source={StaticResource Loc}}" Click="SendPassword_Click" Visibility="Collapsed" HorizontalAlignment="Stretch"/>
+
+                <!-- Выбор языка приложения — доступен ещё до входа в аккаунт -->
+                <Button x:Name="LoginLanguageButton" Content="{Binding [menu_language], Source={StaticResource Loc}}"
+                        HorizontalAlignment="Center" Margin="0,16,0,0" FontSize="12" Padding="10,5"
+                        Background="#AA333333" Foreground="#AAAAAA" BorderThickness="0">
+                    <Button.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem Text="English"    Tag="en" Click="Language_Click"/>
+                            <MenuFlyoutItem Text="Русский"    Tag="ru" Click="Language_Click"/>
+                            <MenuFlyoutItem Text="Українська" Tag="uk" Click="Language_Click"/>
+                            <MenuFlyoutItem Text="עברית"      Tag="he" Click="Language_Click"/>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
             </StackPanel>
 
             <!-- Вкладки папок чатов -->

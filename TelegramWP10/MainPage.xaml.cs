@@ -3366,6 +3366,25 @@ namespace TelegramWP10
             SubscribeRichText(rtb, item);
         }
 
+        /// <summary>
+        /// Run.Text внутри RichTextBlock/Paragraph игнорирует встроенные \n —
+        /// перенос строки не отрисовывается сам по себе (это простой строчный
+        /// инлайн, а не блочный элемент). Поэтому многострочные сообщения нужно
+        /// резать по переносам и вставлять между кусками отдельный LineBreak.
+        /// Заодно нормализуем \r\n и одиночный \r (так UWP TextBox с
+        /// AcceptsReturn хранит перенос строки) к \n.
+        /// </summary>
+        private static void AddTextWithLineBreaks(Windows.UI.Xaml.Documents.InlineCollection inlines, string text) {
+            if (string.IsNullOrEmpty(text)) return;
+            var parts = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            for (int i = 0; i < parts.Length; i++) {
+                if (parts[i].Length > 0)
+                    inlines.Add(new Windows.UI.Xaml.Documents.Run { Text = parts[i] });
+                if (i < parts.Length - 1)
+                    inlines.Add(new Windows.UI.Xaml.Documents.LineBreak());
+            }
+        }
+
         private void BuildRichText(Windows.UI.Xaml.Controls.RichTextBlock rtb, MessageItem item) {
             rtb.Blocks.Clear();
             var para = new Windows.UI.Xaml.Documents.Paragraph();
@@ -3382,7 +3401,7 @@ namespace TelegramWP10
             }
 
             if (item.Entities == null || item.Entities.Count == 0) {
-                para.Inlines.Add(new Windows.UI.Xaml.Documents.Run { Text = text });
+                AddTextWithLineBreaks(para.Inlines, text);
             } else {
                 int pos = 0;
                 var sorted = item.Entities.OrderBy(x => x.Offset).ToList();
@@ -3390,7 +3409,7 @@ namespace TelegramWP10
                     int offset = ent.Offset, length = ent.Length;
                     string url = ent.Url;
                     if (offset > pos)
-                        para.Inlines.Add(new Windows.UI.Xaml.Documents.Run { Text = text.Substring(pos, offset - pos) });
+                        AddTextWithLineBreaks(para.Inlines, text.Substring(pos, offset - pos));
                     int safeLen = Math.Min(length, text.Length - offset);
                     if (safeLen > 0 && offset < text.Length) {
                         string linkText = text.Substring(offset, safeLen);
@@ -3399,16 +3418,16 @@ namespace TelegramWP10
                                 NavigateUri = new Uri(url.StartsWith("http") ? url : "https://" + url),
                                 Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(linkColor)
                             };
-                            hl.Inlines.Add(new Windows.UI.Xaml.Documents.Run { Text = linkText });
+                            AddTextWithLineBreaks(hl.Inlines, linkText);
                             para.Inlines.Add(hl);
                         } catch {
-                            para.Inlines.Add(new Windows.UI.Xaml.Documents.Run { Text = linkText });
+                            AddTextWithLineBreaks(para.Inlines, linkText);
                         }
                     }
                     pos = offset + safeLen;
                 }
                 if (pos < text.Length)
-                    para.Inlines.Add(new Windows.UI.Xaml.Documents.Run { Text = text.Substring(pos) });
+                    AddTextWithLineBreaks(para.Inlines, text.Substring(pos));
             }
             rtb.Blocks.Add(para);
         }
