@@ -4351,6 +4351,7 @@ namespace TelegramWP10
             }
             MessageInput.Foreground            = CB("#FFFFFF");
             AttachMenuButton.Foreground        = CB("#FFFFFF");
+            var hdr = ChatListView.Header as Windows.UI.Xaml.Controls.StackPanel;
             if (hdr != null) hdr.Background = CB("#1A1A1A");
             ArchiveRow.Background          = CB("#222222");
             UnogramTitle.Foreground        = CB("#FFFFFF");
