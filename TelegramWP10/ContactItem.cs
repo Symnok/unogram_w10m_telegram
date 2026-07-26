@@ -17,8 +17,9 @@ namespace TelegramWP10
         private string _username = "";
         public string Username {
             get => string.IsNullOrEmpty(_username) ? "" : "@" + _username;
-            set { _username = value; OnPropertyChanged("Username"); }
+            set { _username = value; OnPropertyChanged("Username"); OnPropertyChanged("UsernameVisibility"); }
         }
+        public Visibility UsernameVisibility => string.IsNullOrEmpty(_username) ? Visibility.Collapsed : Visibility.Visible;
 
         private BitmapImage _photo = null;
         public BitmapImage Photo {

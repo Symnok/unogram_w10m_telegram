@@ -1137,7 +1137,8 @@
                                                    Margin="0,11,0,0" Visibility="{Binding NoPhotoVisibility}"/>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
                                             <TextBlock Text="{Binding FullName}" Foreground="White" FontSize="15" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding Username}" Foreground="#888888" FontSize="12"/>
+                                            <TextBlock Text="{Binding Username}" Foreground="#888888" FontSize="12"
+                                                       Visibility="{Binding UsernameVisibility}"/>
                                             <TextBlock Text="{Binding LastSeen}" Foreground="#2AABEE" FontSize="11"
                                                        Visibility="{Binding LastSeenVisibility}"/>
                                         </StackPanel>
