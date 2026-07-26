@@ -42,6 +42,7 @@ namespace TelegramWP10
         private Dictionary<long, long> _fileToMsgId = new Dictionary<long, long>();
         private Dictionary<string, long> _remoteUniqueIdToMsgId = new Dictionary<string, long>(); // remote.unique_id → msgId
         private Dictionary<long, long> _videoFileIds = new Dictionary<long, long>(); // file_id → msgId только для видеофайлов
+        private Dictionary<long, long> _audioFileIds = new Dictionary<long, long>(); // file_id → msgId только для аудиофайлов (для загрузки по клику)
         private Dictionary<long, MessageItem> _messagesDict = new Dictionary<long, MessageItem>();
         // replyMsgId → MessageItem которому нужно заполнить ReplyToText
         private Dictionary<long, MessageItem> _replyRequests = new Dictionary<long, MessageItem>();
@@ -2936,15 +2937,15 @@ namespace TelegramWP10
                     if (audioFile != null) {
                         long afid = (long)audioFile["id"];
                         _fileToMsgId[afid] = msgId;
+                        _audioFileIds[afid] = msgId;
                         _messagesDict[msgId] = item;
                         string aPath = audioFile["local"]?["path"]?.ToString();
                         if (!string.IsNullOrEmpty(aPath)) {
                             item.FilePath = aPath;
                             item.DownloadStatus = "ready";
-                        } else {
-                            item.AudioPlayStatus = "⏳";
-                            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + afid + ",\"priority\":10,\"synchronous\":false}");
                         }
+                        // Не качаем автоматически при открытии чата — только по клику
+                        // на плеер (см. AudioButton_Click), как и с обычным видео.
                     }
                 }
                 if (string.IsNullOrEmpty(item.Text) && type != "messagePhoto" && type != "messageVideo" && type != "messageAnimation" && type != "messageDocument" && type != "messageAudio" && type != "messageVoiceNote" && type != "messageVideoNote" && type != "messageSticker" && type != "messagePoll") {
@@ -3166,6 +3167,7 @@ namespace TelegramWP10
             _messagesDict.Clear();
             _fileToMsgId.Clear();
             _videoFileIds.Clear();
+            _audioFileIds.Clear();
             _replyRequests.Clear();
             _remoteUniqueIdToMsgId.Clear();
             _editingMessageId = 0;
@@ -3800,9 +3802,16 @@ namespace TelegramWP10
             if (!string.IsNullOrEmpty(item.FilePath)) {
                 SaveAndToast(item.FilePath, Windows.Storage.KnownFolders.MusicLibrary);
             } else {
-                // Аудио уже докачивается фоном с момента появления сообщения —
-                // просто помечаем, что нужно сохранить, как только будет готово.
+                // Аудио больше не качается автоматически при открытии чата —
+                // запускаем загрузку сами и сохраним сразу по завершении.
                 _pendingSaveMsgIds.Add(msgId);
+                foreach (var kv in _audioFileIds) {
+                    if (kv.Value == msgId) {
+                        item.AudioPlayStatus = "⏳";
+                        TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + kv.Key + ",\"priority\":32,\"synchronous\":false}");
+                        break;
+                    }
+                }
             }
         }
 
@@ -3837,6 +3846,14 @@ namespace TelegramWP10
                 ReleaseMediaSession();
             }
             if (string.IsNullOrEmpty(item.FilePath)) {
+                // Первый клик — запускаем загрузку (как и с видео), не проигрываем сразу
+                foreach (var kv in _audioFileIds) {
+                    if (kv.Value == msgId) {
+                        item.AudioPlayStatus = "⏳";
+                        TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + kv.Key + ",\"priority\":32,\"synchronous\":false}");
+                        break;
+                    }
+                }
                 return;
             }
             try {
