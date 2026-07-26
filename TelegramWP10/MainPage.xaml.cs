@@ -1873,8 +1873,22 @@ namespace TelegramWP10
                             }
                         }
                         long lastMsgId = _messageItems.Count > 0 ? _messageItems[_messageItems.Count - 1].Id : 0;
-                        if (lastMsgId != 0)
+                        if (lastMsgId != 0) {
                             TdJson.SendUtf8(_client, "{\"@type\":\"viewMessages\",\"chat_id\":" + expectedChat + ",\"message_ids\":[" + lastMsgId + "],\"force_read\":true}");
+                            // Не ждём updateChatReadInbox — если чат закрыть раньше, чем
+                            // подтверждение придёт от сервера, закешированный
+                            // last_read_inbox_message_id в _rawChatsDict останется старым.
+                            // При повторном (особенно быстром) входе в тот же чат
+                            // InsertUnreadSeparator() снова найдёт "непрочитанные" и
+                            // ScrollToBottomDelayed() уедет к разделителю вместо низа.
+                            // Помечаем прочитанным в кэше сразу же, оптимистично.
+                            if (_rawChatsDict.ContainsKey(expectedChat)) {
+                                var raw = _rawChatsDict[expectedChat] as JObject;
+                                if (raw != null)
+                                    raw["last_read_inbox_message_id"] = lastMsgId;
+                            }
+                            _lastReadInboxMsgId = lastMsgId;
+                        }
                     } else if (_loadingOlderHistory) {
                         // Дозагрузка старых — вставляем в начало, сохраняем позицию скролла
                         _loadingOlderHistory = false;
