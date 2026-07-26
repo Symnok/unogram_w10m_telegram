@@ -274,19 +274,52 @@ namespace UnogramBackground
             catch (Exception ex) { Diag("close failed: " + ex.Message); }
         }
 
+        /// <summary>
+        /// Проект намеренно не линкует ничего из основного (см. шапку файла),
+        /// поэтому Loc.cs сюда не подключаем — вместо этого небольшой
+        /// самодостаточный словарь на те же 4 языка, читающий тот же ключ
+        /// настроек ("ui_language"), что и основное приложение, так что смена
+        /// языка в приложении сразу отражается и в фоновых уведомлениях.
+        /// </summary>
+        private static string BgLang()
+        {
+            try
+            {
+                var v = ApplicationData.Current.LocalSettings.Values;
+                if (v.ContainsKey("ui_language"))
+                {
+                    string lang = v["ui_language"] as string;
+                    if (lang == "ru" || lang == "uk" || lang == "he") return lang;
+                }
+            }
+            catch { }
+            return "en";
+        }
+
+        private static string BgT(string en, string ru, string uk, string he)
+        {
+            switch (BgLang())
+            {
+                case "ru": return ru;
+                case "uk": return uk;
+                case "he": return he;
+                default:   return en;
+            }
+        }
+
         private static string Describe(JToken content)
         {
             switch (content?["@type"]?.ToString() ?? "")
             {
                 case "messageText":      return content["text"]?["text"]?.ToString() ?? "";
-                case "messagePhoto":     return "Фото";
-                case "messageVideo":     return "Видео";
-                case "messageVoiceNote": return "Голосовое сообщение";
-                case "messageVideoNote": return "Видеосообщение";
-                case "messageSticker":   return "Стикер";
-                case "messageDocument":  return "Файл";
+                case "messagePhoto":     return BgT("Photo", "Фото", "Фото", "תמונה");
+                case "messageVideo":     return BgT("Video", "Видео", "Відео", "וידאו");
+                case "messageVoiceNote": return BgT("Voice message", "Голосовое сообщение", "Голосове повідомлення", "הודעה קולית");
+                case "messageVideoNote": return BgT("Video message", "Видеосообщение", "Відеоповідомлення", "הודעת וידאו");
+                case "messageSticker":   return BgT("Sticker", "Стикер", "Стікер", "מדבקה");
+                case "messageDocument":  return BgT("File", "Файл", "Файл", "קובץ");
                 case "messageAnimation": return "GIF";
-                default:                 return "Новое сообщение";
+                default:                 return BgT("New message", "Новое сообщение", "Нове повідомлення", "הודעה חדשה");
             }
         }
 
