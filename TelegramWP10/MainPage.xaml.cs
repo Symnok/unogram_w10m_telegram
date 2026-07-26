@@ -3308,7 +3308,13 @@ namespace TelegramWP10
 
         private void SendMessage_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrWhiteSpace(MessageInput.Text)) return;
-            string text = MessageInput.Text;
+            // TextBox с AcceptsReturn="True" хранит перенос строки как
+            // одиночный \r (0x0D), а не \n. Если отправить это как есть,
+            // TDLib/сервер не распознаёт голый \r как разделитель строк и
+            // просто вырезает его при санитизации текста — собеседник видит
+            // все строки склеенными без единого пробела. Нормализуем к \n
+            // ДО отправки, а не только при отображении уже полученного текста.
+            string text = MessageInput.Text.Replace("\r\n", "\n").Replace("\r", "\n");
             MessageInput.Text = "";
 
             // Режим редактирования
