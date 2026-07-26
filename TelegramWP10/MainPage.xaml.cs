@@ -4011,11 +4011,11 @@ namespace TelegramWP10
                 bool isPinned = chat.IsPinned;
                 foreach (var fi in flyout.Items.OfType<MenuFlyoutItem>()) {
                     if (fi.Name == "MenuArchiveChat")
-                        fi.Text = isInArchive ? "📤 Переместить из архива" : "📁 Переместить в архив";
+                        fi.Text = isInArchive ? Loc.T("chatmenu_unarchive") : Loc.T("chatmenu_archive");
                     if (fi.Name == "MenuPinChat")
-                        fi.Text = isPinned ? "📌 Открепить" : "📌 Закрепить";
+                        fi.Text = isPinned ? Loc.T("msgmenu_unpin") : Loc.T("msgmenu_pin");
                     if (fi.Name == "MenuMarkUnread")
-                        fi.Text = chat.IsMarkedUnread ? "✅ Отметить прочитанным" : "🔵 Отметить непрочитанным";
+                        fi.Text = chat.IsMarkedUnread ? Loc.T("chatmenu_read") : Loc.T("chatmenu_unread");
                 }
             }
             Windows.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(grid);
@@ -5211,14 +5211,14 @@ namespace TelegramWP10
                             mfi.Visibility = canDelete ? Visibility.Visible : Visibility.Collapsed;
                         if (mfi.Name == "MenuPin") {
                             bool isPinned = _selectedMessageForCopy?.Id == _pinnedMessageId && _pinnedMessageId != 0;
-                            mfi.Text = isPinned ? "📌 Открепить" : "📌 Закрепить";
+                            mfi.Text = isPinned ? Loc.T("msgmenu_unpin") : Loc.T("msgmenu_pin");
                         }
                         if (mfi.Name == "MenuMention") {
                             if (mentions != null && mentions.Count > 0) {
                                 mfi.Visibility = Visibility.Visible;
                                 mfi.Text = mentions.Count == 1
-                                    ? "👤 Открыть " + mentions[0].Mention
-                                    : "👤 Открыть упоминание (" + mentions.Count + ")";
+                                    ? Loc.T("msgmenu_mention") + " " + mentions[0].Mention
+                                    : Loc.T("msgmenu_mention") + " (" + mentions.Count + ")";
                             } else {
                                 mfi.Visibility = Visibility.Collapsed;
                             }
