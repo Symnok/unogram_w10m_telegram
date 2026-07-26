@@ -33,9 +33,9 @@
   </Applications>
   <Capabilities>
     <Capability Name="internetClient" />
-    <Capability Name="picturesLibrary" />
-    <Capability Name="videosLibrary" />
-    <Capability Name="musicLibrary" />
+    <uap:Capability Name="picturesLibrary" />
+    <uap:Capability Name="videosLibrary" />
+    <uap:Capability Name="musicLibrary" />
     <uap3:Capability Name="backgroundMediaPlayback" />
     <!-- Нужна только для ExtendedExecutionReason.LocationTracking:
          это единственный режим продлённого выполнения, работающий на
