@@ -356,7 +356,7 @@ namespace TelegramWP10
                 string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
                 _logFile = await appFolder.CreateFileAsync(logName, CreationCollisionOption.ReplaceExisting);
             } catch (Exception ex) {
-                await new Windows.UI.Popups.MessageDialog("Ошибка хранилища:\n" + ex.Message).ShowAsync();
+                await new Windows.UI.Popups.MessageDialog(Loc.T("err_storage") + ex.Message).ShowAsync();
                 return;
             }
             var _lpTask = Task.Run(() => LongPolling());
@@ -501,7 +501,7 @@ namespace TelegramWP10
                     // _proxyMode == None по умолчанию — автозапуска нет
 
                     if (s == "authorizationStateWaitPhoneNumber") {
-                        LoginStatus.Text = "Введите номер телефона";
+                        LoginStatus.Text = Loc.T("login_enterPhone");
                         PhoneInput.IsEnabled = true;
                         PhoneButton.IsEnabled = true;
                         // Применяем прокси согласно сохранённому режиму
@@ -511,7 +511,7 @@ namespace TelegramWP10
                         }
                     }
                     if (s == "authorizationStateWaitCode") {
-                        LoginStatus.Text = "Код отправлен. Проверьте Telegram или SMS.";
+                        LoginStatus.Text = Loc.T("login_codeSent");
                         PhoneInput.IsEnabled = false;
                         PhoneButton.IsEnabled = false;
                         CodeInput.Visibility = Visibility.Visible;
@@ -519,7 +519,7 @@ namespace TelegramWP10
                         CodeInput.Focus(FocusState.Programmatic);
                     }
                     if (s == "authorizationStateWaitPassword") {
-                        LoginStatus.Text = "Введите пароль 2FA";
+                        LoginStatus.Text = Loc.T("login_enter2fa");
                         CodeInput.Visibility = Visibility.Collapsed;
                         CodeButton.Visibility = Visibility.Collapsed;
                         PasswordInput.Visibility = Visibility.Visible;
@@ -549,7 +549,7 @@ namespace TelegramWP10
                         _mainListLoaded = false;
                         ChatListView.Visibility = Visibility.Collapsed;
                         LoginPanel.Visibility = Visibility.Visible;
-                        LoginStatus.Text = "Введите номер телефона";
+                        LoginStatus.Text = Loc.T("login_enterPhone");
                         PhoneInput.Text = "";
                         PhoneInput.IsEnabled = true;
                         PhoneButton.IsEnabled = true;
@@ -581,7 +581,7 @@ namespace TelegramWP10
                         }
                         break;
                     }
-                    LoginStatus.Text = "Ошибка: " + errMsg;
+                    LoginStatus.Text = Loc.T("login_errorPrefix") + errMsg;
                     PhoneButton.IsEnabled = true;
                     CodeButton.IsEnabled = true;
                     if (_loadingChats && (errMsg?.Contains("CHAT_LIST_EMPTY") ?? false)) {
@@ -646,7 +646,7 @@ namespace TelegramWP10
                         bool isSavedMessages = chatUpd["type"]?["@type"]?.ToString() == "chatTypePrivate"
                             && (chatUpd["type"]?["user_id"]?.ToObject<long>() ?? 0) == _myUserId
                             && _myUserId != 0;
-                        if (isSavedMessages) chatTitle = "⭐ Избранное";
+                        if (isSavedMessages) chatTitle = Loc.T("menu_favorites");
                         _chatsDict[chatId] = new ChatItem { Id = chatId, Title = chatTitle, OutboxReadId = initOutboxRead > 0 ? initOutboxRead : 0, IsChannel = isChannel };
                     }
                     var chatItem = _chatsDict[chatId];
@@ -747,7 +747,7 @@ namespace TelegramWP10
                                     var upItem = _messagesDict[upMsgId];
                                     if (isUploaded) {
                                         _uploadFileToMsgId.Remove(fid);
-                                        upItem.DownloadStatus = upItem.AttachedPhoto != null ? "" : "📂 Открыть";
+                                        upItem.DownloadStatus = upItem.AttachedPhoto != null ? "" : Loc.T("status_open");
                                         if (upItem.AttachedPhoto != null && !string.IsNullOrEmpty(fpath))
                                             { var tu = UpdateMessagePhoto(upMsgId, fpath); }
                                     } else if (isUploadingActive || uploaded > 0) {
@@ -840,7 +840,7 @@ namespace TelegramWP10
                                         if (isCompleted && !string.IsNullOrEmpty(fpath)) {
                                             msgItem.FilePath = fpath;
                                             msgItem.IsDownloaded = true;
-                                            msgItem.DownloadStatus = "📂 Открыть";
+                                            msgItem.DownloadStatus = Loc.T("status_open");
                                         } else if (total > 0) {
                                             int pct = (int)(downloaded * 100 / total);
                                             msgItem.DownloadStatus = "⏳ " + pct + "%";
@@ -978,7 +978,7 @@ namespace TelegramWP10
                             var mc = newMsg["content"];
                             string msgText = mc?["text"]?["text"]?.ToString()
                                           ?? mc?["caption"]?["text"]?.ToString()
-                                          ?? (mc?["@type"]?.ToString()?.Replace("message","") ?? "Сообщение");
+                                          ?? (mc?["@type"]?.ToString()?.Replace("message","") ?? Loc.T("media_message"));
                             ShowToastNotification(senderName, msgText, newMsgChatId);
                         }
                     }
@@ -1010,10 +1010,10 @@ namespace TelegramWP10
                         bool spinning = connState == "connectionStateConnecting"
                                      || connState == "connectionStateConnectingToProxy"
                                      || connState == "connectionStateUpdating";
-                        string connText = connState == "connectionStateConnecting"          ? "подключение..."
-                            : connState == "connectionStateConnectingToProxy"               ? "подключение к прокси..."
-                            : connState == "connectionStateUpdating"                        ? "обновление..."
-                            : connState == "connectionStateWaitingForNetwork"               ? "· нет сети"
+                        string connText = connState == "connectionStateConnecting"          ? Loc.T("conn_connecting")
+                            : connState == "connectionStateConnectingToProxy"               ? Loc.T("conn_connectingProxy")
+                            : connState == "connectionStateUpdating"                        ? Loc.T("conn_updating")
+                            : connState == "connectionStateWaitingForNetwork"               ? Loc.T("conn_noNetwork")
                             : "...";
                         ConnectionStatusText.Text = connText;
                         ConnectionProgressRing.IsActive = spinning;
@@ -1078,13 +1078,13 @@ namespace TelegramWP10
                             _myUserId = gUid;
                             // Переименовываем чат с собой в списке чатов
                             if (_chatsDict.ContainsKey(_myUserId)) {
-                                _chatsDict[_myUserId].Title = "⭐ Избранное";
+                                _chatsDict[_myUserId].Title = Loc.T("menu_favorites");
                             }
                             if (_contactsPendingMyId && _contactItems != null) {
                                 _contactsPendingMyId = false;
                                 var selfContact = _contactItems.FirstOrDefault(c => c.UserId == gUid);
                                 if (selfContact != null) {
-                                    selfContact.FullName = "⭐ Избранное";
+                                    selfContact.FullName = Loc.T("menu_favorites");
                                     selfContact.Username = "";
                                     selfContact.LastSeen = "";
                                 }
@@ -1123,7 +1123,7 @@ namespace TelegramWP10
                                 int memberCount = update["member_count"]?.ToObject<int>() ?? 0;
                                 if (memberCount > 0) {
                                     bool isChannel = update["is_channel"]?.ToObject<bool>() ?? false;
-                                    CurrentChatStatus.Text = memberCount + (isChannel ? " подписчиков" : " участников");
+                                    CurrentChatStatus.Text = memberCount + (isChannel ? Loc.T("label_subscribers") : Loc.T("label_members"));
                                     CurrentChatStatus.Foreground = CB(_isLightTheme ? "#707070" : "#CCE8FF");
                                 }
                             }
@@ -1140,7 +1140,7 @@ namespace TelegramWP10
                         if (curBgId == bgId) {
                             int memberCount = update["member_count"]?.ToObject<int>() ?? 0;
                             if (memberCount > 0) {
-                                CurrentChatStatus.Text = memberCount + " участников";
+                                CurrentChatStatus.Text = memberCount + Loc.T("label_members");
                                 CurrentChatStatus.Foreground = CB(_isLightTheme ? "#707070" : "#CCE8FF");
                             }
                         }
@@ -1167,7 +1167,7 @@ namespace TelegramWP10
                     long actionChatId = update["chat_id"]?.ToObject<long>() ?? 0;
                     string actionType = update["action"]?["@type"]?.ToString() ?? "";
                     if (actionChatId == _currentChatId && actionType == "chatActionTyping") {
-                        CurrentChatStatus.Text = "печатает...";
+                        CurrentChatStatus.Text = Loc.T("status_typing");
                         CurrentChatStatus.Foreground = CB("#2AABEE");
                         _typingTimer.Stop();
                         _typingTimer.Start();
@@ -1552,7 +1552,7 @@ namespace TelegramWP10
                             if (!_chatsDict.ContainsKey(newChatId)) {
                                 var ci = new ChatItem {
                                     Id = newChatId,
-                                    Title = update["title"]?.ToString() ?? "Чат"
+                                    Title = update["title"]?.ToString() ?? Loc.T("label_chat")
                                 };
                                 _chatsDict[newChatId] = ci;
                             }
@@ -1575,10 +1575,10 @@ namespace TelegramWP10
                             string pinnedType = pinnedContent?["@type"]?.ToString() ?? "";
                             string pinnedText = pinnedType == "messageText"
                                 ? pinnedContent["text"]?["text"]?.ToString()
-                                : pinnedType == "messagePhoto" ? "📷 Фото"
-                                : pinnedType == "messageVideo" ? "🎥 Видео"
+                                : pinnedType == "messagePhoto" ? "📷 " + Loc.T("media_photo")
+                                : pinnedType == "messageVideo" ? "🎥 " + Loc.T("media_video")
                                 : pinnedType == "messageSticker" ? pinnedContent["sticker"]?["emoji"]?.ToString()
-                                : "сообщение";
+                                : Loc.T("media_message");
                             if (!string.IsNullOrEmpty(pinnedText))
                                 serviceItem.Text = serviceItem.Text + "\n«" + pinnedText.Split('\n')[0].Substring(0, Math.Min(pinnedText.Length, 50)) + "»";
                         }
@@ -1589,14 +1589,14 @@ namespace TelegramWP10
                         var pc = update["content"];
                         string pType = pc?["@type"]?.ToString() ?? "";
                         string pText = pType == "messageText" ? pc["text"]?["text"]?.ToString()
-                            : pType == "messagePhoto" ? "📷 Фото"
-                            : pType == "messageVideo" ? "🎥 Видео"
-                            : pType == "messageDocument" ? "📄 " + (pc["document"]?["file_name"]?.ToString() ?? "Файл")
-                            : pType == "messageAudio" ? "🎵 Аудио"
-                            : pType == "messageVoiceNote" ? "🎤 Голосовое"
-                            : pType == "messageVideoNote" ? "⏺ Видеосообщение"
-                            : pType == "messageSticker" ? pc["sticker"]?["emoji"]?.ToString() + " Стикер"
-                            : "Сообщение";
+                            : pType == "messagePhoto" ? "📷 " + Loc.T("media_photo")
+                            : pType == "messageVideo" ? "🎥 " + Loc.T("media_video")
+                            : pType == "messageDocument" ? "📄 " + (pc["document"]?["file_name"]?.ToString() ?? Loc.T("media_file"))
+                            : pType == "messageAudio" ? "🎵 " + Loc.T("media_audio")
+                            : pType == "messageVoiceNote" ? "🎤 " + Loc.T("media_voice")
+                            : pType == "messageVideoNote" ? "⏺ " + Loc.T("media_videoMessage")
+                            : pType == "messageSticker" ? pc["sticker"]?["emoji"]?.ToString() + " " + Loc.T("media_sticker")
+                            : Loc.T("media_message");
                         PinnedMessageText.Text = pText ?? "";
                         PinnedMessageBar.Visibility = Visibility.Visible;
                     }
@@ -1608,13 +1608,13 @@ namespace TelegramWP10
                         string fType = fc?["@type"]?.ToString() ?? "";
                         string fText = fType == "messageText"
                             ? fc["text"]?["text"]?.ToString()
-                            : fType == "messagePhoto" ? "📷 Фото"
-                            : fType == "messageVideo" ? "🎥 Видео"
-                            : fType == "messageDocument" ? "📄 Файл"
-                            : fType == "messageAudio" ? "🎵 Аудио"
-                            : fType == "messageVoiceNote" ? "🎤 Голосовое"
-                            : "Сообщение";
-                        waitingItem.ReplyToText = string.IsNullOrEmpty(fText) ? "Сообщение" : fText;
+                            : fType == "messagePhoto" ? "📷 " + Loc.T("media_photo")
+                            : fType == "messageVideo" ? "🎥 " + Loc.T("media_video")
+                            : fType == "messageDocument" ? "📄 " + Loc.T("media_file")
+                            : fType == "messageAudio" ? "🎵 " + Loc.T("media_audio")
+                            : fType == "messageVoiceNote" ? "🎤 " + Loc.T("media_voice")
+                            : Loc.T("media_message");
+                        waitingItem.ReplyToText = string.IsNullOrEmpty(fText) ? Loc.T("media_message") : fText;
                     }
                     // Обновляем текст если это ответ после редактирования
                     if (fetchedMsgId != 0 && _messagesDict.ContainsKey(fetchedMsgId)) {
@@ -1648,8 +1648,8 @@ namespace TelegramWP10
                                 foreach (var cId in chatIds) {
                                     long id = (long)cId;
                                     if (_searchAllResults.Any(r => r.ChatId == id && r.Type == SearchResultItem.ResultType.Chat)) continue;
-                                    if (!_searchAllResults.Any(r => r.IsHeader && r.Title == "Чаты"))
-                                        _searchAllResults.Insert(0, new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Чаты" });
+                                    if (!_searchAllResults.Any(r => r.IsHeader && r.Title == Loc.T("search_chats")))
+                                        _searchAllResults.Insert(0, new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = Loc.T("search_chats") });
                                     // Берём данные из _chatsDict или _rawChatsDict
                                     string srTitle = _chatsDict.ContainsKey(id) ? _chatsDict[id].Title : "";
                                     BitmapImage srPhoto = _chatsDict.ContainsKey(id) ? _chatsDict[id].Photo : null;
@@ -1735,7 +1735,7 @@ namespace TelegramWP10
                                 _pendingChatIds.Enqueue((long)cId);
                             if (chatIds.Count == 0 && _loadingArchive) {
                                 _loadingArchive = false;
-                                ArchiveChatCountText.Text = "архив пуст";
+                                ArchiveChatCountText.Text = Loc.T("archive_empty");
                             }
                             LoadNextChat();
                         }
@@ -1748,7 +1748,7 @@ namespace TelegramWP10
                         var foundMsgs2 = update["messages"] as JArray;
                         if (foundMsgs2 != null && foundMsgs2.Count > 0) {
                             var ignored3 = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                                bool hadHdr = _searchAllResults.Any(r => r.IsHeader && r.Title == "Сообщения");
+                                bool hadHdr = _searchAllResults.Any(r => r.IsHeader && r.Title == Loc.T("search_messages"));
                                 foreach (var fm in foundMsgs2) {
                                     long fmChatId = fm["chat_id"]?.ToObject<long>() ?? 0;
                                     long fmMsgId  = fm["id"]?.ToObject<long>() ?? 0;
@@ -1758,10 +1758,10 @@ namespace TelegramWP10
                                     if (_searchAllResults.Any(r => r.MessageId == fmMsgId)) continue;
                                     if (!hadHdr) {
                                         _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Divider });
-                                        _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Сообщения" });
+                                        _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = Loc.T("search_messages") });
                                         hadHdr = true;
                                     }
-                                    string chatTitle = _chatsDict.ContainsKey(fmChatId) ? _chatsDict[fmChatId].Title : "Чат";
+                                    string chatTitle = _chatsDict.ContainsKey(fmChatId) ? _chatsDict[fmChatId].Title : Loc.T("label_chat");
                                     BitmapImage chatPhoto = _chatsDict.ContainsKey(fmChatId) ? _chatsDict[fmChatId].Photo : null;
                                     int date = fm["date"]?.ToObject<int>() ?? 0;
                                     string dateStr = date > 0 ? DateTimeOffset.FromUnixTimeSeconds(date).LocalDateTime.ToString("dd.MM HH:mm") : "";
@@ -1783,7 +1783,7 @@ namespace TelegramWP10
                         var foundMsgs = update["messages"] as JArray;
                         if (foundMsgs != null && foundMsgs.Count > 0) {
                             var ignored2 = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                                bool hadHeader = _searchAllResults.Any(r => r.IsHeader && r.Title == "Сообщения");
+                                bool hadHeader = _searchAllResults.Any(r => r.IsHeader && r.Title == Loc.T("search_messages"));
                                 foreach (var fm in foundMsgs) {
                                     long fmChatId = fm["chat_id"]?.ToObject<long>() ?? 0;
                                     long fmMsgId  = fm["id"]?.ToObject<long>() ?? 0;
@@ -1792,10 +1792,10 @@ namespace TelegramWP10
                                     if (string.IsNullOrEmpty(fmText)) continue;
                                     if (_searchAllResults.Any(r => r.MessageId == fmMsgId)) continue;
                                     if (!hadHeader) {
-                                        _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Сообщения" });
+                                        _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = Loc.T("search_messages") });
                                         hadHeader = true;
                                     }
-                                    string chatTitle = _chatsDict.ContainsKey(fmChatId) ? _chatsDict[fmChatId].Title : "Чат";
+                                    string chatTitle = _chatsDict.ContainsKey(fmChatId) ? _chatsDict[fmChatId].Title : Loc.T("label_chat");
                                     BitmapImage chatPhoto = _chatsDict.ContainsKey(fmChatId) ? _chatsDict[fmChatId].Photo : null;
                                     int date = fm["date"]?.ToObject<int>() ?? 0;
                                     string dateStr = date > 0 ? DateTimeOffset.FromUnixTimeSeconds(date).LocalDateTime.ToString("dd.MM HH:mm") : "";
@@ -2056,28 +2056,38 @@ namespace TelegramWP10
             string text = "";
             switch (type) {
                 case "userStatusOnline":
-                    text = "в сети";
+                    text = Loc.T("hdr_online");
                     CurrentChatStatus.Foreground = CB("#2AABEE");
                     break;
                 case "userStatusOffline":
                     long wasOnline = status["was_online"]?.ToObject<long>() ?? 0;
-                    text = wasOnline > 0 ? "был(а) " + FormatLastSeen(wasOnline) : "не в сети";
+                    text = wasOnline > 0 ? Loc.T("hdr_wasSeenPrefix") + FormatLastSeen(wasOnline) : Loc.T("hdr_offline");
                     CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
                     break;
                 case "userStatusRecently":
-                    text = "был(а) недавно";
+                    text = Loc.T("hdr_wasSeenPrefix") + Loc.T("hdr_recently");
                     CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
                     break;
                 case "userStatusLastWeek":
-                    text = "был(а) на этой неделе";
+                    text = Loc.T("hdr_wasSeenPrefix") + Loc.T("hdr_lastWeek");
                     CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
                     break;
                 case "userStatusLastMonth":
-                    text = "был(а) в этом месяце";
+                    text = Loc.T("hdr_wasSeenPrefix") + Loc.T("hdr_lastMonth");
                     CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
                     break;
             }
             CurrentChatStatus.Text = text;
+        }
+
+        /// <summary>Culture used for date/month/weekday formatting, matching the selected app language.</summary>
+        private static System.Globalization.CultureInfo LocCulture() {
+            switch (Loc.Language) {
+                case "ru": return new System.Globalization.CultureInfo("ru-RU");
+                case "uk": return new System.Globalization.CultureInfo("uk-UA");
+                case "he": return new System.Globalization.CultureInfo("he-IL");
+                default:   return new System.Globalization.CultureInfo("en-US");
+            }
         }
 
         private void LoadNextChat() {
@@ -2091,7 +2101,7 @@ namespace TelegramWP10
                 if (_loadingArchive) {
                     _loadingArchive = false;
                     ArchiveChatCountText.Text = _archiveChatItems.Count == 0
-                        ? "архив пуст" : "чатов: " + _archiveChatItems.Count;
+                        ? Loc.T("archive_empty") : Loc.T("archive_count") + _archiveChatItems.Count;
                     UpdateArchiveUnreadBadge();
                 }
                 return;
@@ -2105,7 +2115,7 @@ namespace TelegramWP10
                         if (_loadingArchive) {
                             if (!_archiveChatItems.Contains(existing)) {
                                 _archiveChatItems.Add(existing);
-                                ArchiveChatCountText.Text = "чатов: " + _archiveChatItems.Count;
+                                ArchiveChatCountText.Text = Loc.T("archive_count") + _archiveChatItems.Count;
                             }
                         } else {
                             if (!_chatListItems.Contains(existing)) {
@@ -2161,7 +2171,7 @@ namespace TelegramWP10
                     // Это первое непрочитанное — разделитель перед ним
                     var sep = new MessageItem {
                         IsSeparator = true,
-                        SeparatorLabel = "Новые сообщения",
+                        SeparatorLabel = Loc.T("chat_newMessages"),
                         IsUnreadSeparator = true,
                         Background = "#00000000"
                     };
@@ -2220,12 +2230,12 @@ namespace TelegramWP10
         private MessageItem MakeSeparator(DateTime day, DateTime today) {
             string label;
             int diff = (today - day).Days;
-            if (diff == 0)       label = "Сегодня";
-            else if (diff == 1)  label = "Вчера";
-            else if (diff == 2)  label = "Позавчера";
+            if (diff == 0)       label = Loc.T("date_today");
+            else if (diff == 1)  label = Loc.T("date_yesterday");
+            else if (diff == 2)  label = Loc.T("date_dayBeforeYesterday");
             else if (day.Year == today.Year)
-                                 label = day.ToString("d MMMM", new System.Globalization.CultureInfo("ru-RU"));
-            else                 label = day.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("ru-RU"));
+                                 label = day.ToString("d MMMM", LocCulture());
+            else                 label = day.ToString("d MMMM yyyy", LocCulture());
             return new MessageItem { IsSeparator = true, SeparatorLabel = label };
         }
 
@@ -2374,27 +2384,27 @@ namespace TelegramWP10
             long nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             long diffSec = nowUnix - unixTime;
             if (diffSec < 0) diffSec = 0;
-            if (diffSec < 60) return "только что";
-            if (diffSec < 3600) return (diffSec / 60) + " мин. назад";
+            if (diffSec < 60) return Loc.T("just_now");
+            if (diffSec < 3600) return (diffSec / 60) + Loc.T("minutes_ago");
             var dtLocal = DateTimeOffset.FromUnixTimeSeconds(unixTime).LocalDateTime;
             var nowLocal = DateTimeOffset.UtcNow.ToLocalTime().DateTime;
-            if (dtLocal.Day == nowLocal.Day) return "сегодня в " + dtLocal.ToString("HH:mm");
-            if (dtLocal.Day == nowLocal.AddDays(-1).Day) return "вчера в " + dtLocal.ToString("HH:mm");
-            return dtLocal.ToString("d MMM в HH:mm");
+            if (dtLocal.Day == nowLocal.Day) return Loc.T("lastseen_today") + dtLocal.ToString("HH:mm");
+            if (dtLocal.Day == nowLocal.AddDays(-1).Day) return Loc.T("lastseen_yesterday") + dtLocal.ToString("HH:mm");
+            return dtLocal.ToString("d MMM", LocCulture()) + ", " + dtLocal.ToString("HH:mm");
         }
 
         private string FormatCallDuration(int seconds) {
-            if (seconds < 60) return seconds + " сек";
+            if (seconds < 60) return seconds + Loc.T("unit_sec");
             int m = seconds / 60, s = seconds % 60;
             return m + ":" + s.ToString("D2");
         }
 
         private string FormatFileSize(long bytes) {
             if (bytes <= 0) return "";
-            if (bytes < 1024) return bytes + " Б";
-            if (bytes < 1024 * 1024) return (bytes / 1024) + " КБ";
-            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)) + " МБ";
-            return (bytes / (1024 * 1024 * 1024)) + " ГБ";
+            if (bytes < 1024) return bytes + Loc.T("unit_bytes");
+            if (bytes < 1024 * 1024) return (bytes / 1024) + Loc.T("unit_kb");
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)) + Loc.T("unit_mb");
+            return (bytes / (1024 * 1024 * 1024)) + Loc.T("unit_gb");
         }
 
         private void FillChatLastMessage(ChatItem item, JToken msg, JToken chatOrUpdate) {
@@ -2403,26 +2413,26 @@ namespace TelegramWP10
                 string mtype = content?["@type"]?.ToString() ?? "";
                 string text = mtype == "messageText"
                     ? content["text"]?["text"]?.ToString() ?? ""
-                    : mtype == "messagePhoto" ? "📷 Фото"
+                    : mtype == "messagePhoto" ? "📷 " + Loc.T("media_photo")
                     : mtype == "messageVideo" && (content["video"]?["is_animation"]?.ToObject<bool>() ?? false) ? "🎞 GIF"
-                    : mtype == "messageVideo" ? "🎥 Видео"
-                    : mtype == "messageVoiceNote" ? "🎤 Голосовое"
-                    : mtype == "messageVideoNote" ? "⏺ Видеосообщение"
-                    : mtype == "messageSticker" ? "Стикер"
-                    : mtype == "messagePoll" ? "📊 Опрос"
-                    : mtype == "messageDocument" ? "📄 Документ"
+                    : mtype == "messageVideo" ? "🎥 " + Loc.T("media_video")
+                    : mtype == "messageVoiceNote" ? "🎤 " + Loc.T("media_voice")
+                    : mtype == "messageVideoNote" ? "⏺ " + Loc.T("media_videoMessage")
+                    : mtype == "messageSticker" ? Loc.T("media_sticker")
+                    : mtype == "messagePoll" ? "📊 " + Loc.T("media_poll")
+                    : mtype == "messageDocument" ? "📄 " + Loc.T("media_document")
                     : mtype == "messageAnimation" ? "🎞 GIF"
-                    : mtype == "messageCall" ? ((content["is_video"]?.ToObject<bool>() ?? false) ? "📹" : "📞") + " Звонок"
-                    : mtype == "messageAudio" ? "🎵 Аудио"
-                    : mtype == "messagePinMessage" ? "📌 Закреплено сообщение"
-                    : mtype == "messageChatAddMembers" ? "➕ Добавлен участник"
-                    : mtype == "messageChatJoinByLink" ? "➕ Присоединился по ссылке"
-                    : mtype == "messageChatDeleteMember" ? "➖ Участник вышел"
-                    : mtype == "messageChatChangeTitle" ? "✏ Название изменено"
-                    : mtype == "messageChatChangePhoto" ? "🖼 Фото изменено"
-                    : mtype == "messageContactRegistered" ? "👤 Зарегистрировался в Telegram"
-                    : mtype == "messageLocation" ? "📍 Геолокация"
-                    : mtype == "messageContact" ? "👤 Контакт"
+                    : mtype == "messageCall" ? ((content["is_video"]?.ToObject<bool>() ?? false) ? "📹" : "📞") + " " + Loc.T("media_call")
+                    : mtype == "messageAudio" ? "🎵 " + Loc.T("media_audio")
+                    : mtype == "messagePinMessage" ? "📌 " + Loc.T("svc_pinnedMessageEvent")
+                    : mtype == "messageChatAddMembers" ? "➕ " + Loc.T("svc_memberAdded")
+                    : mtype == "messageChatJoinByLink" ? "➕ " + Loc.T("svc_joinedByLink")
+                    : mtype == "messageChatDeleteMember" ? "➖ " + Loc.T("svc_memberLeft")
+                    : mtype == "messageChatChangeTitle" ? "✏ " + Loc.T("svc_titleChanged")
+                    : mtype == "messageChatChangePhoto" ? "🖼 " + Loc.T("svc_photoChanged")
+                    : mtype == "messageContactRegistered" ? "👤 " + Loc.T("svc_contactRegistered")
+                    : mtype == "messageLocation" ? "📍 " + Loc.T("svc_location")
+                    : mtype == "messageContact" ? "👤 " + Loc.T("svc_contact")
                     : "[" + mtype.Replace("message", "") + "]";
                 item.LastMessage = text;
                 long date = msg["date"]?.ToObject<long>() ?? 0;
@@ -2600,11 +2610,11 @@ namespace TelegramWP10
                             string rType = replyContent["@type"]?.ToString();
                             replyText = rType == "messageText"
                                 ? replyContent["text"]?["text"]?.ToString()
-                                : rType == "messagePhoto" ? "📷 Фото"
-                                : rType == "messageVideo" ? "🎥 Видео"
-                                : rType == "messageDocument" ? "📄 Файл"
-                                : rType == "messageAudio" ? "🎵 Аудио"
-                                : rType == "messageVoiceNote" ? "🎤 Голосовое"
+                                : rType == "messagePhoto" ? "📷 " + Loc.T("media_photo")
+                                : rType == "messageVideo" ? "🎥 " + Loc.T("media_video")
+                                : rType == "messageDocument" ? "📄 " + Loc.T("media_file")
+                                : rType == "messageAudio" ? "🎵 " + Loc.T("media_audio")
+                                : rType == "messageVoiceNote" ? "🎤 " + Loc.T("media_voice")
                                 : null;
                         }
                     }
@@ -2633,19 +2643,19 @@ namespace TelegramWP10
                                 var u = _usersDict[oUid];
                                 item.ForwardedFrom = (u["first_name"]?.ToString() + " " + u["last_name"]?.ToString()).Trim();
                             } else {
-                                item.ForwardedFrom = "Пользователь";
+                                item.ForwardedFrom = Loc.T("label_unknownUser");
                             }
                         } else if (oType == "messageOriginHiddenUser") {
-                            item.ForwardedFrom = origin["sender_name"]?.ToString() ?? "Скрытый пользователь";
+                            item.ForwardedFrom = origin["sender_name"]?.ToString() ?? Loc.T("label_hiddenUser");
                         } else if (oType == "messageOriginChat") {
                             long oCid = origin["sender_chat_id"]?.ToObject<long>() ?? 0;
                             item.ForwardedFrom = _chatsDict.ContainsKey(oCid)
                                 ? _chatsDict[oCid].Title
-                                : origin["author_signature"]?.ToString() ?? "Чат";
+                                : origin["author_signature"]?.ToString() ?? Loc.T("label_chat");
                         } else if (oType == "messageOriginChannel") {
                             long oCid = origin["chat_id"]?.ToObject<long>() ?? 0;
                             string sig = origin["author_signature"]?.ToString();
-                            string chanName = _chatsDict.ContainsKey(oCid) ? _chatsDict[oCid].Title : "Канал";
+                            string chanName = _chatsDict.ContainsKey(oCid) ? _chatsDict[oCid].Title : Loc.T("label_channel");
                             item.ForwardedFrom = string.IsNullOrEmpty(sig) ? chanName : chanName + " (" + sig + ")";
                         }
                     }
@@ -2828,7 +2838,7 @@ namespace TelegramWP10
                         // Тип опроса
                         bool isAnonymous = poll["is_anonymous"]?.ToObject<bool>() ?? true;
                         bool isQuiz = poll["type"]?["@type"]?.ToString() == "pollTypeQuiz";
-                        item.PollType = isQuiz ? "🎯 Викторина" : (isAnonymous ? "📊 Анонимный опрос" : "📊 Опрос");
+                        item.PollType = isQuiz ? "🎯 " + Loc.T("poll_quiz") : (isAnonymous ? "📊 " + Loc.T("poll_anonymous") : "📊 " + Loc.T("media_poll"));
                         // Варианты ответа
                         int totalVotes = poll["total_voter_count"]?.ToObject<int>() ?? 0;
                         var options = poll["options"] as JArray;
@@ -2853,7 +2863,7 @@ namespace TelegramWP10
                 } else if (type == "messageDocument") {
                     var doc = content["document"];
                     var docFile = doc?["document"] as JObject;
-                    string docName = doc?["file_name"]?.ToString() ?? "Файл";
+                    string docName = doc?["file_name"]?.ToString() ?? Loc.T("media_file");
                     long docSize = docFile?["size"]?.ToObject<long>() ?? 0;
                     item.IsDocument = true;
                     item.DocumentName = docName;
@@ -2867,7 +2877,7 @@ namespace TelegramWP10
                         if (!string.IsNullOrEmpty(dPath) && isUploaded) {
                             item.FilePath = dPath;
                             item.IsDownloaded = true;
-                            item.DownloadStatus = "📂 Открыть";
+                            item.DownloadStatus = Loc.T("status_open");
                         } else if (outgoing && !isUploaded) {
                             _uploadFileToMsgId[dfid] = msgId;
                             // Берём актуальный прогресс если updateFile уже пришёл
@@ -2884,7 +2894,7 @@ namespace TelegramWP10
                     var voiceFile = voiceNote?["voice"] as JObject;
                     int dur = voiceNote?["duration"]?.ToObject<int>() ?? 0;
                     item.IsAudio = true;
-                    item.AudioTitle = "🎤 Голосовое";
+                    item.AudioTitle = "🎤 " + Loc.T("media_voice");
                     item.AudioDuration = dur > 0 ? FormatCallDuration(dur) : "";
                     item.AudioPlayStatus = "▶";
                     if (voiceFile != null) {
@@ -2905,7 +2915,7 @@ namespace TelegramWP10
                     var videoFile = videoNote?["video"] as JObject;
                     int vnDur = videoNote?["duration"]?.ToObject<int>() ?? 0;
                     item.IsVideo = true;
-                    item.Text = "⏺ " + (vnDur > 0 ? FormatCallDuration(vnDur) : "Видеосообщение");
+                    item.Text = "⏺ " + (vnDur > 0 ? FormatCallDuration(vnDur) : Loc.T("media_videoMessage"));
                     if (videoFile != null) {
                         long vnFid = (long)videoFile["id"];
                         _fileToMsgId[vnFid] = msgId;
@@ -2933,7 +2943,7 @@ namespace TelegramWP10
                     int dur = audio?["duration"]?.ToObject<int>() ?? 0;
                     item.IsAudio = true;
                     item.AudioTitle = !string.IsNullOrEmpty(performer) ? performer + " — " + title
-                                    : !string.IsNullOrEmpty(title) ? title : "Голосовое сообщение";
+                                    : !string.IsNullOrEmpty(title) ? title : Loc.T("media_voiceMessage");
                     item.AudioDuration = dur > 0 ? FormatCallDuration(dur) : "";
                     item.AudioPlayStatus = "▶";
                     if (audioFile != null) {
@@ -2956,23 +2966,23 @@ namespace TelegramWP10
                         bool isVideo = callContent["is_video"]?.ToObject<bool>() ?? false;
                         string callEmoji = isVideo ? "📹" : "📞";
                         bool isOutgoing = (bool)msg["is_outgoing"];
-                        string direction = isOutgoing ? "Исходящий" : "Входящий";
+                        string direction = isOutgoing ? Loc.T("call_outgoing") : Loc.T("call_incoming");
                         int duration = callContent["duration"]?.ToObject<int>() ?? 0;
                         string discardReason = callContent["discard_reason"]?["@type"]?.ToString() ?? "";
                         string durationStr = duration > 0 ? " · " + FormatCallDuration(duration) : "";
                         if (discardReason == "callDiscardReasonMissed")
-                            item.Text = callEmoji + " Пропущенный звонок";
+                            item.Text = callEmoji + " " + Loc.T("call_missed");
                         else if (discardReason == "callDiscardReasonDeclined")
-                            item.Text = callEmoji + " Отклонённый звонок";
+                            item.Text = callEmoji + " " + Loc.T("call_declined");
                         else
-                            item.Text = callEmoji + " " + direction + " звонок" + durationStr;
+                            item.Text = callEmoji + " " + direction + " " + Loc.T("media_call") + durationStr;
                     } else if (type == "messageAudio") {
                         string title = content["audio"]?["title"]?.ToString() ?? "";
                         string performer = content["audio"]?["performer"]?.ToString() ?? "";
                         int dur = content["audio"]?["duration"]?.ToObject<int>() ?? 0;
                         string durStr = dur > 0 ? " · " + FormatCallDuration(dur) : "";
                         string label = !string.IsNullOrEmpty(performer) ? performer + " — " + title : title;
-                        item.Text = "🎵 " + (string.IsNullOrEmpty(label) ? "Аудио" : label) + durStr;
+                        item.Text = "🎵 " + (string.IsNullOrEmpty(label) ? Loc.T("media_audio") : label) + durStr;
                     } else if (type == "messagePinMessage") {
                         long pinnedMsgId = content["message_id"]?.ToObject<long>() ?? 0;
                         // Получаем имя отправителя
@@ -2985,7 +2995,7 @@ namespace TelegramWP10
                                 senderName = u["first_name"]?.ToString() ?? "";
                             }
                         }
-                        item.Text = "📌 " + (string.IsNullOrEmpty(senderName) ? "Пользователь" : senderName) + " закрепил сообщение";
+                        item.Text = "📌 " + (string.IsNullOrEmpty(senderName) ? Loc.T("label_unknownUser") : senderName) + " " + Loc.T("svc_pinnedBySuffix");
                         // Запрашиваем текст закреплённого чтобы показать его
                         if (pinnedMsgId != 0) {
                             _pinnedTextRequests[pinnedMsgId] = msgId;
@@ -3183,14 +3193,14 @@ namespace TelegramWP10
             StartPanel.Visibility = Visibility.Collapsed;
             MessagesPanel.Visibility = Visibility.Visible;
             // Заголовок — если тред, показываем "Комментарии"
-            CurrentChatTitle.Text = threadId != 0 ? "Комментарии" : chat.Title;
+            CurrentChatTitle.Text = threadId != 0 ? Loc.T("label_comments") : chat.Title;
             if (threadId != 0) {
                 CurrentChatStatus.Text = "← " + chat.Title;
                 CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
             } else if (_usersDict.ContainsKey(chat.Id)) {
                 UpdateChatStatus(_usersDict[chat.Id]["status"]);
             } else if (chat.IsChannel) {
-                CurrentChatStatus.Text = "Канал";
+                CurrentChatStatus.Text = Loc.T("label_channel");
                 CurrentChatStatus.Foreground = CB(_isLightTheme ? "#000000" : "#CCE8FF");
             } else {
                 CurrentChatStatus.Text = "";
@@ -3217,7 +3227,7 @@ namespace TelegramWP10
             ChatHeaderAvatarInitials.Text = chat.Photo != null ? "" : AvatarPlaceholder.GetInitials(chat.Title);
             // Статус для групп/каналов — запрашиваем число участников
             if (_currentChatIsGroup || chat.IsChannel) {
-                CurrentChatStatus.Text = "загрузка...";
+                CurrentChatStatus.Text = Loc.T("status_loading");
                 if (_rawChatsDict.ContainsKey(chat.Id)) {
                     var rawC2 = _rawChatsDict[chat.Id] as Newtonsoft.Json.Linq.JObject;
                     long sgId2 = rawC2?["type"]?["supergroup_id"]?.ToObject<long>() ?? 0;
@@ -3461,7 +3471,7 @@ namespace TelegramWP10
             // Показываем оверлей сразу с превью
             PhotoOverlay.Visibility = Visibility.Visible;
             PhotoOverlayImage.Source = item.AttachedPhoto;
-            PhotoOverlayStatus.Text = "Загрузка полного размера...";
+            PhotoOverlayStatus.Text = Loc.T("status_loadingFullSize");
 
             if (item.FullPhotoFileId == 0) { PhotoOverlayStatus.Text = ""; return; }
 
@@ -3520,7 +3530,7 @@ namespace TelegramWP10
                 // Запускаем скачивание — ищем file_id по msgId
                 foreach (var kv in _fileToMsgId) {
                     if (kv.Value == msgId) {
-                        item.DownloadStatus = "⏳ Загрузка...";
+                        item.DownloadStatus = Loc.T("status_loadingEllipsis");
                         TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + kv.Key + ",\"priority\":10,\"synchronous\":false}");
                         break;
                     }
@@ -3612,7 +3622,7 @@ namespace TelegramWP10
                 // Обновляем текст полоски
                 string pinText = !string.IsNullOrEmpty(_selectedMessageForCopy.Text)
                     ? _selectedMessageForCopy.Text
-                    : "Сообщение";
+                    : Loc.T("media_message");
                 PinnedMessageText.Text = pinText;
                 PinnedMessageBar.Visibility = Visibility.Visible;
             }
@@ -3689,7 +3699,7 @@ namespace TelegramWP10
                 var u = _usersDict[uid];
                 var ci = new ContactItem {
                     UserId = uid,
-                    FullName = uid == _myUserId ? "⭐ Вы" : ((u["first_name"]?.ToString() + " " + u["last_name"]?.ToString()).Trim()),
+                    FullName = uid == _myUserId ? Loc.T("label_you") : ((u["first_name"]?.ToString() + " " + u["last_name"]?.ToString()).Trim()),
                     Username = u["username"]?.ToString() ?? u["usernames"]?["editable_username"]?.ToString() ?? "",
                     LastSeen = GetLastSeenText(u["status"])
                 };
@@ -4068,8 +4078,8 @@ namespace TelegramWP10
             long chatId = _pendingDeleteChatId;
             _pendingDeleteChatId = 0;
             // Показываем диалог подтверждения
-            var dialog = new Windows.UI.Popups.MessageDialog("Удалить переписку? Это действие нельзя отменить.", "Удалить переписку");
-            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Удалить", async cmd => {
+            var dialog = new Windows.UI.Popups.MessageDialog(Loc.T("dlg_deleteChat_body"), Loc.T("dlg_deleteChat_title"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_delete"), async cmd => {
                 var req = Newtonsoft.Json.Linq.JObject.FromObject(new {
                     type = "deleteChatHistory",
                     chat_id = chatId,
@@ -4089,7 +4099,7 @@ namespace TelegramWP10
                     foreach (var fl in _folderChatIds.Values) fl.Remove(chatId);
                 });
             }));
-            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_cancel")));
             await dialog.ShowAsync();
         }
 
@@ -4222,7 +4232,7 @@ namespace TelegramWP10
             if (_proxyMode == ProxyMode.None) {
                 _proxyApplied = true;
                 TdJson.SendUtf8(_client, "{\"@type\":\"disableProxy\"}");
-                ProxyStatusText.Text = "Без прокси";
+                ProxyStatusText.Text = Loc.T("proxy_status_none");
                 ProxyStatusText.Visibility = Visibility.Visible;
             } else if (_proxyMode == ProxyMode.Auto) {
                 _proxyApplied = false;
@@ -4234,11 +4244,11 @@ namespace TelegramWP10
                 string portStr = MtpPort.Text.Trim();
                 string secret = MtpSecret.Text.Trim();
                 if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr) || string.IsNullOrEmpty(secret)) {
-                    LoginStatus.Text = "Заполните все поля MTProto";
+                    LoginStatus.Text = Loc.T("login_fillMtproto");
                     return;
                 }
                 if (!int.TryParse(portStr, out int port)) {
-                    LoginStatus.Text = "Неверный порт";
+                    LoginStatus.Text = Loc.T("login_wrongPort");
                     return;
                 }
                 _proxyApplied = true;
@@ -4247,11 +4257,11 @@ namespace TelegramWP10
                 string host = HttpHost.Text.Trim();
                 string portStr = HttpPort.Text.Trim();
                 if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr)) {
-                    LoginStatus.Text = "Заполните все поля HTTP";
+                    LoginStatus.Text = Loc.T("login_fillHttp");
                     return;
                 }
                 if (!int.TryParse(portStr, out int port)) {
-                    LoginStatus.Text = "Неверный порт";
+                    LoginStatus.Text = Loc.T("login_wrongPort");
                     return;
                 }
                 _proxyApplied = true;
@@ -4267,11 +4277,11 @@ namespace TelegramWP10
                 string user = SocksUser.Text.Trim();
                 string pass = SocksPass.Password;
                 if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(portStr)) {
-                    LoginStatus.Text = "Заполните все поля SOCKS5";
+                    LoginStatus.Text = Loc.T("login_fillSocks");
                     return;
                 }
                 if (!int.TryParse(portStr, out int port)) {
-                    LoginStatus.Text = "Неверный порт";
+                    LoginStatus.Text = Loc.T("login_wrongPort");
                     return;
                 }
                 _proxyApplied = true;
@@ -4436,7 +4446,7 @@ namespace TelegramWP10
                 return;
             }
             // Вкладка "Все"
-            FolderTabs.Children.Add(MakeFolderTab("Все", -1));
+            FolderTabs.Children.Add(MakeFolderTab(Loc.T("folder_all"), -1));
             foreach (var f in folders) {
                 int fid = f["id"]?.ToObject<int>() ?? 0;
                 var titleToken = f["name"];
@@ -4444,7 +4454,7 @@ namespace TelegramWP10
                 string fname = titleToken?["text"]?["text"]?.ToString()  // chatFolderName.text.text
                             ?? titleToken?["text"]?.ToString()            // chatFolderName.text если строка
                             ?? titleToken?.ToString()                     // fallback
-                            ?? "Папка";
+                            ?? Loc.T("label_folder");
                 FolderTabs.Children.Add(MakeFolderTab(fname, fid));
                 // Запрашиваем чаты папки по одной за раз через очередь
                 _folderLoadQueue.Enqueue(fid);
@@ -4547,7 +4557,7 @@ namespace TelegramWP10
                     var u2 = _usersDict[cid2];
                     contacts.Add(new ContactItem {
                         UserId   = cid2,
-                        FullName = cid2 == _myUserId ? "⭐ Избранное" : (u2["first_name"]?.ToString() + " " + u2["last_name"]?.ToString()).Trim(),
+                        FullName = cid2 == _myUserId ? Loc.T("menu_favorites") : (u2["first_name"]?.ToString() + " " + u2["last_name"]?.ToString()).Trim(),
                         Username = cid2 == _myUserId ? "" : (u2["username"]?.ToString() ?? u2["usernames"]?["editable_username"]?.ToString() ?? ""),
                         LastSeen = cid2 == _myUserId ? "" : GetLastSeenText(u2["status"])
                     });
@@ -4561,7 +4571,7 @@ namespace TelegramWP10
             foreach (var cx in contacts)
             contacts = contacts.Where(c => c.UserId != _myUserId).OrderBy(c => c.FullName).ToList();
             if (_myUserId != 0) {
-                var selfItem = new ContactItem { UserId = _myUserId, FullName = "⭐ Избранное" };
+                var selfItem = new ContactItem { UserId = _myUserId, FullName = Loc.T("menu_favorites") };
                 contacts.Insert(0, selfItem);
                 if (_usersDict.ContainsKey(_myUserId)) {
                     var t = LoadContactAvatarFromUser(selfItem, _usersDict[_myUserId]);
@@ -4583,19 +4593,19 @@ namespace TelegramWP10
             if (status == null) return "";
             string stype = status["@type"]?.ToString() ?? "";
             switch (stype) {
-                case "userStatusOnline": return "в сети";
+                case "userStatusOnline": return Loc.T("hdr_online");
                 case "userStatusOffline":
                     int wasOnline = status["was_online"]?.ToObject<int>() ?? 0;
-                    if (wasOnline == 0) return "давно не был";
+                    if (wasOnline == 0) return Loc.T("ls_longAgo");
                     var dt = DateTimeOffset.FromUnixTimeSeconds(wasOnline).LocalDateTime;
                     var now = DateTime.Now;
-                    if (dt.Date == now.Date) return "был(а) сегодня в " + dt.ToString("HH:mm");
-                    if (dt.Date == now.Date.AddDays(-1)) return "был(а) вчера в " + dt.ToString("HH:mm");
-                    if ((now - dt).TotalDays < 7) return "был(а) " + dt.ToString("dddd в HH:mm");
-                    return "был(а) " + dt.ToString("dd.MM.yyyy");
-                case "userStatusRecently": return "недавно";
-                case "userStatusLastWeek": return "на этой неделе";
-                case "userStatusLastMonth": return "в этом месяце";
+                    if (dt.Date == now.Date) return Loc.T("ls_todayAt") + dt.ToString("HH:mm");
+                    if (dt.Date == now.Date.AddDays(-1)) return Loc.T("ls_yesterdayAt") + dt.ToString("HH:mm");
+                    if ((now - dt).TotalDays < 7) return Loc.T("hdr_wasSeenPrefix") + dt.ToString("dddd", LocCulture()) + ", " + dt.ToString("HH:mm");
+                    return Loc.T("hdr_wasSeenPrefix") + dt.ToString("dd.MM.yyyy");
+                case "userStatusRecently": return Loc.T("hdr_recently");
+                case "userStatusLastWeek": return Loc.T("hdr_lastWeek");
+                case "userStatusLastMonth": return Loc.T("hdr_lastMonth");
                 default: return "";
             }
         }
@@ -4749,19 +4759,19 @@ namespace TelegramWP10
 
         private async void ClearCache_Click(object sender, RoutedEventArgs e) {
             var dialog = new Windows.UI.Popups.MessageDialog(
-                "Удалить все скачанные фото, видео и аудио из кэша?", "Очистить кэш");
-            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Очистить", async cmd => {
+                Loc.T("dlg_clearCache_body"), Loc.T("dlg_clearCache_title"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_clear"), async cmd => {
                 try {
                     // TDLib API — очищаем кэш файлов
                     TdJson.SendUtf8(_client, "{\"@type\":\"optimizeStorage\",\"size\":0,\"ttl\":0,\"count\":0,\"immunity_delay\":0" +
                         ",\"file_types\":[{\"@type\":\"fileTypePhoto\"},{\"@type\":\"fileTypeVideo\"},{\"@type\":\"fileTypeAudio\"}" +
                         ",{\"@type\":\"fileTypeAnimation\"},{\"@type\":\"fileTypeDocument\"}]" +
                         ",\"chat_ids\":[],\"exclude_chat_ids\":[],\"return_deleted_file_statistics\":true,\"chat_limit\":0}");
-                    var confirmDialog = new Windows.UI.Popups.MessageDialog("Кэш очищен.", "Готово");
+                    var confirmDialog = new Windows.UI.Popups.MessageDialog(Loc.T("dlg_cacheCleared_body"), Loc.T("dlg_done_title"));
                     await confirmDialog.ShowAsync();
                 } catch { }
             }));
-            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_cancel")));
             await dialog.ShowAsync();
         }
 
@@ -4792,7 +4802,7 @@ namespace TelegramWP10
                 foreach (var c in _allChatItems) {
                     if (c.Title?.ToLower().Contains(q) == true) {
                         if (!anyChats) {
-                            _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = "Чаты" });
+                            _searchAllResults.Add(new SearchResultItem { Type = SearchResultItem.ResultType.Header, Title = Loc.T("search_chats") });
                             anyChats = true;
                         }
                         _searchAllResults.Add(new SearchResultItem {
@@ -4886,7 +4896,7 @@ namespace TelegramWP10
             _stickerPanelOpen = true;
             if (_loadedStickerSetIds.Count == 0) {
                 StickerGrid.ItemsSource = null;
-                StickerLoadingText.Text = "Загрузка...";
+                StickerLoadingText.Text = Loc.T("status_loading");
                 StickerProgressText.Text = "";
                 StickerLoadingPanel.Visibility = Visibility.Visible;
                 StickerPackTabs.Children.Clear();
@@ -4968,7 +4978,7 @@ namespace TelegramWP10
                 UpdateStickerProgress(setId);
             } else {
                 StickerGrid.ItemsSource = null;
-                StickerLoadingText.Text = "Загрузка...";
+                StickerLoadingText.Text = Loc.T("status_loading");
                 StickerProgressText.Text = "";
                 StickerLoadingPanel.Visibility = Visibility.Visible;
                 LoadStickerSet(setId);
@@ -5103,11 +5113,11 @@ namespace TelegramWP10
         }
 
         private async void LogoutButton_Click(object sender, RoutedEventArgs e) {
-            var dialog = new Windows.UI.Popups.MessageDialog("Выйти из аккаунта?", "Выход");
-            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Выйти", cmd => {
+            var dialog = new Windows.UI.Popups.MessageDialog(Loc.T("dlg_logout_body"), Loc.T("dlg_logout_title"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_logout"), cmd => {
                 TdJson.SendUtf8(_client, "{\"@type\":\"logOut\"}");
             }));
-            dialog.Commands.Add(new Windows.UI.Popups.UICommand("Отмена"));
+            dialog.Commands.Add(new Windows.UI.Popups.UICommand(Loc.T("btn_cancel")));
             dialog.DefaultCommandIndex = 1;
             await dialog.ShowAsync();
         }
@@ -5147,7 +5157,7 @@ namespace TelegramWP10
                 _loadingArchive = true;
                 TdJson.SendUtf8(_client, "{\"@type\":\"getChats\",\"chat_list\":{\"@type\":\"chatListArchive\"},\"limit\":200}");
             } else {
-                ArchiveChatCountText.Text = "чатов: " + _archiveChatItems.Count;
+                ArchiveChatCountText.Text = Loc.T("archive_count") + _archiveChatItems.Count;
             }
         }
 
@@ -5174,14 +5184,14 @@ namespace TelegramWP10
         private void SendPhone_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrWhiteSpace(PhoneInput.Text)) return;
             PhoneButton.IsEnabled = false;
-            LoginStatus.Text = "Отправка номера...";
+            LoginStatus.Text = Loc.T("login_sendingPhone");
             TdJson.SendUtf8(_client, "{\"@type\":\"setAuthenticationPhoneNumber\",\"phone_number\":\"" + PhoneInput.Text.Trim() + "\"}");
         }
 
         private void SendCode_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrWhiteSpace(CodeInput.Text)) return;
             CodeButton.IsEnabled = false;
-            LoginStatus.Text = "Проверка кода...";
+            LoginStatus.Text = Loc.T("login_checkingCode");
             TdJson.SendUtf8(_client, "{\"@type\":\"checkAuthenticationCode\",\"code\":\"" + CodeInput.Text.Trim() + "\"}");
         }
 
@@ -5392,7 +5402,7 @@ namespace TelegramWP10
         private void SendPassword_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrWhiteSpace(PasswordInput.Password)) return;
             PasswordButton.IsEnabled = false;
-            LoginStatus.Text = "Проверка пароля...";
+            LoginStatus.Text = Loc.T("login_checkingPassword");
             var pwd = PasswordInput.Password.Replace("\\", "\\\\").Replace("\"", "\\\"");
             TdJson.SendUtf8(_client, "{\"@type\":\"checkAuthenticationPassword\",\"password\":\"" + pwd + "\"}");
         }

@@ -238,6 +238,125 @@ namespace TelegramWP10
             // ---- extended execution descriptions ----
             { "session_grace", Row("Finishing Telegram updates", "Дочитываем обновления Telegram", "Завершуємо оновлення Telegram", "משלים עדכוני Telegram") },
             { "session_keepAlive", Row("Unogram stays connected", "Unogram остаётся на связи", "Unogram залишається на зв'язку", "Unogram נשאר מחובר") },
+
+            // ---- login status ----
+            { "login_enterPhone", Row("Enter phone number", "Введите номер телефона", "Введіть номер телефону", "הזן מספר טלפון") },
+            { "login_codeSent", Row("Code sent. Check Telegram or SMS.", "Код отправлен. Проверьте Telegram или SMS.", "Код надіслано. Перевірте Telegram або SMS.", "הקוד נשלח. בדוק ב-Telegram או ב-SMS.") },
+            { "login_enter2fa", Row("Enter 2FA password", "Введите пароль 2FA", "Введіть пароль 2FA", "הזן סיסמת אימות דו-שלבי") },
+            { "login_errorPrefix", Row("Error: ", "Ошибка: ", "Помилка: ", "שגיאה: ") },
+            { "login_sendingPhone", Row("Sending number...", "Отправка номера...", "Надсилання номера...", "שולח מספר...") },
+            { "login_checkingCode", Row("Checking code...", "Проверка кода...", "Перевірка коду...", "בודק קוד...") },
+            { "login_checkingPassword", Row("Checking password...", "Проверка пароля...", "Перевірка пароля...", "בודק סיסמה...") },
+            { "login_fillMtproto", Row("Fill in all MTProto fields", "Заполните все поля MTProto", "Заповніть усі поля MTProto", "מלא את כל שדות MTProto") },
+            { "login_fillHttp", Row("Fill in all HTTP fields", "Заполните все поля HTTP", "Заповніть усі поля HTTP", "מלא את כל שדות HTTP") },
+            { "login_fillSocks", Row("Fill in all SOCKS5 fields", "Заполните все поля SOCKS5", "Заповніть усі поля SOCKS5", "מלא את כל שדות SOCKS5") },
+            { "login_wrongPort", Row("Invalid port", "Неверный порт", "Невірний порт", "פורט לא תקין") },
+
+            // ---- dialogs ----
+            { "err_storage", Row("Storage error:\n", "Ошибка хранилища:\n", "Помилка сховища:\n", "שגיאת אחסון:\n") },
+            { "dlg_deleteChat_body", Row("Delete conversation? This can't be undone.", "Удалить переписку? Это действие нельзя отменить.", "Видалити листування? Цю дію не можна скасувати.", "למחוק את השיחה? לא ניתן לבטל פעולה זו.") },
+            { "dlg_deleteChat_title", Row("Delete conversation", "Удалить переписку", "Видалити листування", "מחיקת שיחה") },
+            { "btn_delete", Row("Delete", "Удалить", "Видалити", "מחק") },
+            { "dlg_clearCache_body", Row("Delete all downloaded photos, videos and audio from cache?", "Удалить все скачанные фото, видео и аудио из кэша?", "Видалити всі завантажені фото, відео та аудіо з кешу?", "למחוק את כל התמונות, הסרטונים והשמע שהורדו מהמטמון?") },
+            { "dlg_clearCache_title", Row("Clear cache", "Очистить кэш", "Очистити кеш", "נקה מטמון") },
+            { "btn_clear", Row("Clear", "Очистить", "Очистити", "נקה") },
+            { "dlg_cacheCleared_body", Row("Cache cleared.", "Кэш очищен.", "Кеш очищено.", "המטמון נוקה.") },
+            { "dlg_done_title", Row("Done", "Готово", "Готово", "בוצע") },
+            { "dlg_logout_body", Row("Log out of your account?", "Выйти из аккаунта?", "Вийти з облікового запису?", "להתנתק מהחשבון?") },
+            { "dlg_logout_title", Row("Log out", "Выход", "Вихід", "התנתקות") },
+            { "btn_logout", Row("Log out", "Выйти", "Вийти", "התנתק") },
+
+            // ---- shared media type labels (bare words — emoji prefixed in code) ----
+            { "media_photo", Row("Photo", "Фото", "Фото", "תמונה") },
+            { "media_video", Row("Video", "Видео", "Відео", "וידאו") },
+            { "media_document", Row("Document", "Документ", "Документ", "מסמך") },
+            { "media_file", Row("File", "Файл", "Файл", "קובץ") },
+            { "media_audio", Row("Audio", "Аудио", "Аудіо", "שמע") },
+            { "media_voice", Row("Voice", "Голосовое", "Голосове", "קול") },
+            { "media_voiceMessage", Row("Voice message", "Голосовое сообщение", "Голосове повідомлення", "הודעה קולית") },
+            { "media_videoMessage", Row("Video message", "Видеосообщение", "Відеоповідомлення", "הודעת וידאו") },
+            { "media_sticker", Row("Sticker", "Стикер", "Стікер", "מדבקה") },
+            { "media_poll", Row("Poll", "Опрос", "Опитування", "סקר") },
+            { "media_call", Row("Call", "Звонок", "Дзвінок", "שיחה") },
+            { "media_message", Row("Message", "Сообщение", "Повідомлення", "הודעה") },
+            { "poll_quiz", Row("Quiz", "Викторина", "Вікторина", "חידון") },
+            { "poll_anonymous", Row("Anonymous poll", "Анонимный опрос", "Анонімне опитування", "סקר אנונימי") },
+
+            // ---- service / event messages in chat-list preview ----
+            { "svc_pinnedMessageEvent", Row("Pinned a message", "Закреплено сообщение", "Закріплено повідомлення", "הודעה ננעצה") },
+            { "svc_pinnedBySuffix", Row("pinned a message", "закрепил(а) сообщение", "закріпив(ла) повідомлення", "נעץ/ה הודעה") },
+            { "svc_memberAdded", Row("Member added", "Добавлен участник", "Учасника додано", "חבר נוסף") },
+            { "svc_joinedByLink", Row("Joined via link", "Присоединился по ссылке", "Приєднався за посиланням", "הצטרף בקישור") },
+            { "svc_memberLeft", Row("Member left", "Участник вышел", "Учасник вийшов", "חבר עזב") },
+            { "svc_titleChanged", Row("Title changed", "Название изменено", "Назву змінено", "הכותרת שונתה") },
+            { "svc_photoChanged", Row("Photo changed", "Фото изменено", "Фото змінено", "התמונה שונתה") },
+            { "svc_contactRegistered", Row("Joined Telegram", "Зарегистрировался в Telegram", "Зареєструвався в Telegram", "הצטרף ל-Telegram") },
+            { "svc_location", Row("Location", "Геолокация", "Геолокація", "מיקום") },
+            { "svc_contact", Row("Contact", "Контакт", "Контакт", "איש קשר") },
+            { "label_unknownUser", Row("User", "Пользователь", "Користувач", "משתמש") },
+            { "label_hiddenUser", Row("Hidden user", "Скрытый пользователь", "Прихований користувач", "משתמש מוסתר") },
+            { "label_chat", Row("Chat", "Чат", "Чат", "צ'אט") },
+            { "label_channel", Row("Channel", "Канал", "Канал", "ערוץ") },
+            { "label_you", Row("⭐ You", "⭐ Вы", "⭐ Ви", "⭐ אתה") },
+            { "label_comments", Row("Comments", "Комментарии", "Коментарі", "תגובות") },
+
+            // ---- call log ----
+            { "call_missed", Row("Missed call", "Пропущенный звонок", "Пропущений дзвінок", "שיחה שלא נענתה") },
+            { "call_declined", Row("Declined call", "Отклонённый звонок", "Відхилений дзвінок", "שיחה שנדחתה") },
+            { "call_outgoing", Row("Outgoing", "Исходящий", "Вихідний", "יוצאת") },
+            { "call_incoming", Row("Incoming", "Входящий", "Вхідний", "נכנסת") },
+
+            // ---- connection state ----
+            { "conn_connecting", Row("connecting...", "подключение...", "з'єднання...", "מתחבר...") },
+            { "conn_connectingProxy", Row("connecting to proxy...", "подключение к прокси...", "з'єднання з проксі...", "מתחבר לפרוקסי...") },
+            { "conn_updating", Row("updating...", "обновление...", "оновлення...", "מעדכן...") },
+            { "conn_noNetwork", Row("· no network", "· нет сети", "· немає мережі", "· אין רשת") },
+
+            // ---- chat header / typing / members ----
+            { "status_typing", Row("typing...", "печатает...", "друкує...", "מקליד...") },
+            { "label_members", Row(" members", " участников", " учасників", " חברים") },
+            { "label_subscribers", Row(" subscribers", " подписчиков", " підписників", " מנויים") },
+            { "status_loading", Row("loading...", "загрузка...", "завантаження...", "טוען...") },
+
+            // ---- online / last-seen status ----
+            { "hdr_online", Row("online", "в сети", "в мережі", "מחובר") },
+            { "hdr_offline", Row("offline", "не в сети", "не в мережі", "לא מחובר") },
+            { "hdr_wasSeenPrefix", Row("last seen ", "был(а) ", "був(ла) ", "נראה לאחרונה ") },
+            { "hdr_recently", Row("recently", "недавно", "нещодавно", "לאחרונה") },
+            { "hdr_lastWeek", Row("within a week", "на этой неделе", "цього тижня", "השבוע") },
+            { "hdr_lastMonth", Row("within a month", "в этом месяце", "цього місяця", "החודש") },
+            { "ls_longAgo", Row("a long time ago", "давно не был(а)", "давно не був(ла)", "מזמן לא נראה") },
+            { "ls_todayAt", Row("today at ", "был(а) сегодня в ", "був(ла) сьогодні о ", "נראה לאחרונה היום ב-") },
+            { "ls_yesterdayAt", Row("yesterday at ", "был(а) вчера в ", "був(ла) вчора о ", "נראה לאחרונה אתמול ב-") },
+            { "lastseen_today", Row("today at ", "сегодня в ", "сьогодні о ", "היום ב-") },
+            { "lastseen_yesterday", Row("yesterday at ", "вчера в ", "вчора о ", "אתמול ב-") },
+            { "just_now", Row("just now", "только что", "щойно", "הרגע") },
+            { "minutes_ago", Row(" min. ago", " мин. назад", " хв. тому", " דק' לפני") },
+
+            // ---- date separators ----
+            { "date_today", Row("Today", "Сегодня", "Сьогодні", "היום") },
+            { "date_yesterday", Row("Yesterday", "Вчера", "Вчора", "אתמול") },
+            { "date_dayBeforeYesterday", Row("The day before yesterday", "Позавчера", "Позавчора", "שלשום") },
+            { "chat_newMessages", Row("New messages", "Новые сообщения", "Нові повідомлення", "הודעות חדשות") },
+
+            // ---- search headers / folders / archive ----
+            { "search_chats", Row("Chats", "Чаты", "Чати", "צ'אטים") },
+            { "search_messages", Row("Messages", "Сообщения", "Повідомлення", "הודעות") },
+            { "folder_all", Row("All", "Все", "Усі", "הכל") },
+            { "archive_empty", Row("archive is empty", "архив пуст", "архів порожній", "הארכיון ריק") },
+            { "archive_count", Row("chats: ", "чатов: ", "чатів: ", "צ'אטים: ") },
+
+            // ---- misc status text ----
+            { "status_open", Row("📂 Open", "📂 Открыть", "📂 Відкрити", "📂 פתח") },
+            { "status_loadingEllipsis", Row("⏳ Loading...", "⏳ Загрузка...", "⏳ Завантаження...", "⏳ טוען...") },
+            { "status_loadingFullSize", Row("Loading full size...", "Загрузка полного размера...", "Завантаження повного розміру...", "טוען בגודל מלא...") },
+            { "unit_bytes", Row("B", "Б", "Б", "בייט") },
+            { "unit_kb", Row("KB", "КБ", "КБ", "ק\"ב") },
+            { "unit_mb", Row("MB", "МБ", "МБ", "מ\"ב") },
+            { "unit_gb", Row("GB", "ГБ", "ГБ", "ג\"ב") },
+            { "unit_sec", Row("sec", "сек", "сек", "שנ'") },
+            { "proxy_status_none", Row("No proxy", "Без прокси", "Без проксі", "ללא פרוקסי") },
+            { "label_folder", Row("Folder", "Папка", "Папка", "תיקייה") },
         };
     }
 
