@@ -1441,6 +1441,30 @@ namespace TelegramWP10
                 case "ok":
                     break;
 
+                case "updateMessageSendSucceeded": {
+                    // TDLib подтвердил отправку и заменил временный (pending) id,
+                    // под которым сообщение показывалось оптимистично, на
+                    // постоянный. Если это не отследить, любое действие над
+                    // "только что отправленным" сообщением (редактирование,
+                    // ответ, закрепление, реакция) уходит с уже недействительным
+                    // id и молча проваливается на сервере.
+                    long sentOldId = update["old_message_id"]?.ToObject<long>() ?? 0;
+                    var sentMsg = update["message"];
+                    long sentNewId = sentMsg?["id"]?.ToObject<long>() ?? 0;
+                    if (sentOldId != 0 && sentNewId != 0 && sentOldId != sentNewId && _messagesDict.ContainsKey(sentOldId)) {
+                        var sentItem = _messagesDict[sentOldId];
+                        sentItem.Id = sentNewId;
+                        _messagesDict.Remove(sentOldId);
+                        _messagesDict[sentNewId] = sentItem;
+                        if (_pinnedMessageId == sentOldId) _pinnedMessageId = sentNewId;
+                        if (_replyToMessageId == sentOldId) _replyToMessageId = sentNewId;
+                        if (_editingMessageId == sentOldId) _editingMessageId = sentNewId;
+                        foreach (var upKey in _uploadFileToMsgId.Keys.Where(k => _uploadFileToMsgId[k] == sentOldId).ToList())
+                            _uploadFileToMsgId[upKey] = sentNewId;
+                    }
+                    break;
+                }
+
                 case "updateMessageContent":
                     long umcChatId = update["chat_id"]?.ToObject<long>() ?? 0;
                     long umcMsgId = update["message_id"]?.ToObject<long>() ?? 0;
