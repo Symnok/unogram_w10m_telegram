@@ -178,6 +178,35 @@ namespace TelegramWP10
         /// <summary>Whether an extended execution session is currently held.</summary>
         public bool KeepAliveActive { get { return _keepAliveSession != null; } }
 
+        private const string CatchUpEnabledSettingKey = "catchup_enabled";
+
+        /// <summary>
+        /// Пользовательская настройка: получать ли уведомления о новых
+        /// сообщениях, пока приложение полностью закрыто (через CatchUpTask).
+        /// По умолчанию — true, чтобы не менять поведение для тех, кто уже
+        /// пользуется приложением и ничего не трогал в настройках.
+        /// </summary>
+        public static bool CatchUpEnabled
+        {
+            get
+            {
+                try
+                {
+                    var v = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
+                    return !v.ContainsKey(CatchUpEnabledSettingKey) || (bool)v[CatchUpEnabledSettingKey];
+                }
+                catch { return true; }
+            }
+            set
+            {
+                try
+                {
+                    Windows.Storage.ApplicationData.Current.LocalSettings.Values[CatchUpEnabledSettingKey] = value;
+                }
+                catch { }
+            }
+        }
+
         /// <summary>
         /// Returns false if location access was refused on a build without
         /// coarse fallback, or the system denied the session. The caller is

@@ -4897,6 +4897,7 @@ namespace TelegramWP10
                     }
                 }
                 UpdateKeepAliveMenuText();
+                UpdateCatchUpMenuText();
 
                 // Hebrew is right-to-left; flipping the root mirrors the whole tree.
                 var root = Window.Current.Content as FrameworkElement;
@@ -4942,6 +4943,30 @@ namespace TelegramWP10
             _soundEnabled = !_soundEnabled;
             Windows.Storage.ApplicationData.Current.LocalSettings.Values["sound_enabled"] = _soundEnabled;
             SoundToggleItem.Text = _soundEnabled ? Loc.T("menu_sound_on") : Loc.T("menu_sound_off");
+        }
+
+        /// <summary>
+        /// Включает/выключает CatchUpTask — фоновую доставку уведомлений при
+        /// полностью закрытом приложении. В отличие от "Background mode"
+        /// (KeepAlive, продлевает жизнь уже открытой сессии), это отдельная
+        /// периодическая задача (TimeTrigger), которая иначе всегда
+        /// регистрируется без спроса. Применяем изменение сразу, не дожидаясь
+        /// следующего запуска.
+        /// </summary>
+        private async void CatchUpToggle_Click(object sender, RoutedEventArgs e) {
+            BackgroundService.CatchUpEnabled = !BackgroundService.CatchUpEnabled;
+            if (BackgroundService.CatchUpEnabled)
+                await BackgroundService.RegisterCatchUpTaskAsync();
+            else
+                BackgroundService.UnregisterCatchUpTask();
+            UpdateCatchUpMenuText();
+        }
+
+        private void UpdateCatchUpMenuText() {
+            try {
+                CatchUpToggleItem.Text = BackgroundService.CatchUpEnabled
+                    ? Loc.T("menu_catchup_on") : Loc.T("menu_catchup_off");
+            } catch { }
         }
 
         private async void ClearCache_Click(object sender, RoutedEventArgs e) {

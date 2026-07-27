@@ -141,6 +141,7 @@
                                                 <MenuFlyoutItem x:Name="SoundToggleItem" Text="🔔 Sound: On" Click="SoundToggle_Click"/>
                                                 <MenuFlyoutSeparator/>
                                                 <MenuFlyoutItem x:Name="KeepAliveToggleItem" Text="📍 Background mode: Off" Click="KeepAliveToggle_Click"/>
+                                                <MenuFlyoutItem x:Name="CatchUpToggleItem" Text="🔔 Background notifications: On" Click="CatchUpToggle_Click"/>
                                                 <MenuFlyoutSeparator/>
                                                 <MenuFlyoutSubItem x:Name="LanguageSubItem" Text="🌐 Language">
                                                     <MenuFlyoutItem Text="English"    Tag="en" Click="Language_Click"/>

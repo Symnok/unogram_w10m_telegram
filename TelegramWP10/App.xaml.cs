@@ -33,7 +33,10 @@ namespace TelegramWP10
 
             BackgroundService.IsInForeground = true;
             // Регистрация идёт после Activate(), чтобы не задерживать показ окна.
-            await BackgroundService.RegisterCatchUpTaskAsync();
+            if (BackgroundService.CatchUpEnabled)
+                await BackgroundService.RegisterCatchUpTaskAsync();
+            else
+                BackgroundService.UnregisterCatchUpTask(); // на случай если была включена раньше, а потом выключили
         }
 
         private void OnUnhandledException(object sender,
