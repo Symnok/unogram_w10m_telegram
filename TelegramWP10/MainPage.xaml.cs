@@ -36,6 +36,9 @@ namespace TelegramWP10
         private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>();
         private Dictionary<long, JToken> _supergroupDict = new Dictionary<long, JToken>();
         private Dictionary<long, long> _fileToChatId = new Dictionary<long, long>();
+        private Dictionary<long, long> _fileToSenderUserId = new Dictionary<long, long>();  // file_id → userId, для аватарок отправителей в группах
+        private Dictionary<long, BitmapImage> _senderAvatarCache = new Dictionary<long, BitmapImage>(); // userId → уже загруженная аватарка (на всю сессию, не только текущий чат)
+        private HashSet<long> _senderAvatarRequested = new HashSet<long>(); // userId, для которых уже запрошена загрузка — не дублируем
         private Dictionary<long, SearchResultItem> _fileToSearchResult = new Dictionary<long, SearchResultItem>();
         private Dictionary<long, bool> _pendingPinnedPositions = new Dictionary<long, bool>();
         private Dictionary<long, long> _uploadFileToMsgId = new Dictionary<long, long>(); // remote file_id → msgId для прогресса upload // chatId → isPinned до updateNewChat
@@ -768,6 +771,12 @@ namespace TelegramWP10
 
                             if (_fileToChatId.ContainsKey(fid) && !string.IsNullOrEmpty(fpath))
                                 { var t = UpdateAvatar(_fileToChatId[fid], fpath); }
+
+                            if (isCompleted && _fileToSenderUserId.ContainsKey(fid) && !string.IsNullOrEmpty(fpath)) {
+                                long avatarUid = _fileToSenderUserId[fid];
+                                _fileToSenderUserId.Remove(fid);
+                                var ts = UpdateSenderAvatar(avatarUid, fpath);
+                            }
 
                             // Аватарка для результатов поиска
                             if (isCompleted && !string.IsNullOrEmpty(fpath) && _fileToSearchResult.ContainsKey(fid)) {
@@ -2555,6 +2564,14 @@ namespace TelegramWP10
                     SenderColor = GetSenderColor(senderId)
                 };
 
+                // Аватарка отправителя — только для входящих сообщений в группах
+                if (!outgoing && _currentChatIsGroup && senderId?["@type"]?.ToString() == "messageSenderUser") {
+                    long senderUid = senderId["user_id"]?.ToObject<long>() ?? 0;
+                    item.SenderUserId = senderUid;
+                    if (_senderAvatarCache.ContainsKey(senderUid)) item.SenderPhoto = _senderAvatarCache[senderUid];
+                    else EnsureSenderAvatar(senderUid);
+                }
+
                 var replyTo = msg["reply_to"];
                 // Парсим link_preview для messageText
                 if (type == "messageText") {
@@ -3030,6 +3047,41 @@ namespace TelegramWP10
                     await bmp.SetSourceAsync(stream);
                 item.Photo = bmp;
             } catch { }
+        }
+
+        /// <summary>
+        /// Аватарка отправителя в группах — грузим один раз на пользователя и
+        /// переиспользуем везде, где он писал (в отличие от chat/contact
+        /// аватарок, кэш тут не завязан на текущий чат и не чистится при
+        /// его смене — id пользователя глобален, коллизий с другими чатами нет).
+        /// </summary>
+        private void EnsureSenderAvatar(long userId) {
+            if (userId == 0 || _senderAvatarCache.ContainsKey(userId) || _senderAvatarRequested.Contains(userId)) return;
+            if (!_usersDict.ContainsKey(userId)) return;
+            var ph = _usersDict[userId]["profile_photo"]?["small"] as JObject;
+            if (ph == null) return;
+            long pfid = ph["id"]?.ToObject<long>() ?? 0;
+            string pPath = ph["local"]?["path"]?.ToString();
+            _senderAvatarRequested.Add(userId);
+            if (!string.IsNullOrEmpty(pPath)) {
+                var t = UpdateSenderAvatar(userId, pPath);
+            } else if (pfid > 0) {
+                _fileToSenderUserId[pfid] = userId;
+                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":1,\"synchronous\":false}");
+            }
+        }
+
+        private async Task UpdateSenderAvatar(long userId, string path) {
+            try {
+                var file = await StorageFile.GetFileFromPathAsync(path);
+                var bitmap = new BitmapImage();
+                using (var stream = await file.OpenReadAsync())
+                    await bitmap.SetSourceAsync(stream);
+                _senderAvatarCache[userId] = bitmap;
+                // Проставляем всем уже отрисованным сообщениям от этого пользователя
+                foreach (var m in _messageItems)
+                    if (m.SenderUserId == userId) m.SenderPhoto = bitmap;
+            } catch (Exception ex) { Log("UpdateSenderAvatar ERR user=" + userId + " | " + ex.Message); }
         }
 
         private async Task UpdateAvatar(long chatId, string path) {

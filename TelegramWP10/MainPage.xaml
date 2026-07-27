@@ -496,9 +496,23 @@
                                     </Border>
                                 </StackPanel>
                             </Border>
-                            <!-- Пузырь сообщения -->
-                            <Border Background="{Binding BubbleBackground}" Padding="{Binding BubblePadding}" Margin="0,4" CornerRadius="10" HorizontalAlignment="{Binding Alignment}"
-                                    Visibility="{Binding MessageVisibility}"
+                            <!-- Пузырь сообщения (+ аватарка отправителя в группах) -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="{Binding Alignment}"
+                                        VerticalAlignment="Bottom" Margin="0,4"
+                                        Visibility="{Binding MessageVisibility}">
+                                <Grid Width="28" Height="28" Margin="0,0,6,0" VerticalAlignment="Bottom"
+                                      Visibility="{Binding SenderAvatarVisibility}">
+                                    <Ellipse Fill="{Binding SenderAvatarColor}" Visibility="{Binding SenderAvatarPlaceholderVisibility}"/>
+                                    <TextBlock Text="{Binding SenderAvatarInitials}" Width="28" Height="28"
+                                               TextAlignment="Center" Foreground="White" FontSize="11" FontWeight="SemiBold"
+                                               Margin="0,7,0,0" Visibility="{Binding SenderAvatarPlaceholderVisibility}"/>
+                                    <Ellipse Width="28" Height="28">
+                                        <Ellipse.Fill>
+                                            <ImageBrush ImageSource="{Binding SenderPhoto}" Stretch="UniformToFill"/>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+                                </Grid>
+                            <Border Background="{Binding BubbleBackground}" Padding="{Binding BubblePadding}" CornerRadius="10"
                                     Holding="MessageBubble_Holding">
                             <FlyoutBase.AttachedFlyout>
                                 <MenuFlyout>
@@ -749,6 +763,7 @@
                                         FontSize="12"/>
                             </StackPanel>
                         </Border>
+                            </StackPanel>
                         </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>

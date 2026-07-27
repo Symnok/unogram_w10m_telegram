@@ -108,7 +108,7 @@ namespace TelegramWP10
         // Статус прочтения
         private bool _isOutgoing = false;
         private bool _isRead = false;
-        public bool IsOutgoing { get => _isOutgoing; set { _isOutgoing = value; OnPropertyChanged("IsOutgoing"); OnPropertyChanged("ReadStatusVisibility"); OnPropertyChanged("ReadStatusText"); } }
+        public bool IsOutgoing { get => _isOutgoing; set { _isOutgoing = value; OnPropertyChanged("IsOutgoing"); OnPropertyChanged("ReadStatusVisibility"); OnPropertyChanged("ReadStatusText"); OnPropertyChanged("SenderNameVisibility"); OnPropertyChanged("SenderAvatarVisibility"); } }
         public bool IsRead { get => _isRead; set { _isRead = value; OnPropertyChanged("IsRead"); OnPropertyChanged("ReadStatusText"); OnPropertyChanged("ReadStatusColor"); } }
         public Visibility ReadStatusVisibility => _isOutgoing ? Visibility.Visible : Visibility.Collapsed;
         public string ReadStatusText => _isRead ? "✓✓" : "✓";
@@ -123,10 +123,23 @@ namespace TelegramWP10
 
         // Ник отправителя (для групп, входящих)
         private string _senderName = "";
-        public string SenderName { get => _senderName; set { _senderName = value; OnPropertyChanged("SenderName"); OnPropertyChanged("SenderNameVisibility"); } }
+        public string SenderName { get => _senderName; set { _senderName = value; OnPropertyChanged("SenderName"); OnPropertyChanged("SenderNameVisibility"); OnPropertyChanged("SenderAvatarInitials"); } }
         public Visibility SenderNameVisibility => !string.IsNullOrEmpty(_senderName) && !_isOutgoing ? Visibility.Visible : Visibility.Collapsed;
 
         public string SenderColor { get; set; } = "#7EC8E3";
+
+        // Аватарка отправителя (та же видимость, что и у ника — входящие в группах)
+        public long SenderUserId { get; set; } = 0;
+        public string SenderAvatarColor => AvatarPlaceholder.GetColor(SenderUserId);
+        public string SenderAvatarInitials => AvatarPlaceholder.GetInitials(_senderName);
+        public Visibility SenderAvatarVisibility => SenderNameVisibility;
+
+        private BitmapImage _senderPhoto;
+        public BitmapImage SenderPhoto {
+            get => _senderPhoto;
+            set { _senderPhoto = value; OnPropertyChanged("SenderPhoto"); OnPropertyChanged("SenderAvatarPlaceholderVisibility"); }
+        }
+        public Visibility SenderAvatarPlaceholderVisibility => _senderPhoto == null ? Visibility.Visible : Visibility.Collapsed;
 
         // Ник автора цитаты
         public string ReplyAuthor { get; set; } = "";
