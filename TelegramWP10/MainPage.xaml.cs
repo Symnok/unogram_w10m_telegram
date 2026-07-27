@@ -2989,6 +2989,29 @@ namespace TelegramWP10
                             _pinnedTextRequests[pinnedMsgId] = msgId;
                             TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + (long)msg["chat_id"] + ",\"message_id\":" + pinnedMsgId + "}");
                         }
+                    } else if (type == "messageChatAddMembers") {
+                        // Кто добавил
+                        string adderName = "";
+                        var adderId = msg["sender_id"];
+                        if (adderId?["@type"]?.ToString() == "messageSenderUser") {
+                            long adderUid = adderId["user_id"]?.ToObject<long>() ?? 0;
+                            if (_usersDict.ContainsKey(adderUid))
+                                adderName = _usersDict[adderUid]["first_name"]?.ToString() ?? "";
+                        }
+                        if (string.IsNullOrEmpty(adderName)) adderName = Loc.T("label_unknownUser");
+
+                        // Кого добавили — может быть несколько за раз
+                        var addedIds = content["member_user_ids"] as JArray;
+                        var addedNames = new List<string>();
+                        if (addedIds != null) {
+                            foreach (var addedIdToken in addedIds) {
+                                long addedUid = addedIdToken.ToObject<long>();
+                                string nm = _usersDict.ContainsKey(addedUid) ? _usersDict[addedUid]["first_name"]?.ToString() ?? "" : "";
+                                addedNames.Add(string.IsNullOrEmpty(nm) ? Loc.T("label_unknownUser") : nm);
+                            }
+                        }
+                        string namesJoined = addedNames.Count > 0 ? string.Join(", ", addedNames) : Loc.T("label_unknownUser");
+                        item.Text = "➕ " + adderName + " " + Loc.T("svc_addedSuffix") + " " + namesJoined;
                     } else {
                         item.Text = "[" + type.Replace("message", "") + "]";
                     }
@@ -4782,6 +4805,18 @@ namespace TelegramWP10
                 SoundToggleItem.Text = _soundEnabled ? Loc.T("menu_sound_on") : Loc.T("menu_sound_off");
                 LanguageSubItem.Text = Loc.T("menu_language");
                 LogoutItem.Text      = Loc.T("menu_logout");
+
+                // Вкладка "Все" собирается динамически (BuildFolderTabs) и не
+                // пересоздаётся при смене языка — обновляем её текст точечно,
+                // остальные вкладки — это пользовательские названия папок,
+                // их трогать не нужно.
+                foreach (var child in FolderTabs.Children) {
+                    var tabButton = child as Button;
+                    if (tabButton != null && tabButton.Tag is int && (int)tabButton.Tag == -1) {
+                        tabButton.Content = Loc.T("folder_all");
+                        break;
+                    }
+                }
                 UpdateKeepAliveMenuText();
 
                 // Hebrew is right-to-left; flipping the root mirrors the whole tree.

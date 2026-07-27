@@ -286,6 +286,7 @@ namespace TelegramWP10
             { "svc_pinnedMessageEvent", Row("Pinned a message", "Закреплено сообщение", "Закріплено повідомлення", "הודעה ננעצה") },
             { "svc_pinnedBySuffix", Row("pinned a message", "закрепил(а) сообщение", "закріпив(ла) повідомлення", "נעץ/ה הודעה") },
             { "svc_memberAdded", Row("Member added", "Добавлен участник", "Учасника додано", "חבר נוסף") },
+            { "svc_addedSuffix", Row("added", "добавил(а)", "додав(ла)", "הוסיף/ה") },
             { "svc_joinedByLink", Row("Joined via link", "Присоединился по ссылке", "Приєднався за посиланням", "הצטרף בקישור") },
             { "svc_memberLeft", Row("Member left", "Участник вышел", "Учасник вийшов", "חבר עזב") },
             { "svc_titleChanged", Row("Title changed", "Название изменено", "Назву змінено", "הכותרת שונתה") },
