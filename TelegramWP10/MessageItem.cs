@@ -48,6 +48,40 @@ namespace TelegramWP10
         public string ReplyTextColor    => (_background == "#FFFFFF" || _background == "#EFFDDE") ? "#000000" : "#CCCCCC";
         public string FilePath { get; set; } // путь к файлу видео для открытия
 
+        // Группировка фото-альбомов (media_album_id) — "Вариант А": визуально
+        // слепленные подряд идущие пузыри одного отправителя без реальной
+        // мозаики. AlbumId = "" или "0" — сообщение не часть альбома.
+        public string AlbumId { get; set; } = "";
+
+        private bool _isFirstInGroup = true;
+        public bool IsFirstInGroup {
+            get => _isFirstInGroup;
+            set { _isFirstInGroup = value; OnPropertyChanged("IsFirstInGroup"); OnPropertyChanged("BubbleCornerRadius"); OnPropertyChanged("GroupMargin"); }
+        }
+        private bool _isLastInGroup = true;
+        public bool IsLastInGroup {
+            get => _isLastInGroup;
+            set {
+                _isLastInGroup = value;
+                OnPropertyChanged("IsLastInGroup");
+                OnPropertyChanged("BubbleCornerRadius");
+                OnPropertyChanged("SenderNameVisibility");
+                OnPropertyChanged("SenderAvatarVisibility");
+                OnPropertyChanged("TimeVisibility");
+            }
+        }
+        // Скругления: полные у самостоятельного сообщения, "срезанные" на стыке
+        // со следующим/предыдущим фото того же альбома — единый визуальный блок.
+        public string BubbleCornerRadius {
+            get {
+                string top = _isFirstInGroup ? "10" : "3";
+                string bottom = _isLastInGroup ? "10" : "3";
+                return top + "," + top + "," + bottom + "," + bottom;
+            }
+        }
+        // Отступ сверху — только у первого в группе обычный, у слепленных — минимальный
+        public string GroupMargin => "0," + (_isFirstInGroup ? "4" : "1") + ",0,0";
+
         private string _replyToText;
         public string ReplyToText { get => _replyToText; set { _replyToText = value; OnPropertyChanged("ReplyToText"); OnPropertyChanged("ReplyVisibility"); } }
         public Visibility ReplyVisibility => !string.IsNullOrEmpty(ReplyToText) ? Visibility.Visible : Visibility.Collapsed;
@@ -64,7 +98,7 @@ namespace TelegramWP10
         // Стикеры — прозрачный пузырь без padding
         public string BubbleBackground => IsSticker ? "Transparent" : _background;
         public string BubblePadding    => IsSticker ? "0" : "8,5";
-        public string TimeVisibility   => IsSticker ? "Collapsed" : "Visible";
+        public string TimeVisibility   => (IsSticker || !_isLastInGroup) ? "Collapsed" : "Visible";
         // VideoIcon показываем только для обычного видео (не GIF), когда нет прогресса скачивания
         public Visibility VideoIconVisibility => (IsVideo && !IsGif) ? Visibility.Visible : Visibility.Collapsed;
 
@@ -124,7 +158,7 @@ namespace TelegramWP10
         // Ник отправителя (для групп, входящих)
         private string _senderName = "";
         public string SenderName { get => _senderName; set { _senderName = value; OnPropertyChanged("SenderName"); OnPropertyChanged("SenderNameVisibility"); OnPropertyChanged("SenderAvatarInitials"); } }
-        public Visibility SenderNameVisibility => !string.IsNullOrEmpty(_senderName) && !_isOutgoing ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility SenderNameVisibility => !string.IsNullOrEmpty(_senderName) && !_isOutgoing && _isLastInGroup ? Visibility.Visible : Visibility.Collapsed;
 
         public string SenderColor { get; set; } = "#7EC8E3";
 

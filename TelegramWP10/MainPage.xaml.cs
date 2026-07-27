@@ -936,6 +936,11 @@ namespace TelegramWP10
                             if (lastReal == null || lastReal.RawDate.Date != newItem.RawDate.Date)
                                 _messageItems.Add(MakeSeparator(newItem.RawDate.Date, DateTime.Today));
                             _messageItems.Add(newItem);
+                            // Группировка альбома с предыдущим сообщением (если это фото из той же пачки)
+                            bool sameAlbum = lastReal != null && !string.IsNullOrEmpty(newItem.AlbumId) && newItem.AlbumId != "0" && newItem.AlbumId == lastReal.AlbumId;
+                            newItem.IsFirstInGroup = !sameAlbum;
+                            if (sameAlbum) lastReal.IsLastInGroup = false;
+                            newItem.IsLastInGroup = true;
                             StartBotButton.Visibility = Visibility.Collapsed;
 
                             double scrollable3 = MessagesScrollViewer.ScrollableHeight;
@@ -1859,6 +1864,7 @@ namespace TelegramWP10
                             if (it != null) _messageItems.Add(it);
                         }
                         InsertDateSeparators();
+                        RecomputeAlbumGrouping();
                         // Если получили меньше 50 — дозагружаем более старые
                         if (gotCount > 0 && gotCount < 50) {
                             long oldestId = msgs[msgs.Count - 1]?["id"]?.ToObject<long>() ?? 0;
@@ -1936,6 +1942,7 @@ namespace TelegramWP10
                                     if (it != null) _messageItems.Insert(insertIdx++, it);
                                 }
                                 RebuildDateSeparators();
+                                RecomputeAlbumGrouping();
                                 _hasMoreHistory = gotCount > 0;
                                 _trimming = true;
                                 double capturedOld = oldOffset;
@@ -2166,6 +2173,25 @@ namespace TelegramWP10
         }
 
         // Вставляет разделители дат в _messageItems (полная перестройка)
+        /// <summary>
+        /// "Вариант А" группировки альбомов: без реальной мозаики — просто
+        /// схлопываем отступ/скругления между подряд идущими сообщениями
+        /// с одинаковым media_album_id, и показываем имя/аватарку/время
+        /// только у последнего фото в такой пачке. Разделители дат в списке
+        /// пропускаем — они не участвуют в группировке.
+        /// </summary>
+        private void RecomputeAlbumGrouping() {
+            MessageItem prev = null;
+            foreach (var it in _messageItems) {
+                if (it.IsSeparator) continue;
+                bool sameAlbum = prev != null && !string.IsNullOrEmpty(it.AlbumId) && it.AlbumId != "0" && it.AlbumId == prev.AlbumId;
+                it.IsFirstInGroup = !sameAlbum;
+                if (sameAlbum) prev.IsLastInGroup = false;
+                it.IsLastInGroup = true;
+                prev = it;
+            }
+        }
+
         private void InsertDateSeparators() {
             var today = DateTime.Today;
             DateTime? lastDate = null;
@@ -2561,7 +2587,8 @@ namespace TelegramWP10
                     IsOutgoing = outgoing,
                     IsRead = outgoing && (msg["id"]?.ToObject<long>() ?? 0) <= _currentChatOutboxReadId,
                     SenderName = outgoing ? "" : (_currentChatIsGroup ? GetSenderName(senderId) : ""),
-                    SenderColor = GetSenderColor(senderId)
+                    SenderColor = GetSenderColor(senderId),
+                    AlbumId = msg["media_album_id"]?.ToString() ?? ""
                 };
 
                 // Аватарка отправителя — только для входящих сообщений в группах
