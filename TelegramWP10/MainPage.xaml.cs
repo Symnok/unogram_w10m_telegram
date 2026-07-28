@@ -2485,6 +2485,25 @@ namespace TelegramWP10
             return s.Length > 3000 ? s.Substring(0, 3000) + "…(truncated)" : s;
         }
 
+        // ================================================================
+        // ВРЕМЕННО — диагностика пустого превью у видео-стикеров (WEBM).
+        // Отдельный, самодостаточный файл, никак не связанный с основным
+        // логированием (оно отключено намеренно) — убрать вызов и эту
+        // функцию, как только разберёмся с причиной.
+        // ================================================================
+        private static readonly System.Threading.SemaphoreSlim _stickerDebugLock = new System.Threading.SemaphoreSlim(1, 1);
+        private static async void LogStickerDebug(string message) {
+            if (!await _stickerDebugLock.WaitAsync(2000)) return;
+            try {
+                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
+                    .CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
+                var file = await folder.CreateFileAsync("stickerdebug.txt", CreationCollisionOption.OpenIfExists);
+                await FileIO.AppendTextAsync(file, "[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message + "\r\n");
+            } catch { } finally {
+                try { _stickerDebugLock.Release(); } catch { }
+            }
+        }
+
         /// <summary>
         /// Рекурсивно вытаскивает обычный текст из дерева RichText — того же
         /// типа, что TDLib давно использует для Instant View страниц:
@@ -3075,6 +3094,14 @@ namespace TelegramWP10
                     // Определяем тип по расширению — .tgs это gzip+lottie (анимированный)
                     bool isTgs = stickerPath.EndsWith(".tgs", StringComparison.OrdinalIgnoreCase);
                     bool isStaticWebp = stickerPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+
+                    // ВРЕМЕННО: смотрим точную структуру sticker для видео/анимированных —
+                    // убрать после того, как разберёмся с пустым превью у WEBM.
+                    if (isVideo || isAnimated) {
+                        LogStickerDebug("msg=" + msgId + " isAnimated=" + isAnimated + " isVideo=" + isVideo
+                            + " isTgs=" + isTgs + " isStaticWebp=" + isStaticWebp + " stickerPath=" + stickerPath
+                            + " RAW sticker=" + TruncateForLog(sticker?.ToString(Newtonsoft.Json.Formatting.None)));
+                    }
 
                     if ((!isAnimated && !isVideo && !isTgs) || isStaticWebp) {
                         // Статичный WebP стикер — декодируем через libwebp
