@@ -173,7 +173,7 @@ namespace UnogramBackground
                 IntPtr c = client;
                 var deadline = DateTime.UtcNow.AddSeconds(SessionBudgetSeconds);
                 var titles = new Dictionary<long, string>();
-                var privateChats = new HashSet<long>(); // только личные чаты (chatTypePrivate) — не группы/каналы
+                var mutedChats = new HashSet<long>(); // чаты, замьюченные на сервере Telegram (mute_for > 0)
                 var seen = new HashSet<long>();
                 bool abort = false;
 
@@ -219,10 +219,26 @@ namespace UnogramBackground
                             long cid = u["chat"]?["id"]?.ToObject<long>() ?? 0;
                             string t = u["chat"]?["title"]?.ToString();
                             if (cid != 0 && !string.IsNullOrEmpty(t)) titles[cid] = t;
-                            // Личка — единственный тип, для которого шлём фоновые уведомления.
-                            // Группы, супергруппы и каналы (chatTypeBasicGroup/Supergroup) отсеиваются.
-                            string chatType = u["chat"]?["type"]?["@type"]?.ToString();
-                            if (cid != 0 && chatType == "chatTypePrivate") privateChats.Add(cid);
+                            // Личка, группы и каналы — все уведомляют одинаково, если
+                            // чат не замьючен на сервере Telegram (см. mute_for ниже).
+                            int muteFor = u["chat"]?["notification_settings"]?["mute_for"]?.ToObject<int>() ?? 0;
+                            if (cid != 0)
+                            {
+                                if (muteFor > 0) mutedChats.Add(cid);
+                                else mutedChats.Remove(cid);
+                            }
+                        }
+                        else if (type == "updateChatNotificationSettings")
+                        {
+                            // Настройки могли поменять с другого устройства, пока эта
+                            // задача не запускалась — статус мьюта тот же, что и на сервере.
+                            long uncsId = u["chat_id"]?.ToObject<long>() ?? 0;
+                            int uncsMuteFor = u["notification_settings"]?["mute_for"]?.ToObject<int>() ?? 0;
+                            if (uncsId != 0)
+                            {
+                                if (uncsMuteFor > 0) mutedChats.Add(uncsId);
+                                else mutedChats.Remove(uncsId);
+                            }
                         }
                         else if (type == "updateNewMessage" && authorized)
                         {
@@ -231,7 +247,7 @@ namespace UnogramBackground
                             if (m["is_outgoing"]?.ToObject<bool>() ?? false) continue;
 
                             long chatId = m["chat_id"]?.ToObject<long>() ?? 0;
-                            if (!privateChats.Contains(chatId)) continue; // не личка — пропускаем
+                            if (mutedChats.Contains(chatId)) continue; // чат замьючен на сервере — пропускаем
 
                             long mid = m["id"]?.ToObject<long>() ?? 0;
                             if (mid != 0 && !seen.Add(mid)) continue;

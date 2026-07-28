@@ -984,7 +984,7 @@ namespace TelegramWP10
                         BackgroundService.Diag("Toast skipped: sound disabled");
                     if (_soundEnabled && newMsg != null) {
                         bool isOutgoing = newMsg["is_outgoing"]?.ToObject<bool>() ?? false;
-                        bool isPrivate  = newMsgChatId > 0;
+                        bool isMuted    = _chatsDict.ContainsKey(newMsgChatId) && _chatsDict[newMsgChatId].IsMuted;
                         long sentAt     = newMsg["date"]?.ToObject<long>() ?? 0;
                         long toastMsgId = newMsg["id"]?.ToObject<long>() ?? 0;
                         // На переднем плане уведомляем только о свежем, иначе при
@@ -1000,13 +1000,13 @@ namespace TelegramWP10
                         bool notYetSeen = BackgroundService.ShouldNotify(newMsgChatId, toastMsgId);
                         // В фоне записываем, почему уведомление не показано —
                         // иначе отсутствие toast'а невозможно отличить от причин.
-                        if (background && !(!isOutgoing && isPrivate && isFresh && notYetSeen))
+                        if (background && !(!isOutgoing && !isMuted && isFresh && notYetSeen))
                             BackgroundService.Diag("Toast skipped: sound=" + _soundEnabled
-                                + " outgoing=" + isOutgoing + " private=" + isPrivate
+                                + " outgoing=" + isOutgoing + " muted=" + isMuted
                                 + " fresh=" + isFresh + " age=" + (sentAt == 0 ? -1 :
                                     DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt)
                                 + " notYetSeen=" + notYetSeen + " chat=" + newMsgChatId);
-                        if (!isOutgoing && isPrivate && isFresh && notYetSeen) {
+                        if (!isOutgoing && !isMuted && isFresh && notYetSeen) {
                             // Собираем имя и текст для уведомления
                             string senderName = "";
                             if (_chatsDict.ContainsKey(newMsgChatId))
