@@ -2432,7 +2432,8 @@ namespace TelegramWP10
             var list = toArchive ? _archiveChatItems : _chatListItems;
             if (list.Any(c => c.Id == chatId)) return;
 
-            InsertAfterPinned(list, item);
+            if (item.IsPinned) InsertAfterPinned(list, item);
+            else InsertBySortOrder(list, item);
             if (toArchive) {
                 UpdateArchiveUnreadBadge();
             } else {
