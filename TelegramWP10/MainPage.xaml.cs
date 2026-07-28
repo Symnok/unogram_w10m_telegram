@@ -2481,6 +2481,67 @@ namespace TelegramWP10
             return (bytes / (1024 * 1024 * 1024)) + Loc.T("unit_gb");
         }
 
+        /// <summary>
+        /// messageRichMessage (Bot API 10.1, июнь 2026) — контент устроен как
+        /// дерево типизированных блоков (rich_message.blocks), а не единый
+        /// текст/подпись. Точная TDLib-схема на момент написания нигде не
+        /// задокументирована, поэтому это осторожная, best-effort попытка
+        /// вытащить читаемый текст из простых текстовых блоков — заголовки,
+        /// параграфы, списки, цитаты, сноски, преформатированный текст.
+        /// Таблицы/карты/коллажи/слайдшоу/формулы/медиа — полноценно не
+        /// рендерим (это отдельная, большая задача), просто пропускаем их
+        /// при сборке текста. Все обращения через "?." — если названия полей
+        /// в реальном TDLib отличаются, тут просто ничего не найдётся и
+        /// сработает Loc.T("media_richMessage") в вызывающем коде.
+        /// </summary>
+        private string ExtractRichMessageText(JToken content) {
+            try {
+                var blocks = content?["rich_message"]?["blocks"] as JArray;
+                if (blocks == null || blocks.Count == 0) return "";
+                var sb = new System.Text.StringBuilder();
+                foreach (var block in blocks) {
+                    string bType = block?["@type"]?.ToString() ?? "";
+                    string piece = "";
+                    switch (bType) {
+                        case "richBlockParagraph":
+                        case "richBlockSectionHeading":
+                        case "richBlockPreformatted":
+                        case "richBlockFooter":
+                        case "richBlockBlockQuotation":
+                        case "richBlockPullQuotation":
+                            piece = block["text"]?["text"]?.ToString() ?? "";
+                            break;
+                        case "richBlockList":
+                            var items = block["items"] as JArray;
+                            if (items != null) {
+                                var parts = new List<string>();
+                                foreach (var it in items) {
+                                    string itText = it?["text"]?["text"]?.ToString() ?? "";
+                                    if (!string.IsNullOrEmpty(itText)) parts.Add("• " + itText);
+                                }
+                                piece = string.Join("\n", parts);
+                            }
+                            break;
+                        case "richBlockDetails":
+                            // Заголовок сворачиваемой секции — как приближение к содержимому
+                            piece = block["summary"]?["text"]?.ToString() ?? "";
+                            break;
+                        // richBlockTable/richBlockMap/richBlockCollage/richBlockSlideshow/
+                        // richBlockAnimation/Audio/Photo/Video/VoiceNote/richBlockThinking/
+                        // richBlockMathematicalExpression/richBlockDivider/richBlockAnchor —
+                        // не текстовые по сути, полноценно не рендерим, текст не добавляем.
+                        default:
+                            break;
+                    }
+                    if (!string.IsNullOrEmpty(piece)) {
+                        if (sb.Length > 0) sb.Append("\n");
+                        sb.Append(piece);
+                    }
+                }
+                return sb.ToString();
+            } catch { return ""; }
+        }
+
         private void FillChatLastMessage(ChatItem item, JToken msg, JToken chatOrUpdate) {
             try {
                 var content = msg["content"];
@@ -2508,7 +2569,7 @@ namespace TelegramWP10
                     : mtype == "messageLocation" ? "📍 " + Loc.T("svc_location")
                     : mtype == "messageContact" ? "👤 " + Loc.T("svc_contact")
                     : mtype == "messageRichMessage"
-                        ? (content["text"]?["text"]?.ToString() ?? content["caption"]?["text"]?.ToString() ?? Loc.T("media_richMessage"))
+                        ? (string.IsNullOrEmpty(ExtractRichMessageText(content)) ? Loc.T("media_richMessage") : ExtractRichMessageText(content))
                     : "[" + mtype.Replace("message", "") + "]";
                 item.LastMessage = text;
                 long date = msg["date"]?.ToObject<long>() ?? 0;
@@ -3142,12 +3203,7 @@ namespace TelegramWP10
                         string namesJoined = addedNames.Count > 0 ? string.Join(", ", addedNames) : Loc.T("label_unknownUser");
                         item.Text = "➕ " + adderName + " " + Loc.T("svc_addedSuffix") + " " + namesJoined;
                     } else if (type == "messageRichMessage") {
-                        // Точная схема этого типа контента не задокументирована,
-                        // поэтому аккуратно пробуем достать текст/подпись, как у
-                        // обычного текстового/медиа-сообщения, и только если
-                        // ничего не нашлось — показываем общую подпись вместо "[..]".
-                        string richText = content["text"]?["text"]?.ToString()
-                                        ?? content["caption"]?["text"]?.ToString() ?? "";
+                        string richText = ExtractRichMessageText(content);
                         item.Text = !string.IsNullOrEmpty(richText) ? richText : Loc.T("media_richMessage");
                     } else {
                         item.Text = "[" + type.Replace("message", "") + "]";

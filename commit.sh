@@ -6,5 +6,5 @@ RANDOM_MSG=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 10)
 echo $RANDOM_MSG
 git add -A
 #git commit -m "$RANDOM_MSG"_nallion
-git commit -m "Message | richmessage method test"
+git commit -m "Message | new richmessage method test (2)"
 git push
