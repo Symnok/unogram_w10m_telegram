@@ -3083,27 +3083,27 @@ namespace TelegramWP10
                     // Тумбнейл для GIF не нужен — MediaElement покажет сам файл
                 } else if (type == "messageSticker") {
                     var sticker = content["sticker"];
-                    bool isAnimated = sticker?["is_animated"]?.ToObject<bool>() ?? false;
-                    bool isVideo = sticker?["is_video"]?.ToObject<bool>() ?? false;
+                    // is_animated/is_video оказались ненадёжны в этой версии TDLib —
+                    // у видео-стикеров (stickerFormatWebm) оба флага были false.
+                    // Настоящий, авторитетный признак формата — sticker.format.@type.
+                    string stickerFormat = sticker?["format"]?["@type"]?.ToString() ?? "";
+                    bool isWebpFormat = stickerFormat == "stickerFormatWebp";
+                    bool isTgsFormat = stickerFormat == "stickerFormatTgs";
+                    bool isWebmFormat = stickerFormat == "stickerFormatWebm";
                     item.IsSticker = true;
                     item.Text = "";
                     _messagesDict[msgId] = item;
 
                     var stickerFile = sticker?["sticker"] as JObject;
                     string stickerPath = stickerFile?["local"]?["path"]?.ToString() ?? "";
-                    // Определяем тип по расширению — .tgs это gzip+lottie (анимированный)
-                    bool isTgs = stickerPath.EndsWith(".tgs", StringComparison.OrdinalIgnoreCase);
-                    bool isStaticWebp = stickerPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
 
-                    // ВРЕМЕННО: смотрим точную структуру sticker для ЛЮБОГО стикера —
-                    // раньше гейтил на isVideo||isAnimated, но если у проблемного
-                    // стикера эти флаги почему-то не выставлены, лог не пишется
-                    // вообще. Логируем всё, чтобы точно не пропустить причину.
-                    LogStickerDebug("msg=" + msgId + " isAnimated=" + isAnimated + " isVideo=" + isVideo
-                        + " isTgs=" + isTgs + " isStaticWebp=" + isStaticWebp + " stickerPath=" + stickerPath
+                    // ВРЕМЕННО: смотрим точную структуру sticker — убрать после
+                    // подтверждения, что видео-стикеры теперь показывают превью.
+                    LogStickerDebug("msg=" + msgId + " format=" + stickerFormat
+                        + " stickerPath=" + stickerPath
                         + " RAW sticker=" + TruncateForLog(sticker?.ToString(Newtonsoft.Json.Formatting.None)));
 
-                    if ((!isAnimated && !isVideo && !isTgs) || isStaticWebp) {
+                    if (isWebpFormat) {
                         // Статичный WebP стикер — декодируем через libwebp
                         if (stickerFile != null) {
                             long sfid = (long)stickerFile["id"];
@@ -3117,7 +3117,7 @@ namespace TelegramWP10
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + sfid + ",\"priority\":10,\"synchronous\":false}");
                         }
                     } else {
-                        // Анимированный (.tgs) или видео стикер — берём thumbnail
+                        // Анимированный (.tgs) или видео (.webm) стикер — берём thumbnail
                         var thumb = sticker?["thumbnail"];
                         var thumbFile = thumb?["file"] as JObject;
                         bool thumbIsMpeg4 = thumb?["format"]?["@type"]?.ToString() == "thumbnailFormatMpeg4";
