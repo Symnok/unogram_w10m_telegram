@@ -28,7 +28,11 @@ namespace TelegramWP10
 
     public class MessageItem : INotifyPropertyChanged
     {
-        public long Id { get; set; }
+        private long _id;
+        // Уведомляем об изменении — Id меняется в рантайме при подтверждении
+        // отправки (временный id → постоянный), и всё, что на него забинжено
+        // (например Tag="{Binding Id}" у кнопки play), должно перечитаться.
+        public long Id { get => _id; set { _id = value; OnPropertyChanged("Id"); } }
         private string _text;
         public string Text { get => _text; set { _text = value; OnPropertyChanged("Text"); } }
         public string Date { get; set; }
