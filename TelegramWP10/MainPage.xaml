@@ -278,6 +278,8 @@
                                                            Visibility="{Binding PinVisibility}" VerticalAlignment="Center"/>
                                                 <TextBlock Text="{Binding Title}" Foreground="{Binding TitleColor}" FontSize="16" FontWeight="SemiBold"
                                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                <TextBlock Text=" 🔇" FontSize="12" Foreground="#888888"
+                                                           Visibility="{Binding MutedVisibility}" VerticalAlignment="Center"/>
                                             </StackPanel>
                                             <TextBlock Grid.Column="1" Text="{Binding LastMessageTime}" Foreground="{Binding TimeColor}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0"/>
                                         </Grid>
