@@ -3095,13 +3095,13 @@ namespace TelegramWP10
                     bool isTgs = stickerPath.EndsWith(".tgs", StringComparison.OrdinalIgnoreCase);
                     bool isStaticWebp = stickerPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
 
-                    // ВРЕМЕННО: смотрим точную структуру sticker для видео/анимированных —
-                    // убрать после того, как разберёмся с пустым превью у WEBM.
-                    if (isVideo || isAnimated) {
-                        LogStickerDebug("msg=" + msgId + " isAnimated=" + isAnimated + " isVideo=" + isVideo
-                            + " isTgs=" + isTgs + " isStaticWebp=" + isStaticWebp + " stickerPath=" + stickerPath
-                            + " RAW sticker=" + TruncateForLog(sticker?.ToString(Newtonsoft.Json.Formatting.None)));
-                    }
+                    // ВРЕМЕННО: смотрим точную структуру sticker для ЛЮБОГО стикера —
+                    // раньше гейтил на isVideo||isAnimated, но если у проблемного
+                    // стикера эти флаги почему-то не выставлены, лог не пишется
+                    // вообще. Логируем всё, чтобы точно не пропустить причину.
+                    LogStickerDebug("msg=" + msgId + " isAnimated=" + isAnimated + " isVideo=" + isVideo
+                        + " isTgs=" + isTgs + " isStaticWebp=" + isStaticWebp + " stickerPath=" + stickerPath
+                        + " RAW sticker=" + TruncateForLog(sticker?.ToString(Newtonsoft.Json.Formatting.None)));
 
                     if ((!isAnimated && !isVideo && !isTgs) || isStaticWebp) {
                         // Статичный WebP стикер — декодируем через libwebp
