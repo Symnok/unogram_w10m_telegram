@@ -427,10 +427,15 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel x:Name="ChatHeader" Orientation="Horizontal" Background="#0088cc" Padding="10">
-                <Button x:Name="BackButton" Content="←" Click="BackButton_Click" Foreground="White" Background="Transparent" FontSize="20"/>
+            <Grid x:Name="ChatHeader" Background="#0088cc" Padding="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" x:Name="BackButton" Content="←" Click="BackButton_Click" Foreground="White" Background="Transparent" FontSize="20"/>
                 <!-- Аватарка + имя — кликабельны для открытия профиля -->
-                <StackPanel Orientation="Horizontal" Tapped="ChatHeaderProfile_Tapped" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Tapped="ChatHeaderProfile_Tapped" VerticalAlignment="Center">
                     <Grid Width="36" Height="36" VerticalAlignment="Center" Margin="6,0,0,0">
                         <Ellipse x:Name="ChatHeaderAvatarBorder" Width="36" Height="36" Fill="#555555"/>
                         <TextBlock x:Name="ChatHeaderAvatarInitials" Text="" Width="36" Height="36"
@@ -447,7 +452,33 @@
                         <TextBlock x:Name="CurrentChatStatus" Text="" Foreground="#CCE8FF" FontSize="13"/>
                     </StackPanel>
                 </StackPanel>
-            </StackPanel>
+                <Button Grid.Column="2" x:Name="ChatSearchButton" Content="🔍" Click="ChatSearchButton_Click"
+                        Foreground="White" Background="Transparent" FontSize="16" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Поиск по текущей переписке — та же ячейка, что и шапка, поверх неё -->
+            <Grid x:Name="ChatSearchBar" Grid.Row="0" Background="#0088cc" Padding="10" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" x:Name="ChatSearchCloseButton" Content="←" Click="ChatSearchClose_Click" Foreground="White" Background="Transparent" FontSize="20"/>
+                <TextBox Grid.Column="1" x:Name="ChatSearchBox"
+                         PlaceholderText="{Binding [ui_search], Source={StaticResource Loc}}"
+                         Background="Transparent" BorderThickness="0" Foreground="White"
+                         FontSize="15" Style="{StaticResource SearchBoxStyle}"
+                         Margin="8,0" VerticalAlignment="Center"
+                         TextChanged="ChatSearchBox_TextChanged"/>
+                <TextBlock Grid.Column="2" x:Name="ChatSearchCounter" Text="" Foreground="#CCE8FF" FontSize="13"
+                           VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <Button Grid.Column="3" x:Name="ChatSearchUpButton" Content="⌃" Click="ChatSearchUp_Click"
+                        Foreground="White" Background="Transparent" FontSize="16" VerticalAlignment="Center" Padding="8,0"/>
+                <Button Grid.Column="4" x:Name="ChatSearchDownButton" Content="⌄" Click="ChatSearchDown_Click"
+                        Foreground="White" Background="Transparent" FontSize="16" VerticalAlignment="Center" Padding="8,0"/>
+            </Grid>
 
             <!-- Закреплённое сообщение -->
             <Button x:Name="PinnedMessageBar" Grid.Row="1" Click="PinnedMessage_Click"

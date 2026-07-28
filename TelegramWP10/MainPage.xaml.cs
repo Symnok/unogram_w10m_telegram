@@ -59,6 +59,13 @@ namespace TelegramWP10
         private bool _pendingPhotoSave = false;            // нажали "Сохранить" до того, как докачался полный размер
         private HashSet<long> _pendingSaveMsgIds = new HashSet<long>(); // видео/аудио, которые нужно сохранить сразу после докачки
         private HashSet<long> _editRefreshPendingIds = new HashSet<long>(); // id, для которых getMessage запрошен именно из-за updateMessageEdited
+
+        // ======= Поиск внутри текущей переписки =======
+        private bool _chatSearchAwaitingResults = false; // ждём ответ именно на searchChatMessages, не на getChatHistory
+        private string _chatSearchQuery = "";
+        private List<long> _chatSearchResultIds = new List<long>();
+        private int _chatSearchResultIndex = -1;
+        private Windows.UI.Xaml.DispatcherTimer _chatSearchDebounceTimer;
         private TaskCompletionSource<bool> _optimizeStorageTcs = null; // ждём storageStatistics — подтверждение, что чистка кэша реально завершена
         private long _threadMessageId = 0;
         private long _threadChatId = 0;
@@ -1818,6 +1825,11 @@ namespace TelegramWP10
                     break;
 
                 case "messages":
+                    if (_chatSearchAwaitingResults) {
+                        _chatSearchAwaitingResults = false;
+                        HandleChatSearchResults(update);
+                        break;
+                    }
                     // Результаты searchMessages
                     if (!string.IsNullOrEmpty(_searchQuery) && update["total_count"] != null && _pendingHistoryChatId == 0) {
                         var foundMsgs = update["messages"] as JArray;
@@ -3293,6 +3305,12 @@ namespace TelegramWP10
             _audioFileIds.Clear();
             _replyRequests.Clear();
             _editRefreshPendingIds.Clear();
+            ChatSearchBar.Visibility = Visibility.Collapsed;
+            ChatHeader.Visibility = Visibility.Visible;
+            _chatSearchQuery = "";
+            _chatSearchResultIds.Clear();
+            _chatSearchResultIndex = -1;
+            _chatSearchAwaitingResults = false;
             _remoteUniqueIdToMsgId.Clear();
             _editingMessageId = 0;
             _replyToMessageId = 0;
@@ -3800,6 +3818,112 @@ namespace TelegramWP10
                 _pendingScrollToMsgId = _pinnedMessageId;
                 TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId +
                     ",\"from_message_id\":" + _pinnedMessageId + ",\"offset\":-10,\"limit\":20}");
+            }
+        }
+
+        // ======= Поиск внутри текущей переписки =======
+
+        private void ChatSearchButton_Click(object sender, RoutedEventArgs e) {
+            if (_currentChatId == 0) return;
+            ChatHeader.Visibility = Visibility.Collapsed;
+            ChatSearchBar.Visibility = Visibility.Visible;
+            ChatSearchBox.Text = "";
+            ChatSearchCounter.Text = "";
+            _chatSearchResultIds.Clear();
+            _chatSearchResultIndex = -1;
+            ChatSearchBox.Focus(FocusState.Programmatic);
+        }
+
+        private void ChatSearchClose_Click(object sender, RoutedEventArgs e) {
+            ChatSearchBar.Visibility = Visibility.Collapsed;
+            ChatHeader.Visibility = Visibility.Visible;
+            ChatSearchBox.Text = "";
+            _chatSearchQuery = "";
+            _chatSearchResultIds.Clear();
+            _chatSearchResultIndex = -1;
+            _chatSearchAwaitingResults = false;
+        }
+
+        private void ChatSearchBox_TextChanged(object sender, Windows.UI.Xaml.Controls.TextChangedEventArgs e) {
+            _chatSearchQuery = ChatSearchBox.Text ?? "";
+            if (_chatSearchDebounceTimer == null) {
+                _chatSearchDebounceTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+                _chatSearchDebounceTimer.Tick += (ts, te) => {
+                    _chatSearchDebounceTimer.Stop();
+                    RunChatSearch();
+                };
+            }
+            _chatSearchDebounceTimer.Stop();
+            if (string.IsNullOrWhiteSpace(_chatSearchQuery)) {
+                _chatSearchResultIds.Clear();
+                _chatSearchResultIndex = -1;
+                ChatSearchCounter.Text = "";
+                return;
+            }
+            _chatSearchDebounceTimer.Start();
+        }
+
+        private void RunChatSearch() {
+            if (_currentChatId == 0 || string.IsNullOrWhiteSpace(_chatSearchQuery)) return;
+            _chatSearchAwaitingResults = true;
+            string q = _chatSearchQuery.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            TdJson.SendUtf8(_client, "{\"@type\":\"searchChatMessages\",\"chat_id\":" + _currentChatId +
+                ",\"query\":\"" + q + "\",\"from_message_id\":0,\"offset\":0,\"limit\":50}");
+        }
+
+        /// <summary>Ответ на searchChatMessages — приходит тем же типом "messages", что и getChatHistory,
+        /// поэтому обрабатывается отдельной, явно помеченной веткой (см. _chatSearchAwaitingResults).</summary>
+        private void HandleChatSearchResults(JToken update) {
+            var found = update["messages"] as JArray;
+            _chatSearchResultIds.Clear();
+            if (found != null) {
+                foreach (var fm in found) {
+                    long fmId = fm["id"]?.ToObject<long>() ?? 0;
+                    if (fmId != 0) _chatSearchResultIds.Add(fmId);
+                }
+            }
+            _chatSearchResultIndex = _chatSearchResultIds.Count > 0 ? 0 : -1;
+            UpdateChatSearchCounter();
+            if (_chatSearchResultIndex >= 0) JumpToMessage(_chatSearchResultIds[_chatSearchResultIndex]);
+        }
+
+        private void UpdateChatSearchCounter() {
+            ChatSearchCounter.Text = _chatSearchResultIds.Count == 0
+                ? "0/0"
+                : (_chatSearchResultIndex + 1) + "/" + _chatSearchResultIds.Count;
+        }
+
+        // searchChatMessages отдаёт совпадения от новых к старым — "вниз" (⌄) переходит
+        // к более новому совпадению, "вверх" (⌃) — к более старому.
+        private void ChatSearchUp_Click(object sender, RoutedEventArgs e) {
+            if (_chatSearchResultIds.Count == 0) return;
+            _chatSearchResultIndex = (_chatSearchResultIndex + 1) % _chatSearchResultIds.Count;
+            UpdateChatSearchCounter();
+            JumpToMessage(_chatSearchResultIds[_chatSearchResultIndex]);
+        }
+
+        private void ChatSearchDown_Click(object sender, RoutedEventArgs e) {
+            if (_chatSearchResultIds.Count == 0) return;
+            _chatSearchResultIndex = (_chatSearchResultIndex - 1 + _chatSearchResultIds.Count) % _chatSearchResultIds.Count;
+            UpdateChatSearchCounter();
+            JumpToMessage(_chatSearchResultIds[_chatSearchResultIndex]);
+        }
+
+        /// <summary>
+        /// Прыжок к сообщению по id — если оно уже среди загруженных, просто
+        /// скроллим; если нет, запрашиваем окно истории вокруг него (тот же
+        /// приём, что уже использовался для перехода к закреплённому
+        /// сообщению — см. _pendingScrollToMsgId).
+        /// </summary>
+        private void JumpToMessage(long targetId) {
+            if (targetId <= 0 || _currentChatId == 0) return;
+            var loaded = _messageItems.FirstOrDefault(m => !m.IsSeparator && m.Id == targetId);
+            if (loaded != null) {
+                MessagesListView.ScrollIntoView(loaded, ScrollIntoViewAlignment.Leading);
+            } else {
+                _pendingScrollToMsgId = targetId;
+                TdJson.SendUtf8(_client, "{\"@type\":\"getChatHistory\",\"chat_id\":" + _currentChatId +
+                    ",\"from_message_id\":" + targetId + ",\"offset\":-10,\"limit\":20}");
             }
         }
 
@@ -4523,6 +4647,13 @@ namespace TelegramWP10
             StartPanel.Background          = CB("#111111");
             MessagesPanel.Background       = CB("#111111");
             ChatHeader.Background          = CB("#1F3A52");
+            ChatSearchBar.Background       = CB("#1F3A52");
+            ChatSearchButton.Foreground     = CB("#FFFFFF");
+            ChatSearchBox.Foreground        = CB("#FFFFFF");
+            ChatSearchCounter.Foreground    = CB("#CCE8FF");
+            ChatSearchUpButton.Foreground   = CB("#FFFFFF");
+            ChatSearchDownButton.Foreground = CB("#FFFFFF");
+            ChatSearchCloseButton.Foreground = CB("#FFFFFF");
             BackButton.Foreground          = CB("#FFFFFF");
             CurrentChatTitle.Foreground    = CB("#FFFFFF");
             CurrentChatStatus.Foreground   = CB("#CCE8FF");
@@ -4583,6 +4714,13 @@ namespace TelegramWP10
             BackButton.Foreground          = CB("#2AABEE");  // синяя стрелка назад
             CurrentChatTitle.Foreground    = CB("#000000");  // чёрный ник
             CurrentChatStatus.Foreground   = CB("#000000");  // тёмно-серый статус
+            ChatSearchButton.Foreground    = CB("#2AABEE");
+            ChatSearchBar.Background       = CB("#FFFFFF");
+            ChatSearchBox.Foreground       = CB("#000000");
+            ChatSearchCounter.Foreground   = CB("#000000");
+            ChatSearchUpButton.Foreground  = CB("#2AABEE");
+            ChatSearchDownButton.Foreground = CB("#2AABEE");
+            ChatSearchCloseButton.Foreground = CB("#2AABEE");
             // Архив
             if (ArchiveBackButton != null) ArchiveBackButton.Foreground = CB("#2AABEE");
             if (ArchiveTitleText  != null) ArchiveTitleText.Foreground  = CB("#000000");
@@ -5378,6 +5516,12 @@ namespace TelegramWP10
 
         private void BackButton_Click(object sender, RoutedEventArgs e) {
             ProfileOverlay.Visibility = Visibility.Collapsed;
+            ChatSearchBar.Visibility = Visibility.Collapsed;
+            ChatHeader.Visibility = Visibility.Visible;
+            _chatSearchQuery = "";
+            _chatSearchResultIds.Clear();
+            _chatSearchResultIndex = -1;
+            _chatSearchAwaitingResults = false;
             if (_threadMessageId != 0) {
                 long channelChatId = _threadChatId;
                 _threadMessageId = 0;
