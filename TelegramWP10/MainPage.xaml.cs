@@ -36,6 +36,7 @@ namespace TelegramWP10
         private Dictionary<long, JToken> _usersDict = new Dictionary<long, JToken>();
         private Dictionary<long, JToken> _supergroupDict = new Dictionary<long, JToken>();
         private Dictionary<long, long> _fileToChatId = new Dictionary<long, long>();
+        private Dictionary<long, long> _inlinePhotoFileId = new Dictionary<long, long>(); // msgId → file_id уменьшенного превью (не оригинала)
         private Dictionary<long, long> _fileToSenderUserId = new Dictionary<long, long>();  // file_id → userId, для аватарок отправителей в группах
         private Dictionary<long, BitmapImage> _senderAvatarCache = new Dictionary<long, BitmapImage>(); // userId → уже загруженная аватарка (на всю сессию, не только текущий чат)
         private HashSet<long> _senderAvatarRequested = new HashSet<long>(); // userId, для которых уже запрошена загрузка — не дублируем
@@ -837,7 +838,7 @@ namespace TelegramWP10
                                      fpath.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
                                      fpath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
                                      fpath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase));
-                                if (isImg)
+                                if (isImg && (!_inlinePhotoFileId.ContainsKey(mid) || _inlinePhotoFileId[mid] == fid))
                                     { var t = UpdateMessagePhoto(mid, fpath); }
                                 // Если это полноразмерное фото для оверлея
                                 if (isCompleted && isImg && _fullPhotoMsgId == mid && !string.IsNullOrEmpty(fpath))
@@ -2779,10 +2780,33 @@ namespace TelegramWP10
                 if (type == "messagePhoto") {
                     var sizes = content["photo"]?["sizes"] as JArray;
                     if (sizes != null && sizes.Count > 0) {
-                        var fileToken = sizes[sizes.Count - 1]["photo"] as JObject;
+                        // Оригинал — только для полноэкранного просмотра/сохранения,
+                        // тут экономить не нужно.
+                        var origToken = sizes[sizes.Count - 1]["photo"] as JObject;
+                        long origFid = origToken != null ? (long)origToken["id"] : 0;
+                        if (origFid != 0) {
+                            item.FullPhotoFileId = origFid;
+                            // Нужно, чтобы сработал ShowFullPhoto по завершении скачивания оригинала.
+                            _fileToMsgId[origFid] = msgId;
+                        }
+
+                        // А для превью в самом пузыре берём размер, близкий к тому,
+                        // что реально показывается (см. MessageItem.PhotoMaxWidth = 250),
+                        // а не оригинал в полном разрешении камеры — именно это раньше
+                        // и съедало всю память в чатах/каналах с большим количеством фото.
+                        const int targetPhotoWidth = 600;
+                        int bestIdx = sizes.Count - 1;
+                        int bestDiff = int.MaxValue;
+                        for (int si = 0; si < sizes.Count; si++) {
+                            int w = sizes[si]["width"]?.ToObject<int>() ?? 0;
+                            if (w <= 0) continue;
+                            int diff = Math.Abs(w - targetPhotoWidth);
+                            if (diff < bestDiff) { bestDiff = diff; bestIdx = si; }
+                        }
+                        var fileToken = sizes[bestIdx]["photo"] as JObject;
                         if (fileToken != null) {
                             long pfid = (long)fileToken["id"];
-                            item.FullPhotoFileId = pfid;
+                            _inlinePhotoFileId[msgId] = pfid; // какой fid считается "превью" для этого сообщения
                             _fileToMsgId[pfid] = msgId;
                             _messagesDict[msgId] = item;
                             bool isUploading = fileToken["remote"]?["is_uploading_active"]?.ToObject<bool>() ?? false;
@@ -3117,6 +3141,7 @@ namespace TelegramWP10
             try {
                 var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
                 var bmp = new BitmapImage();
+                bmp.DecodePixelWidth = 100;
                 using (var stream = await file.OpenReadAsync())
                     await bmp.SetSourceAsync(stream);
                 item.Photo = bmp;
@@ -3149,6 +3174,7 @@ namespace TelegramWP10
             try {
                 var file = await StorageFile.GetFileFromPathAsync(path);
                 var bitmap = new BitmapImage();
+                bitmap.DecodePixelWidth = 80;
                 using (var stream = await file.OpenReadAsync())
                     await bitmap.SetSourceAsync(stream);
                 _senderAvatarCache[userId] = bitmap;
@@ -3162,6 +3188,7 @@ namespace TelegramWP10
             try {
                 var file = await StorageFile.GetFileFromPathAsync(path);
                 var bitmap = new BitmapImage();
+                bitmap.DecodePixelWidth = 160;
                 using (var stream = await file.OpenReadAsync())
                     await bitmap.SetSourceAsync(stream);
                 if (_chatsDict.ContainsKey(chatId)) {
@@ -3196,8 +3223,11 @@ namespace TelegramWP10
                     }
                     bitmap = await WebPDecoder.DecodeAsync(data);
                 } else {
-                    // Обычное изображение
+                    // Обычное изображение. DecodePixelWidth — чтобы декодер сразу
+                    // уменьшал картинку при чтении, а не держал в памяти полный
+                    // размер файла ради превью шириной ~250px на экране.
                     var bmp = new BitmapImage();
+                    bmp.DecodePixelWidth = 500;
                     using (var stream = await file.OpenReadAsync())
                         await bmp.SetSourceAsync(stream);
                     bitmap = bmp;
@@ -3315,6 +3345,7 @@ namespace TelegramWP10
             _messageItems.Clear();
             _messagesDict.Clear();
             _fileToMsgId.Clear();
+            _inlinePhotoFileId.Clear();
             _videoFileIds.Clear();
             _audioFileIds.Clear();
             _replyRequests.Clear();
@@ -5319,6 +5350,7 @@ namespace TelegramWP10
             try {
                 var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
                 var bmp = new BitmapImage();
+                bmp.DecodePixelWidth = 100;
                 using (var stream = await file.OpenReadAsync())
                     await bmp.SetSourceAsync(stream);
                 await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
@@ -5534,6 +5566,7 @@ namespace TelegramWP10
                 } else {
                     var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
                     var bmp = new BitmapImage();
+                    bmp.DecodePixelWidth = 128;
                     using (var stream = await file.OpenReadAsync())
                         await bmp.SetSourceAsync(stream);
                     return bmp;
