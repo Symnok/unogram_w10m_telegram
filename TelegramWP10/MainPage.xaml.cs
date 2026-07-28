@@ -64,6 +64,8 @@ namespace TelegramWP10
 
         // ======= Поиск внутри текущей переписки =======
         private bool _chatSearchAwaitingResults = false; // ждём ответ именно на searchChatMessages, не на getChatHistory
+        private bool _pendingMarkReadDebug = false; // ВРЕМЕННО — ждём ответ на viewMessages из MarkChatRead_Click
+        private long _pendingMarkReadChatId = 0; // ВРЕМЕННО — ждём updateChatReadInbox по этому чату
         private string _chatSearchQuery = "";
         private List<long> _chatSearchResultIds = new List<long>();
         private int _chatSearchResultIndex = -1;
@@ -570,6 +572,11 @@ namespace TelegramWP10
                     // следующий обычный ответ getChatHistory, приняв его за
                     // результаты поиска.
                     _chatSearchAwaitingResults = false;
+                    // ВРЕМЕННО — диагностика "Пометить как прочитанное"
+                    if (_pendingMarkReadDebug) {
+                        _pendingMarkReadDebug = false;
+                        LogReadDebug("viewMessages -> ERROR: " + errMsg);
+                    }
                     // Не показываем proxy ошибки в UI
                     if (errMsg != null && (
                         errMsg.Contains("Proxy") ||
@@ -1282,6 +1289,15 @@ namespace TelegramWP10
                 case "updateChatReadInbox":
                     long ucriId = update["chat_id"]?.ToObject<long>() ?? 0;
                     if (ucriId != 0 && _chatsDict.ContainsKey(ucriId)) {
+                        // ВРЕМЕННО — если это подтверждение по чату, который только что
+                        // помечали через "Пометить как прочитанное", видно, реально ли
+                        // сервер прислал апдейт (а не просто TDLib принял запрос).
+                        if (ucriId == _pendingMarkReadChatId) {
+                            _pendingMarkReadChatId = 0;
+                            LogReadDebug("updateChatReadInbox ПРИШЁЛ chat=" + ucriId
+                                + " unread_count=" + (update["unread_count"]?.ToString() ?? "?")
+                                + " last_read_inbox_message_id=" + (update["last_read_inbox_message_id"]?.ToString() ?? "?"));
+                        }
                         _chatsDict[ucriId].UnreadCount = update["unread_count"]?.ToObject<int>() ?? 0;
                         if (_chatsDict[ucriId].UnreadCount == 0)
                             _chatsDict[ucriId].IsMarkedUnread = false;
@@ -1476,6 +1492,11 @@ namespace TelegramWP10
                     break;
 
                 case "ok":
+                    // ВРЕМЕННО — диагностика "Пометить как прочитанное"
+                    if (_pendingMarkReadDebug) {
+                        _pendingMarkReadDebug = false;
+                        LogReadDebug("viewMessages -> ok");
+                    }
                     break;
 
                 case "storageStatistics":
@@ -2486,21 +2507,20 @@ namespace TelegramWP10
         }
 
         // ================================================================
-        // ВРЕМЕННО — диагностика пустого превью у видео-стикеров (WEBM).
-        // Отдельный, самодостаточный файл, никак не связанный с основным
-        // логированием (оно отключено намеренно) — убрать вызов и эту
-        // функцию, как только разберёмся с причиной.
+        // ВРЕМЕННО — диагностика "Пометить как прочитанное" для каналов:
+        // не помечает на сервере. Отдельный, самодостаточный файл — убрать
+        // вызовы и эту функцию, как только разберёмся с причиной.
         // ================================================================
-        private static readonly System.Threading.SemaphoreSlim _stickerDebugLock = new System.Threading.SemaphoreSlim(1, 1);
-        private static async void LogStickerDebug(string message) {
-            if (!await _stickerDebugLock.WaitAsync(2000)) return;
+        private static readonly System.Threading.SemaphoreSlim _readDebugLock = new System.Threading.SemaphoreSlim(1, 1);
+        private static async void LogReadDebug(string message) {
+            if (!await _readDebugLock.WaitAsync(2000)) return;
             try {
                 var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
                     .CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
-                var file = await folder.CreateFileAsync("stickerdebug.txt", CreationCollisionOption.OpenIfExists);
+                var file = await folder.CreateFileAsync("readdebug.txt", CreationCollisionOption.OpenIfExists);
                 await FileIO.AppendTextAsync(file, "[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message + "\r\n");
             } catch { } finally {
-                try { _stickerDebugLock.Release(); } catch { }
+                try { _readDebugLock.Release(); } catch { }
             }
         }
 
@@ -3097,12 +3117,6 @@ namespace TelegramWP10
                     var stickerFile = sticker?["sticker"] as JObject;
                     string stickerPath = stickerFile?["local"]?["path"]?.ToString() ?? "";
 
-                    // ВРЕМЕННО: смотрим точную структуру sticker — убрать после
-                    // подтверждения, что видео-стикеры теперь показывают превью.
-                    LogStickerDebug("msg=" + msgId + " format=" + stickerFormat
-                        + " stickerPath=" + stickerPath
-                        + " RAW sticker=" + TruncateForLog(sticker?.ToString(Newtonsoft.Json.Formatting.None)));
-
                     if (isWebpFormat) {
                         // Статичный WebP стикер — декодируем через libwebp
                         if (stickerFile != null) {
@@ -3457,17 +3471,8 @@ namespace TelegramWP10
                 if (bitmap != null && _messagesDict.ContainsKey(msgId)) {
                     _messagesDict[msgId].AttachedPhoto = bitmap;
                 } else {
-                    LogStickerDebug("UpdateMsgPhoto NO-OP msg=" + msgId + " path=" + path
-                        + " bitmapNull=" + (bitmap == null) + " inDict=" + _messagesDict.ContainsKey(msgId));
                 }
-            } catch (Exception ex) {
-                Log("UpdateMsgPhoto ERR msg=" + msgId + " | " + ex.Message);
-                // ВРЕМЕННО — тот же самый диагностический файл, что и для sticker RAW,
-                // чтобы увидеть настоящую причину падения декодирования.
-                LogStickerDebug("UpdateMsgPhoto EXCEPTION msg=" + msgId + " path=" + path
-                    + " | " + ex.GetType().FullName + ": " + ex.Message
-                    + " | stack=" + TruncateForLog(ex.StackTrace));
-            }
+            } catch (Exception ex) { Log("UpdateMsgPhoto ERR msg=" + msgId + " | " + ex.Message); }
         }
 
         
@@ -4687,7 +4692,16 @@ namespace TelegramWP10
             if (_rawChatsDict.ContainsKey(chatId)) {
                 var raw = _rawChatsDict[chatId] as JObject;
                 long lastMsgId = raw?["last_message"]?["id"]?.ToObject<long>() ?? 0;
+                string chatType = raw?["type"]?["@type"]?.ToString() ?? "";
+                bool isChannel = raw?["type"]?["is_channel"]?.ToObject<bool>() ?? false;
+                // ВРЕМЕННО — диагностика "Пометить как прочитанное" для каналов
+                LogReadDebug("MarkChatRead chat=" + chatId + " type=" + chatType + " isChannel=" + isChannel
+                    + " lastMsgId=" + lastMsgId
+                    + " unread_count=" + (raw?["unread_count"]?.ToString() ?? "?")
+                    + " last_read_inbox_message_id(before)=" + (raw?["last_read_inbox_message_id"]?.ToString() ?? "?"));
                 if (lastMsgId != 0) {
+                    _pendingMarkReadDebug = true;
+                    _pendingMarkReadChatId = chatId;
                     TdJson.SendUtf8(_client, "{\"@type\":\"viewMessages\",\"chat_id\":" + chatId +
                         ",\"message_ids\":[" + lastMsgId + "],\"force_read\":true}");
                 }
