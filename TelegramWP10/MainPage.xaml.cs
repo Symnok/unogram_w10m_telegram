@@ -2494,10 +2494,22 @@ namespace TelegramWP10
         /// в реальном TDLib отличаются, тут просто ничего не найдётся и
         /// сработает Loc.T("media_richMessage") в вызывающем коде.
         /// </summary>
+        private static string TruncateForLog(string s) {
+            if (string.IsNullOrEmpty(s)) return "(null)";
+            return s.Length > 3000 ? s.Substring(0, 3000) + "…(truncated)" : s;
+        }
+
         private string ExtractRichMessageText(JToken content) {
             try {
-                var blocks = content?["rich_message"]?["blocks"] as JArray;
-                if (blocks == null || blocks.Count == 0) return "";
+                // Пробуем без обёртки rich_message — по аналогии с остальными
+                // типами TDLib, где поля лежат прямо в content (как у messageText:
+                // content.text.text, а не content.message_text.text.text).
+                var blocks = content?["blocks"] as JArray
+                          ?? content?["rich_message"]?["blocks"] as JArray; // старая догадка — на всякий случай
+                if (blocks == null || blocks.Count == 0) {
+                    Log("RICHMSG RAW (no blocks found): " + TruncateForLog(content?.ToString(Newtonsoft.Json.Formatting.None)));
+                    return "";
+                }
                 var sb = new System.Text.StringBuilder();
                 foreach (var block in blocks) {
                     string bType = block?["@type"]?.ToString() ?? "";
@@ -2538,8 +2550,17 @@ namespace TelegramWP10
                         sb.Append(piece);
                     }
                 }
-                return sb.ToString();
-            } catch { return ""; }
+                string result = sb.ToString();
+                if (string.IsNullOrEmpty(result)) {
+                    // Блоки нашлись, но ни один не дал текста — скорее всего,
+                    // неверно угаданы имена полей ВНУТРИ блока (text/items/summary).
+                    Log("RICHMSG RAW (blocks found, no text extracted): " + TruncateForLog(content?.ToString(Newtonsoft.Json.Formatting.None)));
+                }
+                return result;
+            } catch (Exception ex) {
+                Log("RICHMSG ERR: " + ex.Message);
+                return "";
+            }
         }
 
         private void FillChatLastMessage(ChatItem item, JToken msg, JToken chatOrUpdate) {
