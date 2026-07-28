@@ -1056,7 +1056,7 @@
                         <TextBlock x:Name="RecordGlyph" Text="🎤" FontSize="18"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
-                    <Button x:Name="SendButton" Content="➤" Click="SendMessage_Click"
+                    <Button x:Name="SendButton" Content="➤" Click="SendMessage_Click" IsTabStop="False"
                             Width="50" Height="40" Padding="0" Visibility="Collapsed"
                             Background="#0088cc" Foreground="White"/>
                 </Grid>
