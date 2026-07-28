@@ -64,8 +64,6 @@ namespace TelegramWP10
 
         // ======= Поиск внутри текущей переписки =======
         private bool _chatSearchAwaitingResults = false; // ждём ответ именно на searchChatMessages, не на getChatHistory
-        private bool _pendingMarkReadDebug = false; // ВРЕМЕННО — ждём ответ на viewMessages из MarkChatRead_Click
-        private long _pendingMarkReadChatId = 0; // ВРЕМЕННО — ждём updateChatReadInbox по этому чату
         private string _chatSearchQuery = "";
         private List<long> _chatSearchResultIds = new List<long>();
         private int _chatSearchResultIndex = -1;
@@ -572,11 +570,6 @@ namespace TelegramWP10
                     // следующий обычный ответ getChatHistory, приняв его за
                     // результаты поиска.
                     _chatSearchAwaitingResults = false;
-                    // ВРЕМЕННО — диагностика "Пометить как прочитанное"
-                    if (_pendingMarkReadDebug) {
-                        _pendingMarkReadDebug = false;
-                        LogReadDebug("viewMessages -> ERROR: " + errMsg);
-                    }
                     // Не показываем proxy ошибки в UI
                     if (errMsg != null && (
                         errMsg.Contains("Proxy") ||
@@ -1232,6 +1225,14 @@ namespace TelegramWP10
                     long ulcId = update["chat_id"]?.ToObject<long>() ?? 0;
                     var ulcMsg = update["last_message"];
                     if (ulcId != 0 && ulcMsg != null) EnsureChatInList(ulcId);
+                    // Иначе закешированный _rawChatsDict[chatId]["last_message"] протухает
+                    // на каждом новом сообщении в активном чате — раньше это ломало,
+                    // например, "Пометить как прочитанное" (брало last_message.id
+                    // оттуда и получало 0/устаревшее значение).
+                    if (ulcId != 0 && ulcMsg != null && _rawChatsDict.ContainsKey(ulcId)) {
+                        var rawForLastMsg = _rawChatsDict[ulcId] as JObject;
+                        if (rawForLastMsg != null) rawForLastMsg["last_message"] = ulcMsg;
+                    }
                     if (ulcId != 0 && ulcMsg != null && _chatsDict.ContainsKey(ulcId)) {
                         string ulcType = ulcMsg["content"]?["@type"]?.ToString() ?? "null";
                         FillChatLastMessage(_chatsDict[ulcId], ulcMsg, update);
@@ -1289,15 +1290,6 @@ namespace TelegramWP10
                 case "updateChatReadInbox":
                     long ucriId = update["chat_id"]?.ToObject<long>() ?? 0;
                     if (ucriId != 0 && _chatsDict.ContainsKey(ucriId)) {
-                        // ВРЕМЕННО — если это подтверждение по чату, который только что
-                        // помечали через "Пометить как прочитанное", видно, реально ли
-                        // сервер прислал апдейт (а не просто TDLib принял запрос).
-                        if (ucriId == _pendingMarkReadChatId) {
-                            _pendingMarkReadChatId = 0;
-                            LogReadDebug("updateChatReadInbox ПРИШЁЛ chat=" + ucriId
-                                + " unread_count=" + (update["unread_count"]?.ToString() ?? "?")
-                                + " last_read_inbox_message_id=" + (update["last_read_inbox_message_id"]?.ToString() ?? "?"));
-                        }
                         _chatsDict[ucriId].UnreadCount = update["unread_count"]?.ToObject<int>() ?? 0;
                         if (_chatsDict[ucriId].UnreadCount == 0)
                             _chatsDict[ucriId].IsMarkedUnread = false;
@@ -1492,11 +1484,6 @@ namespace TelegramWP10
                     break;
 
                 case "ok":
-                    // ВРЕМЕННО — диагностика "Пометить как прочитанное"
-                    if (_pendingMarkReadDebug) {
-                        _pendingMarkReadDebug = false;
-                        LogReadDebug("viewMessages -> ok");
-                    }
                     break;
 
                 case "storageStatistics":
@@ -2504,24 +2491,6 @@ namespace TelegramWP10
         private static string TruncateForLog(string s) {
             if (string.IsNullOrEmpty(s)) return "(null)";
             return s.Length > 3000 ? s.Substring(0, 3000) + "…(truncated)" : s;
-        }
-
-        // ================================================================
-        // ВРЕМЕННО — диагностика "Пометить как прочитанное" для каналов:
-        // не помечает на сервере. Отдельный, самодостаточный файл — убрать
-        // вызовы и эту функцию, как только разберёмся с причиной.
-        // ================================================================
-        private static readonly System.Threading.SemaphoreSlim _readDebugLock = new System.Threading.SemaphoreSlim(1, 1);
-        private static async void LogReadDebug(string message) {
-            if (!await _readDebugLock.WaitAsync(2000)) return;
-            try {
-                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
-                    .CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
-                var file = await folder.CreateFileAsync("readdebug.txt", CreationCollisionOption.OpenIfExists);
-                await FileIO.AppendTextAsync(file, "[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message + "\r\n");
-            } catch { } finally {
-                try { _readDebugLock.Release(); } catch { }
-            }
         }
 
         /// <summary>
@@ -4692,16 +4661,7 @@ namespace TelegramWP10
             if (_rawChatsDict.ContainsKey(chatId)) {
                 var raw = _rawChatsDict[chatId] as JObject;
                 long lastMsgId = raw?["last_message"]?["id"]?.ToObject<long>() ?? 0;
-                string chatType = raw?["type"]?["@type"]?.ToString() ?? "";
-                bool isChannel = raw?["type"]?["is_channel"]?.ToObject<bool>() ?? false;
-                // ВРЕМЕННО — диагностика "Пометить как прочитанное" для каналов
-                LogReadDebug("MarkChatRead chat=" + chatId + " type=" + chatType + " isChannel=" + isChannel
-                    + " lastMsgId=" + lastMsgId
-                    + " unread_count=" + (raw?["unread_count"]?.ToString() ?? "?")
-                    + " last_read_inbox_message_id(before)=" + (raw?["last_read_inbox_message_id"]?.ToString() ?? "?"));
                 if (lastMsgId != 0) {
-                    _pendingMarkReadDebug = true;
-                    _pendingMarkReadChatId = chatId;
                     TdJson.SendUtf8(_client, "{\"@type\":\"viewMessages\",\"chat_id\":" + chatId +
                         ",\"message_ids\":[" + lastMsgId + "],\"force_read\":true}");
                 }
