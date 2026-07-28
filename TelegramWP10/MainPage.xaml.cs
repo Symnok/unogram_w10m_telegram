@@ -1518,6 +1518,23 @@ namespace TelegramWP10
                         if (_editingMessageId == sentOldId) _editingMessageId = sentNewId;
                         foreach (var upKey in _uploadFileToMsgId.Keys.Where(k => _uploadFileToMsgId[k] == sentOldId).ToList())
                             _uploadFileToMsgId[upKey] = sentNewId;
+                        // Те же словари fileId/remoteUniqueId → msgId, которыми пользуется
+                        // обработчик завершения докачки — если вложение (стикер, фото,
+                        // видео, аудио) ещё качается в момент подтверждения отправки,
+                        // он должен найти сообщение уже под новым id, а не под тем,
+                        // что уже удалён из _messagesDict.
+                        foreach (var fk in _fileToMsgId.Keys.Where(k => _fileToMsgId[k] == sentOldId).ToList())
+                            _fileToMsgId[fk] = sentNewId;
+                        foreach (var vk in _videoFileIds.Keys.Where(k => _videoFileIds[k] == sentOldId).ToList())
+                            _videoFileIds[vk] = sentNewId;
+                        foreach (var ak in _audioFileIds.Keys.Where(k => _audioFileIds[k] == sentOldId).ToList())
+                            _audioFileIds[ak] = sentNewId;
+                        foreach (var ruk in _remoteUniqueIdToMsgId.Keys.Where(k => _remoteUniqueIdToMsgId[k] == sentOldId).ToList())
+                            _remoteUniqueIdToMsgId[ruk] = sentNewId;
+                        if (_inlinePhotoFileId.ContainsKey(sentOldId)) {
+                            _inlinePhotoFileId[sentNewId] = _inlinePhotoFileId[sentOldId];
+                            _inlinePhotoFileId.Remove(sentOldId);
+                        }
                     }
                     break;
                 }
