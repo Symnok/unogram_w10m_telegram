@@ -3436,6 +3436,10 @@ namespace TelegramWP10
                 // Обновляем UI сразу — не ждём updateMessageEdited (он не содержит нового текста)
                 if (_messagesDict.ContainsKey(editId))
                     _messagesDict[editId].Text = text;
+                // Тап по кнопке уводит фокус с TextBox на саму кнопку, а клавиатура
+                // в UWP скрывается/показывается по типу элемента в фокусе — без
+                // этого клавиатура пряталась бы после каждой отправки/редактирования.
+                MessageInput.Focus(FocusState.Programmatic);
                 return;
             }
 
@@ -3460,6 +3464,9 @@ namespace TelegramWP10
                 ReplyPreviewText.Text = "";
             }
             TdJson.SendUtf8(_client, sendReq.ToString(Newtonsoft.Json.Formatting.None));
+            // Аналогично — иначе клавиатура прячется после каждой отправки,
+            // потому что фокус после тапа по кнопке уходит с текстового поля.
+            MessageInput.Focus(FocusState.Programmatic);
         }
 
         private void SubscribeRichText(Windows.UI.Xaml.Controls.RichTextBlock rtb, MessageItem item) {
