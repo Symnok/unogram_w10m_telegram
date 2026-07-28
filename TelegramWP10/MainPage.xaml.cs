@@ -930,7 +930,7 @@ namespace TelegramWP10
                         }
                     }
                     if (newMsgChatId == _currentChatId && newMsg != null && !_isLoadingHistory) {
-                        var newItem = ParseMessage(newMsg);
+                        var newItem = ParseMessage(newMsg, trustEditDate: false);
                         if (newItem != null) {
                             var lastReal = _messageItems.LastOrDefault(m => !m.IsSeparator);
                             if (lastReal == null || lastReal.RawDate.Date != newItem.RawDate.Date)
@@ -2545,7 +2545,7 @@ namespace TelegramWP10
             return _senderColors[Math.Abs((int)(id % _senderColors.Length))];
         }
 
-        private MessageItem ParseMessage(JToken msg) {
+        private MessageItem ParseMessage(JToken msg, bool trustEditDate = true) {
             try {
                 long msgId = (long)msg["id"];
                 var content = msg["content"];
@@ -2582,12 +2582,6 @@ namespace TelegramWP10
                 bool outgoing = (bool)msg["is_outgoing"];
                 var senderId = msg["sender_id"];
                 var msgDate = DateTimeOffset.FromUnixTimeSeconds((long)msg["date"]).LocalDateTime;
-                // Пока сообщение в состоянии "отправляется" (ещё не подтверждено
-                // сервером), TDLib отдаёт edit_date ненулевым, хотя никто ничего
-                // не редактировал — иначе абсолютно каждое только что отправленное
-                // сообщение сразу показывало бы "изменено". Доверяем полю только
-                // после подтверждения отправки.
-                bool msgPending = msg["sending_state"]?["@type"]?.ToString() == "messageSendingStatePending";
                 var item = new MessageItem {
                     Id = msgId, Text = txt,
                     Entities = entities.Count > 0 ? entities : null,
@@ -2600,7 +2594,15 @@ namespace TelegramWP10
                     SenderName = outgoing ? "" : (_currentChatIsGroup ? GetSenderName(senderId) : ""),
                     SenderColor = GetSenderColor(senderId),
                     AlbumId = msg["media_album_id"]?.ToString() ?? "",
-                    IsEdited = !msgPending && (msg["edit_date"]?.ToObject<long>() ?? 0) > 0
+                    // Проверка через sending_state оказалась ненадёжной — у только
+                    // что созданных сообщений (пришедших через updateNewMessage)
+                    // TDLib в некоторых случаях уже отдаёт ненулевой edit_date,
+                    // хотя редактирования не было. Сообщение, которое мы видим
+                    // первый раз (не из истории), физически не может быть уже
+                    // отредактированным — поэтому для свежих апдейтов polностью
+                    // игнорируем edit_date и полагаемся только на живой
+                    // updateMessageEdited/своё редактирование. Истории доверяем.
+                    IsEdited = trustEditDate && (msg["edit_date"]?.ToObject<long>() ?? 0) > 0
                 };
 
                 // Аватарка отправителя — только для входящих сообщений в группах
