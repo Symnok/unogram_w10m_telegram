@@ -58,6 +58,7 @@ namespace TelegramWP10
         private string _currentPhotoOverlayPath = null;   // путь к уже докачанному фото в оверлее — для кнопки "Сохранить"
         private bool _pendingPhotoSave = false;            // нажали "Сохранить" до того, как докачался полный размер
         private HashSet<long> _pendingSaveMsgIds = new HashSet<long>(); // видео/аудио, которые нужно сохранить сразу после докачки
+        private HashSet<long> _editRefreshPendingIds = new HashSet<long>(); // id, для которых getMessage запрошен именно из-за updateMessageEdited
         private TaskCompletionSource<bool> _optimizeStorageTcs = null; // ждём storageStatistics — подтверждение, что чистка кэша реально завершена
         private long _threadMessageId = 0;
         private long _threadChatId = 0;
@@ -1521,10 +1522,15 @@ namespace TelegramWP10
                     break;
 
                 case "updateMessageEdited":
-                    // TDLib шлёт updateMessageEdited при редактировании — дозапрашиваем сообщение
+                    // TDLib шлёт updateMessageEdited при редактировании — дозапрашиваем сообщение.
+                    // Помечаем id как "ждём именно edit-рефреш" — ответ "message" ничем не
+                    // отличается от ответа на getMessage по любой другой причине, поэтому
+                    // без этой пометки метка "изменено" могла бы проставиться не только
+                    // из-за настоящего редактирования.
                     long umeChat = update["chat_id"]?.ToObject<long>() ?? 0;
                     long umeMsg = update["message_id"]?.ToObject<long>() ?? 0;
                     if (umeChat == _currentChatId && _messagesDict.ContainsKey(umeMsg)) {
+                        _editRefreshPendingIds.Add(umeMsg);
                         TdJson.SendUtf8(_client, "{\"@type\":\"getMessage\",\"chat_id\":" + umeChat + ",\"message_id\":" + umeMsg + "}");
                     }
                     break;
@@ -1652,10 +1658,11 @@ namespace TelegramWP10
                     if (fetchedMsgId != 0 && _messagesDict.ContainsKey(fetchedMsgId)) {
                         var mc = update["content"];
                         string mcType = mc?["@type"]?.ToString() ?? "";
+                        bool wasEditRefresh = _editRefreshPendingIds.Remove(fetchedMsgId);
                         if (mcType == "messageText") {
                             string refreshed = mc["text"]?["text"]?.ToString() ?? "";
                             _messagesDict[fetchedMsgId].Text = refreshed;
-                            _messagesDict[fetchedMsgId].IsEdited = true;
+                            if (wasEditRefresh) _messagesDict[fetchedMsgId].IsEdited = true;
                         } else if (mcType == "messagePoll") {
                             // Полная перезагрузка — заменяем MessageItem в списке целиком
                             var newItem = ParseMessage(update);
@@ -3285,6 +3292,7 @@ namespace TelegramWP10
             _videoFileIds.Clear();
             _audioFileIds.Clear();
             _replyRequests.Clear();
+            _editRefreshPendingIds.Clear();
             _remoteUniqueIdToMsgId.Clear();
             _editingMessageId = 0;
             _replyToMessageId = 0;
