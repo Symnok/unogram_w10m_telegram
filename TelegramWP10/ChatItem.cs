@@ -108,6 +108,11 @@ namespace TelegramWP10
         }
         public Visibility PinVisibility => _isPinned ? Visibility.Visible : Visibility.Collapsed;
 
+        // Значение "order" из TDLib (position.order) — нужно, чтобы корректно
+        // вставлять чат на его настоящее хронологическое место в списке,
+        // например при откреплении (не просто "в начало незакреплённых").
+        public long Order { get; set; } = 0;
+
         // Отключены ли уведомления — статус хранится и синхронизируется на сервере
         // Telegram (setChatNotificationSettings / updateChatNotificationSettings),
         // а не только локально.

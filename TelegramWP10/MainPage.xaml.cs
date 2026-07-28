@@ -672,6 +672,8 @@ namespace TelegramWP10
                         var pos = positions.FirstOrDefault(p => p["list"]?["@type"]?.ToString() == targetListType
                                   || p["list"]?["@type"]?.ToString() == "chatListMain");
                         chatItem.IsPinned = pos?["is_pinned"]?.ToObject<bool>() ?? false;
+                        long.TryParse(pos?["order"]?.ToString() ?? "0", out long parsedOrder);
+                        chatItem.Order = parsedOrder;
                     } else {
                     }
                     if (_pendingPinnedPositions.ContainsKey(chatId)) {
@@ -1248,15 +1250,18 @@ namespace TelegramWP10
                         // Игнорируем позиции папок — они не влияют на закрепление в основном списке
                         if (ucpListType == "chatListFolder") break;
                         bool ucpPinned = ucpPos?["is_pinned"]?.ToObject<bool>() ?? false;
+                        long.TryParse(ucpPos?["order"]?.ToString() ?? "0", out long ucpOrderVal);
                         if (_chatsDict.ContainsKey(ucpId)) {
                             _chatsDict[ucpId].IsPinned = ucpPinned;
+                            _chatsDict[ucpId].Order = ucpOrderVal;
                             var allItem = _allChatItems.FirstOrDefault(ch => ch.Id == ucpId);
-                            if (allItem != null) allItem.IsPinned = ucpPinned;
+                            if (allItem != null) { allItem.IsPinned = ucpPinned; allItem.Order = ucpOrderVal; }
                             var ucpList = _archiveChatItems.Any(ch => ch.Id == ucpId) ? _archiveChatItems : _chatListItems;
                             var ucpItem = ucpList.FirstOrDefault(ch => ch.Id == ucpId);
                             if (ucpItem != null) {
                                 ucpList.Remove(ucpItem);
-                                InsertAfterPinned(ucpList, ucpItem);
+                                if (ucpPinned) InsertAfterPinned(ucpList, ucpItem);
+                                else InsertBySortOrder(ucpList, ucpItem);
                             }
                         } else {
                             _pendingPinnedPositions[ucpId] = ucpPinned;
@@ -2347,6 +2352,21 @@ namespace TelegramWP10
             int insertAt = 0;
             for (int i = 0; i < list.Count; i++) {
                 if (list[i].IsPinned) insertAt = i + 1;
+            }
+            list.Insert(insertAt, item);
+        }
+
+        /// <summary>
+        /// Вставляет НЕ закреплённый чат на его настоящее хронологическое место
+        /// (по убыванию Order, как сортирует сам TDLib), а не просто в начало
+        /// незакреплённых — иначе, например, открепление всегда оставляло бы
+        /// чат висеть на самом верху.
+        /// </summary>
+        private void InsertBySortOrder(ObservableCollection<ChatItem> list, ChatItem item) {
+            int insertAt = list.Count;
+            for (int i = 0; i < list.Count; i++) {
+                if (list[i].IsPinned) continue; // закреплённые всегда наверху, не учитываем как границу
+                if (list[i].Order < item.Order) { insertAt = i; break; }
             }
             list.Insert(insertAt, item);
         }
