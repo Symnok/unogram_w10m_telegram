@@ -583,6 +583,10 @@ namespace TelegramWP10
                     // Если нет закреплённого сообщения — сбрасываем флаг
                     if (_pinnedMessageId == -1)
                         _pinnedMessageId = 0;
+                    // Иначе неудачный поиск внутри чата навсегда "съедал" бы
+                    // следующий обычный ответ getChatHistory, приняв его за
+                    // результаты поиска.
+                    _chatSearchAwaitingResults = false;
                     // Не показываем proxy ошибки в UI
                     if (errMsg != null && (
                         errMsg.Contains("Proxy") ||
@@ -1821,6 +1825,15 @@ namespace TelegramWP10
                                 }
                             });
                         }
+                    }
+                    break;
+
+                case "foundChatMessages":
+                    // Настоящий ответ на searchChatMessages в TDLib 1.8.66 —
+                    // отдельный тип, не "messages" (это выяснилось не сразу).
+                    if (_chatSearchAwaitingResults) {
+                        _chatSearchAwaitingResults = false;
+                        HandleChatSearchResults(update);
                     }
                     break;
 
