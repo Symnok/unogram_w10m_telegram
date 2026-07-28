@@ -92,8 +92,23 @@ namespace TelegramWP10
 
         private Windows.UI.Xaml.Media.ImageSource _attachedPhoto;
         public Windows.UI.Xaml.Media.ImageSource AttachedPhoto { get => _attachedPhoto; set { _attachedPhoto = value; OnPropertyChanged("AttachedPhoto"); OnPropertyChanged("PhotoVisibility"); } }
-        // PhotoVisibility: показываем если есть превью ИЛИ это обычное видео (не GIF)
-        public Visibility PhotoVisibility => (AttachedPhoto != null || (IsVideo && !IsGif)) ? Visibility.Visible : Visibility.Collapsed;
+        // PhotoVisibility: показываем если есть превью ИЛИ это обычное видео (не GIF) — и не видео-стикер (тот рисуется отдельным MediaElement)
+        public Visibility PhotoVisibility => (!IsStickerVideo && (AttachedPhoto != null || (IsVideo && !IsGif))) ? Visibility.Visible : Visibility.Collapsed;
+
+        // Видео-стикер (WEBM) — своей миниатюрой TDLib присылает не картинку, а
+        // короткий mp4-клип (thumbnailFormatMpeg4). VP9/WebM целиком софтверно
+        // не декодируем — это отдельная большая задача, а вот H.264/MP4 этой
+        // миниатюры штатно тянет MediaElement, поэтому проигрываем её так же,
+        // как обычный GIF.
+        private bool _isStickerVideo = false;
+        public bool IsStickerVideo {
+            get => _isStickerVideo;
+            set { _isStickerVideo = value; OnPropertyChanged("IsStickerVideo"); OnPropertyChanged("StickerVideoVisibility"); OnPropertyChanged("PhotoVisibility"); }
+        }
+        public Visibility StickerVideoVisibility => _isStickerVideo ? Visibility.Visible : Visibility.Collapsed;
+
+        private Uri _stickerVideoSource;
+        public Uri StickerVideoSource { get => _stickerVideoSource; set { _stickerVideoSource = value; OnPropertyChanged("StickerVideoSource"); } }
 
         private bool _isVideo;
         public bool IsVideo { get => _isVideo; set { _isVideo = value; OnPropertyChanged("IsVideo"); OnPropertyChanged("VideoIconVisibility"); OnPropertyChanged("PhotoVisibility"); } }

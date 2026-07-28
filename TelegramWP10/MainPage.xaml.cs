@@ -37,6 +37,7 @@ namespace TelegramWP10
         private Dictionary<long, JToken> _supergroupDict = new Dictionary<long, JToken>();
         private Dictionary<long, long> _fileToChatId = new Dictionary<long, long>();
         private Dictionary<long, long> _inlinePhotoFileId = new Dictionary<long, long>(); // msgId → file_id уменьшенного превью (не оригинала)
+        private HashSet<long> _stickerVideoFileIds = new HashSet<long>(); // file_id миниатюр видео-стикеров (thumbnailFormatMpeg4) — не картинка, а mp4-клип
         private Dictionary<long, long> _fileToSenderUserId = new Dictionary<long, long>();  // file_id → userId, для аватарок отправителей в группах
         private Dictionary<long, BitmapImage> _senderAvatarCache = new Dictionary<long, BitmapImage>(); // userId → уже загруженная аватарка (на всю сессию, не только текущий чат)
         private HashSet<long> _senderAvatarRequested = new HashSet<long>(); // userId, для которых уже запрошена загрузка — не дублируем
@@ -821,6 +822,11 @@ namespace TelegramWP10
                                      fpath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase));
                                 if (isImg && (!_inlinePhotoFileId.ContainsKey(mid) || _inlinePhotoFileId[mid] == fid))
                                     { var t = UpdateMessagePhoto(mid, fpath); }
+                                // Миниатюра видео-стикера — это mp4-клип, не картинка
+                                if (isCompleted && _stickerVideoFileIds.Contains(fid) && !string.IsNullOrEmpty(fpath) && _messagesDict.ContainsKey(mid)) {
+                                    _messagesDict[mid].IsStickerVideo = true;
+                                    _messagesDict[mid].StickerVideoSource = new Uri(fpath);
+                                }
                                 // Если это полноразмерное фото для оверлея
                                 if (isCompleted && isImg && _fullPhotoMsgId == mid && !string.IsNullOrEmpty(fpath))
                                     { var t = ShowFullPhoto(fpath); }
@@ -3087,6 +3093,7 @@ namespace TelegramWP10
                         // Анимированный (.tgs) или видео стикер — берём thumbnail
                         var thumb = sticker?["thumbnail"];
                         var thumbFile = thumb?["file"] as JObject;
+                        bool thumbIsMpeg4 = thumb?["format"]?["@type"]?.ToString() == "thumbnailFormatMpeg4";
                         if (thumbFile != null) {
                             long tfid = (long)thumbFile["id"];
                             _fileToMsgId[tfid] = msgId;
@@ -3094,10 +3101,23 @@ namespace TelegramWP10
                             if (!string.IsNullOrEmpty(remoteUid))
                                 _remoteUniqueIdToMsgId[remoteUid] = msgId;
                             string tPath = thumbFile["local"]?["path"]?.ToString();
-                            if (!string.IsNullOrEmpty(tPath))
-                                { var t = UpdateMessagePhoto(msgId, tPath); }
-                            else
+                            if (thumbIsMpeg4) {
+                                // Миниатюра — короткий mp4-клип (не картинка). VP9/WebM
+                                // самого стикера софтверно не декодируем — целиком
+                                // отдельная большая задача, но H.264/MP4 этой
+                                // миниатюры штатно тянет MediaElement.
+                                _stickerVideoFileIds.Add(tfid);
+                                if (!string.IsNullOrEmpty(tPath)) {
+                                    item.IsStickerVideo = true;
+                                    item.StickerVideoSource = new Uri(tPath);
+                                } else {
+                                    TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + tfid + ",\"priority\":10,\"synchronous\":false}");
+                                }
+                            } else if (!string.IsNullOrEmpty(tPath)) {
+                                var t = UpdateMessagePhoto(msgId, tPath);
+                            } else {
                                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + tfid + ",\"priority\":10,\"synchronous\":false}");
+                            }
                         } else if (stickerFile != null) {
                             // Thumbnail нет — пробуем скачать сам файл и смотрим что придёт
                             long sfid = (long)stickerFile["id"];
@@ -3520,6 +3540,7 @@ namespace TelegramWP10
             _messagesDict.Clear();
             _fileToMsgId.Clear();
             _inlinePhotoFileId.Clear();
+            _stickerVideoFileIds.Clear();
             _videoFileIds.Clear();
             _audioFileIds.Clear();
             _replyRequests.Clear();

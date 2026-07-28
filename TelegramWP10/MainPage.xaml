@@ -625,6 +625,16 @@
                                     </Border>
                                 </Grid>
 
+                                <!-- Видео-стикер (WEBM): проигрываем mp4-миниатюру от TDLib так же, как GIF -->
+                                <Grid Visibility="{Binding StickerVideoVisibility}" Margin="0,0,0,5"
+                                      MaxWidth="128" Tapped="PhotoImage_Tapped">
+                                    <MediaElement x:Name="StickerVideoPlayer"
+                                                  Source="{Binding StickerVideoSource}"
+                                                  AutoPlay="True" IsLooping="True"
+                                                  IsMuted="True" AreTransportControlsEnabled="False"
+                                                  Stretch="Uniform" MaxWidth="128"/>
+                                </Grid>
+
                                 <!-- Документ -->
                                 <!-- Опрос -->
                                 <StackPanel Visibility="{Binding PollVisibility}" Margin="0,0,0,5" MinWidth="200">
