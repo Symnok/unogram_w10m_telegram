@@ -946,7 +946,11 @@ namespace TelegramWP10
                             double scrollable3 = MessagesScrollViewer.ScrollableHeight;
                             double offset2 = MessagesScrollViewer.VerticalOffset;
                             bool wasAtBottom = scrollable3 <= 0 || (scrollable3 - offset2) < 200;
-                            if (wasAtBottom) {
+                            // Своё отправленное сообщение — всегда уводим вниз, как в оригинале,
+                            // даже если до этого пролистали историю вверх. Для чужих входящих
+                            // сообщений оставляем прежнее поведение — не дёргаем скролл, если
+                            // человек специально ушёл читать историю выше.
+                            if (wasAtBottom || newItem.IsOutgoing) {
                                 var t = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
                                 t.Tick += (ts, te) => { t.Stop(); MessagesScrollViewer.ChangeView(null, MessagesScrollViewer.ScrollableHeight + 1000, null, false); };
                                 t.Start();
