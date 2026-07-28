@@ -231,6 +231,7 @@
                                 <MenuFlyout>
                                     <MenuFlyoutItem x:Name="MenuPinChat" Text="{Binding [msgmenu_pin], Source={StaticResource Loc}}" Click="PinChat_Click"/>
                                     <MenuFlyoutItem x:Name="MenuMuteChat" Text="{Binding [chatmenu_mute], Source={StaticResource Loc}}" Click="MuteChat_Click"/>
+                                    <MenuFlyoutItem x:Name="MenuMarkRead" Text="{Binding [chatmenu_markread], Source={StaticResource Loc}}" Click="MarkChatRead_Click" Visibility="Collapsed"/>
                                     <MenuFlyoutItem x:Name="MenuMarkUnread" Text="{Binding [chatmenu_unread], Source={StaticResource Loc}}" Click="MarkUnread_Click"/>
                                     <MenuFlyoutItem x:Name="MenuArchiveChat" Text="{Binding [chatmenu_archive], Source={StaticResource Loc}}" Click="ArchiveChat_Click"/>
                                     <MenuFlyoutItem Text="{Binding [chatmenu_deleteChat], Source={StaticResource Loc}}" Click="DeleteChat_Click"/>

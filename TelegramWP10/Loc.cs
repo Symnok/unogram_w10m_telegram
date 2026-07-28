@@ -214,6 +214,7 @@ namespace TelegramWP10
             { "chatmenu_unarchive", Row("📤 Move from archive", "📤 Переместить из архива", "📤 Перемістити з архіву", "📤 העבר מהארכיון") },
             { "chatmenu_unread", Row("🔵 Mark as unread", "🔵 Отметить непрочитанным", "🔵 Позначити непрочитаним", "🔵 סמן כלא נקרא") },
             { "chatmenu_read", Row("✅ Mark as read", "✅ Отметить прочитанным", "✅ Позначити прочитаним", "✅ סמן כנקרא") },
+            { "chatmenu_markread", Row("✅ Mark as read", "✅ Пометить как прочитанное", "✅ Позначити прочитаним", "✅ סמן כנקרא") },
             { "chatmenu_mute", Row("🔕 Disable notifications", "🔕 Отключить уведомления", "🔕 Вимкнути сповіщення", "🔕 השתק התראות") },
             { "chatmenu_unmute", Row("🔔 Enable notifications", "🔔 Включить уведомления", "🔔 Увімкнути сповіщення", "🔔 בטל השתקה") },
             { "chatmenu_deleteChat", Row("🗑 Delete conversation", "🗑 Удалить переписку", "🗑 Видалити листування", "🗑 מחק שיחה") },

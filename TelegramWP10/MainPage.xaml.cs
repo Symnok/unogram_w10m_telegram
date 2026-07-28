@@ -4431,6 +4431,8 @@ namespace TelegramWP10
                         fi.Text = chat.IsMarkedUnread ? Loc.T("chatmenu_read") : Loc.T("chatmenu_unread");
                     if (fi.Name == "MenuMuteChat")
                         fi.Text = chat.IsMuted ? Loc.T("chatmenu_unmute") : Loc.T("chatmenu_mute");
+                    if (fi.Name == "MenuMarkRead")
+                        fi.Visibility = (chat.UnreadCount > 0 || chat.IsMarkedUnread) ? Visibility.Visible : Visibility.Collapsed;
                 }
             }
             Windows.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(grid);
@@ -4451,6 +4453,35 @@ namespace TelegramWP10
         /// сервере Telegram (setChatNotificationSettings), а не только локально,
         /// поэтому синхронизируется между устройствами так же, как в оригинале.
         /// </summary>
+        /// <summary>
+        /// Помечает чат прочитанным на сервере: viewMessages с force_read по
+        /// последнему сообщению закрывает реальные непрочитанные, а если чат
+        /// был отмечен непрочитанным вручную — снимаем и эту пометку отдельно
+        /// (это два независимых флага в TDLib).
+        /// </summary>
+        private void MarkChatRead_Click(object sender, RoutedEventArgs e) {
+            if (_pendingDeleteChatId == 0) return;
+            long chatId = _pendingDeleteChatId;
+            _pendingDeleteChatId = 0;
+            if (!_chatsDict.ContainsKey(chatId)) return;
+
+            if (_rawChatsDict.ContainsKey(chatId)) {
+                var raw = _rawChatsDict[chatId] as JObject;
+                long lastMsgId = raw?["last_message"]?["id"]?.ToObject<long>() ?? 0;
+                if (lastMsgId != 0) {
+                    TdJson.SendUtf8(_client, "{\"@type\":\"viewMessages\",\"chat_id\":" + chatId +
+                        ",\"message_ids\":[" + lastMsgId + "],\"force_read\":true}");
+                }
+            }
+            if (_chatsDict[chatId].IsMarkedUnread) {
+                TdJson.SendUtf8(_client, "{\"@type\":\"toggleChatIsMarkedAsUnread\",\"chat_id\":" + chatId + ",\"is_marked_as_unread\":false}");
+            }
+            // Обновляем сразу, не дожидаясь updateChatReadInbox/updateChatIsMarkedAsUnread
+            _chatsDict[chatId].UnreadCount = 0;
+            _chatsDict[chatId].IsMarkedUnread = false;
+            UpdateArchiveUnreadBadge();
+        }
+
         private void MuteChat_Click(object sender, RoutedEventArgs e) {
             if (_pendingDeleteChatId == 0) return;
             long chatId = _pendingDeleteChatId;
@@ -5703,7 +5734,10 @@ namespace TelegramWP10
         }
 
         private void UpdateArchiveUnreadBadge() {
-            int total = _archiveChatItems.Sum(c => c.UnreadCount);
+            // Как в оригинале — число непрочитанных ЧАТОВ, а не сумма сообщений
+            // в них. Чат, отмеченный "непрочитанным" вручную (UnreadCount==0),
+            // тоже считается.
+            int total = _archiveChatItems.Count(c => c.UnreadCount > 0 || c.IsMarkedUnread);
             if (total > 0) {
                 ArchiveUnreadText.Text = total > 99 ? "99+" : total.ToString();
                 ArchiveUnreadBadge.Visibility = Visibility.Visible;
