@@ -1558,6 +1558,9 @@ namespace TelegramWP10
                                 string lpDesc2 = lp2["description"]?["text"]?.ToString() ?? "";
                                 item2.LinkPreviewDescription = lpDesc2.Length > 200 ? lpDesc2.Substring(0, 200) + "..." : lpDesc2;
                             }
+                        } else if (cType == "messagePhoto") {
+                            var itemPhoto = _messagesDict[umcMsgId];
+                            ApplyPhotoContent(itemPhoto, umcMsgId, content, itemPhoto.IsOutgoing);
                         }
                     }
                     break;
@@ -2802,6 +2805,62 @@ namespace TelegramWP10
             return _senderColors[Math.Abs((int)(id % _senderColors.Length))];
         }
 
+        /// <summary>
+        /// Общая логика выбора и загрузки превью фото — используется и при
+        /// первом разборе сообщения (ParseMessage), и при апдейте
+        /// updateMessageContent. TDLib присылает финальный контент с полным
+        /// набором размеров отдельным апдейтом уже после исходного
+        /// pending-эха у только что отправленных сообщений — без повторного
+        /// применения тут фото могло вообще не появиться сразу после отправки.
+        /// </summary>
+        private void ApplyPhotoContent(MessageItem item, long msgId, JToken content, bool outgoing) {
+            var sizes = content?["photo"]?["sizes"] as JArray;
+            if (sizes == null || sizes.Count == 0) return;
+
+            // Оригинал — только для полноэкранного просмотра/сохранения,
+            // тут экономить не нужно.
+            var origToken = sizes[sizes.Count - 1]["photo"] as JObject;
+            long origFid = origToken != null ? (long)origToken["id"] : 0;
+            if (origFid != 0) {
+                item.FullPhotoFileId = origFid;
+                // Нужно, чтобы сработал ShowFullPhoto по завершении скачивания оригинала.
+                _fileToMsgId[origFid] = msgId;
+            }
+
+            // А для превью в самом пузыре берём размер, близкий к тому,
+            // что реально показывается (см. MessageItem.PhotoMaxWidth = 250),
+            // а не оригинал в полном разрешении камеры.
+            const int targetPhotoWidth = 600;
+            int bestIdx = sizes.Count - 1;
+            int bestDiff = int.MaxValue;
+            for (int si = 0; si < sizes.Count; si++) {
+                int w = sizes[si]["width"]?.ToObject<int>() ?? 0;
+                if (w <= 0) continue;
+                int diff = Math.Abs(w - targetPhotoWidth);
+                if (diff < bestDiff) { bestDiff = diff; bestIdx = si; }
+            }
+            var fileToken = sizes[bestIdx]["photo"] as JObject;
+            if (fileToken == null) return;
+
+            long pfid = (long)fileToken["id"];
+            _inlinePhotoFileId[msgId] = pfid; // какой fid считается "превью" для этого сообщения
+            _fileToMsgId[pfid] = msgId;
+            _messagesDict[msgId] = item;
+            bool isUploaded = fileToken["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
+            string phPath = fileToken["local"]?["path"]?.ToString();
+            if (outgoing && !isUploaded) {
+                _uploadFileToMsgId[pfid] = msgId;
+                long alreadyUpl = fileToken["remote"]?["uploaded_size"]?.ToObject<long>() ?? 0;
+                long phTotal = fileToken["expected_size"]?.ToObject<long>() ?? fileToken["size"]?.ToObject<long>() ?? 0;
+                item.DownloadStatus = (phTotal > 0 && alreadyUpl > 0)
+                    ? "⬆ " + (int)(alreadyUpl * 100 / phTotal) + "%" : "⬆ 0%";
+            }
+            if (!string.IsNullOrEmpty(phPath))
+                { var t = UpdateMessagePhoto(msgId, phPath); }
+            else if (isUploaded || !outgoing)
+                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":10,\"synchronous\":false}");
+        }
+
         private MessageItem ParseMessage(JToken msg, bool trustEditDate = true) {
             try {
                 long msgId = (long)msg["id"];
@@ -3001,57 +3060,7 @@ namespace TelegramWP10
                 }
 
                 if (type == "messagePhoto") {
-                    var sizes = content["photo"]?["sizes"] as JArray;
-                    if (sizes != null && sizes.Count > 0) {
-                        // Оригинал — только для полноэкранного просмотра/сохранения,
-                        // тут экономить не нужно.
-                        var origToken = sizes[sizes.Count - 1]["photo"] as JObject;
-                        long origFid = origToken != null ? (long)origToken["id"] : 0;
-                        if (origFid != 0) {
-                            item.FullPhotoFileId = origFid;
-                            // Нужно, чтобы сработал ShowFullPhoto по завершении скачивания оригинала.
-                            _fileToMsgId[origFid] = msgId;
-                        }
-
-                        // А для превью в самом пузыре берём размер, близкий к тому,
-                        // что реально показывается (см. MessageItem.PhotoMaxWidth = 250),
-                        // а не оригинал в полном разрешении камеры — именно это раньше
-                        // и съедало всю память в чатах/каналах с большим количеством фото.
-                        const int targetPhotoWidth = 600;
-                        int bestIdx = sizes.Count - 1;
-                        int bestDiff = int.MaxValue;
-                        for (int si = 0; si < sizes.Count; si++) {
-                            int w = sizes[si]["width"]?.ToObject<int>() ?? 0;
-                            if (w <= 0) continue;
-                            int diff = Math.Abs(w - targetPhotoWidth);
-                            if (diff < bestDiff) { bestDiff = diff; bestIdx = si; }
-                        }
-                        var fileToken = sizes[bestIdx]["photo"] as JObject;
-                        if (fileToken != null) {
-                            long pfid = (long)fileToken["id"];
-                            _inlinePhotoFileId[msgId] = pfid; // какой fid считается "превью" для этого сообщения
-                            _fileToMsgId[pfid] = msgId;
-                            _messagesDict[msgId] = item;
-                            bool isUploading = fileToken["remote"]?["is_uploading_active"]?.ToObject<bool>() ?? false;
-                            bool isUploaded = fileToken["remote"]?["is_uploading_completed"]?.ToObject<bool>() ?? false;
-                            string phPath = fileToken["local"]?["path"]?.ToString();
-                            // Регистрируем upload — либо из updateNewMessage (уже в словаре) либо свежий
-                            if (outgoing && !isUploaded) {
-                                _uploadFileToMsgId[pfid] = msgId;
-                                _messagesDict[msgId] = item;
-                                long alreadyUpl = fileToken["remote"]?["uploaded_size"]?.ToObject<long>() ?? 0;
-                                long phTotal = fileToken["expected_size"]?.ToObject<long>() ?? fileToken["size"]?.ToObject<long>() ?? 0;
-                                if (phTotal > 0 && alreadyUpl > 0)
-                                    item.DownloadStatus = "⬆ " + (int)(alreadyUpl * 100 / phTotal) + "%";
-                                else
-                                    item.DownloadStatus = "⬆ 0%";
-                            }
-                            if (!string.IsNullOrEmpty(phPath))
-                                { var t = UpdateMessagePhoto(msgId, phPath); }
-                            else if (isUploaded || !outgoing)
-                                TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":10,\"synchronous\":false}");
-                        }
-                    }
+                    ApplyPhotoContent(item, msgId, content, outgoing);
                 } else if (type == "messageVideo") {
                     bool isAnim = content["video"]?["is_animation"]?.ToObject<bool>() ?? false;
                     item.IsVideo = !isAnim;
