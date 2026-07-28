@@ -3511,6 +3511,13 @@ namespace TelegramWP10
         }
 
         private async Task UpdateMessagePhoto(long msgId, string path) {
+            // Держим ссылку на сам объект, а не искать заново по msgId в конце —
+            // за время асинхронного декодирования id сообщения может смениться
+            // (updateMessageSendSucceeded у только что отправленного сообщения),
+            // а объект остаётся тем же самым и на нём же завязан биндинг в UI.
+            // Ремап словарей (fileId → msgId) эту гонку не лечит: сам вызов уже
+            // "в полёте" со старым id к моменту завершения декодирования.
+            if (!_messagesDict.TryGetValue(msgId, out var targetItem)) return;
             LogPhotoDebug("UpdateMessagePhoto ENTER msgId=" + msgId + " path=" + path);
             try {
                 // .tgs это gzip+lottie — не можем отобразить, пропускаем
@@ -3541,12 +3548,11 @@ namespace TelegramWP10
                     bitmap = bmp;
                 }
 
-                if (bitmap != null && _messagesDict.ContainsKey(msgId)) {
-                    _messagesDict[msgId].AttachedPhoto = bitmap;
+                if (bitmap != null) {
+                    targetItem.AttachedPhoto = bitmap;
                     LogPhotoDebug("UpdateMessagePhoto SUCCESS msgId=" + msgId);
                 } else {
-                    LogPhotoDebug("UpdateMessagePhoto NO-OP msgId=" + msgId + " bitmapNull=" + (bitmap == null)
-                        + " inDict=" + _messagesDict.ContainsKey(msgId));
+                    LogPhotoDebug("UpdateMessagePhoto NO-OP (bitmap==null) msgId=" + msgId);
                 }
             } catch (Exception ex) {
                 Log("UpdateMsgPhoto ERR msg=" + msgId + " | " + ex.Message);
