@@ -37,10 +37,6 @@ namespace TelegramWP10
         }
         public string NoPhotoVisibility => _photo == null ? "Visible" : "Collapsed";
 
-        // Заглушка при отсутствии фото: цвет из палитры по Id + инициалы из Title
-        public string AvatarColor => AvatarPlaceholder.GetColor(Id);
-        public string AvatarInitials => AvatarPlaceholder.GetInitials(Title);
-
         private string _lastMessage = "";
         public string LastMessage
         {
@@ -107,6 +103,9 @@ namespace TelegramWP10
             set { _isPinned = value; OnPropertyChanged("IsPinned"); OnPropertyChanged("PinVisibility"); }
         }
         public Visibility PinVisibility => _isPinned ? Visibility.Visible : Visibility.Collapsed;
+
+        private bool _isMuted = false;
+        public bool IsMuted { get => _isMuted; set { _isMuted = value; OnPropertyChanged("IsMuted"); } }
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged(string propertyName)
