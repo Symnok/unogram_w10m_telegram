@@ -166,7 +166,6 @@ namespace TelegramWP10
         private Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession _mediaSession = null;
         private long _pendingDeleteChatId = 0;
         private StorageFolder _filesFolder = null;
-        private StorageFile _logFile = null;
         private ObservableCollection<ChatItem> _archiveChatItems = new ObservableCollection<ChatItem>();
         private bool _inArchive = false;
         private bool _archiveLoaded = false;
@@ -343,27 +342,10 @@ namespace TelegramWP10
             _mediaSession = null;
         }
 
-        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _logQueue
-            = new System.Collections.Concurrent.ConcurrentQueue<string>();
-        private bool _logFlushing = false;
-
-        private void Log(string m) {
-            _logQueue.Enqueue($"[{DateTime.Now:HH:mm:ss.fff}] {m}");
-            if (!_logFlushing) FlushLog();
-        }
-
-        private async void FlushLog() {
-            if (_logFlushing) return;
-            _logFlushing = true;
-            try {
-                while (_logQueue.TryDequeue(out string line)) {
-                    if (_logFile == null) break;
-                    try { await FileIO.AppendTextAsync(_logFile, line + "\r\n"); } catch { }
-                }
-            } finally { _logFlushing = false; }
-            // Если пока писали — добавили ещё
-            if (!_logQueue.IsEmpty) FlushLog();
-        }
+        // Логирование в файл отключено — приложение ничего не пишет на диск
+        // для диагностики. Метод оставлен как пустышка, чтобы не переписывать
+        // все места, где он вызывается.
+        private void Log(string m) { }
 
         private async void InitAsync() {
             try {
@@ -371,8 +353,6 @@ namespace TelegramWP10
                 var appFolder = await localFolder.CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
                 _dbPath = appFolder.Path.Replace("\\", "/") + "/td_db";
                 _filesFolder = await appFolder.CreateFolderAsync("td_db_files", CreationCollisionOption.OpenIfExists);
-                string logName = "log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
-                _logFile = await appFolder.CreateFileAsync(logName, CreationCollisionOption.ReplaceExisting);
             } catch (Exception ex) {
                 await new Windows.UI.Popups.MessageDialog(Loc.T("err_storage") + ex.Message).ShowAsync();
                 return;

@@ -70,8 +70,7 @@ namespace UnogramBackground
         // BackgroundService.TdSessionMutexName в основном проекте.
         private const string TdSessionMutexName = "Unogram.TdSession";
 
-        private const string LogFolderName = "Unogram";
-        private const string LogFileName = "bglog.txt";
+        private const string LogFolderName = "Unogram"; // тут же лежит база TDLib (td_db), не только логи
         private const string ToastGroup = "unogram";
 
         private const int SessionBudgetSeconds = 40;
@@ -392,35 +391,12 @@ namespace UnogramBackground
             catch { }
         }
 
-        private static readonly SemaphoreSlim DiagLock = new SemaphoreSlim(1, 1);
-
+        // Запись диагностики на диск отключена — приложение ничего не должно
+        // писать в файлы/настройки для логов. Debug.WriteLine никуда не
+        // сохраняется (только в отладчик), поэтому оставлен как есть.
         private static void Diag(string message)
         {
             System.Diagnostics.Debug.WriteLine("[BGTASK] " + message);
-            string line = DateTime.Now.ToString("MM-dd HH:mm:ss") + "  [task] " + message;
-            try
-            {
-                var values = ApplicationData.Current.LocalSettings.Values;
-                values["bg_last"] = line;
-                int n = values.ContainsKey("bg_count") ? (int)values["bg_count"] : 0;
-                values["bg_count"] = n + 1;
-            }
-            catch { }
-            AppendFile(line);
-        }
-
-        private static async void AppendFile(string line)
-        {
-            if (!await DiagLock.WaitAsync(2000)) return;
-            try
-            {
-                var folder = await ApplicationData.Current.LocalFolder
-                    .CreateFolderAsync(LogFolderName, CreationCollisionOption.OpenIfExists);
-                var file = await folder.CreateFileAsync(LogFileName, CreationCollisionOption.OpenIfExists);
-                await FileIO.AppendTextAsync(file, line + "\r\n");
-            }
-            catch { }
-            finally { try { DiagLock.Release(); } catch { } }
         }
     }
 }

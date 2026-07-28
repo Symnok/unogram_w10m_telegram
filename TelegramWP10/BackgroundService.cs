@@ -757,90 +757,15 @@ namespace TelegramWP10
         }
 
         // ------------------------------------------------------------------
-        // Diagnostics that survive process death
+        // Diagnostics — отключены. Приложение не пишет логи на диск и не
+        // хранит диагностические данные в LocalSettings. Debug.WriteLine
+        // никуда не сохраняется (виден только под отладчиком), поэтому
+        // оставлен как единственный, полностью безобидный след.
         // ------------------------------------------------------------------
-
-        /// <summary>
-        /// Debug.WriteLine is only visible under a debugger, and under a
-        /// debugger the app is never suspended — so the one scenario we care
-        /// about produces no output. Mirror to LocalSettings and to a file.
-        /// </summary>
-        public const string LogFolderName = "Unogram";
-        public const string LogFileName = "bglog.txt";
 
         public static void Diag(string message)
         {
             Debug.WriteLine("[BG] " + message);
-            string line = DateTime.Now.ToString("MM-dd HH:mm:ss") + "  " + message;
-            try
-            {
-                var values = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
-                values["bg_last"] = line;
-                int n = values.ContainsKey("bg_count") ? (int)values["bg_count"] : 0;
-                values["bg_count"] = n + 1;
-            }
-            catch { }
-            AppendDiagFile(line);
-        }
-
-        /// <summary>
-        /// Diag() is called from both the UI thread and the background task.
-        /// Without serialisation the writes overlap: lines are lost and the file
-        /// stays open almost continuously, at which point Device Portal returns
-        /// an error instead of the contents. Write in turn, hold it briefly.
-        /// </summary>
-        private static readonly System.Threading.SemaphoreSlim DiagFileLock =
-            new System.Threading.SemaphoreSlim(1, 1);
-
-        private static async void AppendDiagFile(string line)
-        {
-            if (!await DiagFileLock.WaitAsync(2000)) return;
-            try
-            {
-                // Alongside the other logs in LocalState\\Unogram\\. Device Portal
-                // will not serve files sitting at the root of LocalState.
-                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
-                    .CreateFolderAsync(LogFolderName, Windows.Storage.CreationCollisionOption.OpenIfExists);
-                var file = await folder.CreateFileAsync(LogFileName,
-                    Windows.Storage.CreationCollisionOption.OpenIfExists);
-
-                // Cap growth, or the log becomes a problem in its own right.
-                var existing = await Windows.Storage.FileIO.ReadLinesAsync(file);
-                if (existing.Count > 400)
-                {
-                    var keep = new System.Collections.Generic.List<string>(
-                        System.Linq.Enumerable.Skip(existing, existing.Count - 200));
-                    keep.Add(line);
-                    await Windows.Storage.FileIO.WriteLinesAsync(file, keep);
-                }
-                else
-                {
-                    await Windows.Storage.FileIO.AppendTextAsync(file, line + "\r\n");
-                }
-            }
-            catch { }
-            finally
-            {
-                try { DiagFileLock.Release(); } catch { }
-            }
-        }
-
-        /// <summary>Short summary for display in the UI.</summary>
-        public static string GetDiagnosticsSummary()
-        {
-            try
-            {
-                var values = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
-                string last = values.ContainsKey("bg_last") ? values["bg_last"].ToString() : Loc.T("diag_none");
-                int n = values.ContainsKey("bg_count") ? (int)values["bg_count"] : 0;
-                bool registered = false;
-                foreach (var t in BackgroundTaskRegistration.AllTasks)
-                    if (t.Value.Name == CatchUpTaskName) registered = true;
-                return Loc.T("diag_registered") + (registered ? Loc.T("diag_yes") : Loc.T("diag_no"))
-                     + "\n" + Loc.T("diag_events") + n
-                     + "\n" + Loc.T("diag_last") + last;
-            }
-            catch (Exception ex) { return Loc.T("diag_unavailable") + ex.Message; }
         }
 
         // ------------------------------------------------------------------
