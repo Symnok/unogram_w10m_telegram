@@ -1655,6 +1655,7 @@ namespace TelegramWP10
                         if (mcType == "messageText") {
                             string refreshed = mc["text"]?["text"]?.ToString() ?? "";
                             _messagesDict[fetchedMsgId].Text = refreshed;
+                            _messagesDict[fetchedMsgId].IsEdited = true;
                         } else if (mcType == "messagePoll") {
                             // Полная перезагрузка — заменяем MessageItem в списке целиком
                             var newItem = ParseMessage(update);
@@ -2592,7 +2593,8 @@ namespace TelegramWP10
                     IsRead = outgoing && (msg["id"]?.ToObject<long>() ?? 0) <= _currentChatOutboxReadId,
                     SenderName = outgoing ? "" : (_currentChatIsGroup ? GetSenderName(senderId) : ""),
                     SenderColor = GetSenderColor(senderId),
-                    AlbumId = msg["media_album_id"]?.ToString() ?? ""
+                    AlbumId = msg["media_album_id"]?.ToString() ?? "",
+                    IsEdited = (msg["edit_date"]?.ToObject<long>() ?? 0) > 0
                 };
 
                 // Аватарка отправителя — только для входящих сообщений в группах
@@ -3438,8 +3440,10 @@ namespace TelegramWP10
                 };
                 TdJson.SendUtf8(_client, req.ToString(Newtonsoft.Json.Formatting.None));
                 // Обновляем UI сразу — не ждём updateMessageEdited (он не содержит нового текста)
-                if (_messagesDict.ContainsKey(editId))
+                if (_messagesDict.ContainsKey(editId)) {
                     _messagesDict[editId].Text = text;
+                    _messagesDict[editId].IsEdited = true;
+                }
                 // Тап по кнопке уводит фокус с TextBox на саму кнопку, а клавиатура
                 // в UWP скрывается/показывается по типу элемента в фокусе — без
                 // этого клавиатура пряталась бы после каждой отправки/редактирования.

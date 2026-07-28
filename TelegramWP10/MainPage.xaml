@@ -685,9 +685,13 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Date}" FontSize="10" Foreground="{Binding TimeColor}" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding ReadStatusText}" FontSize="10" Margin="4,0,0,0"
+                                    <TextBlock Text="{Binding [label_edited], Source={StaticResource Loc}}" FontSize="10"
+                                               Foreground="{Binding TimeColor}" VerticalAlignment="Center" Margin="0,0,4,0"
+                                               Visibility="{Binding EditedVisibility}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Date}" FontSize="10" Foreground="{Binding TimeColor}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ReadStatusText}" FontSize="10" Margin="4,0,0,0"
                                                Foreground="{Binding ReadStatusColor}" VerticalAlignment="Center"
                                                Visibility="{Binding ReadStatusVisibility}"/>
                                 </Grid>

@@ -150,6 +150,11 @@ namespace TelegramWP10
         public bool IsRead { get => _isRead; set { _isRead = value; OnPropertyChanged("IsRead"); OnPropertyChanged("ReadStatusText"); OnPropertyChanged("ReadStatusColor"); } }
         public Visibility ReadStatusVisibility => _isOutgoing ? Visibility.Visible : Visibility.Collapsed;
         public string ReadStatusText => _isRead ? "✓✓" : "✓";
+
+        // Метка "изменено" — TDLib присылает edit_date в каждом сообщении
+        private bool _isEdited = false;
+        public bool IsEdited { get => _isEdited; set { _isEdited = value; OnPropertyChanged("IsEdited"); OnPropertyChanged("EditedVisibility"); } }
+        public Visibility EditedVisibility => _isEdited ? Visibility.Visible : Visibility.Collapsed;
         // Прочитанные — зелёные в светлой теме, белые в тёмной; непрочитанные — серые
         public string ReadStatusColor {
             get {

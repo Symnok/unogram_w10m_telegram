@@ -302,6 +302,7 @@ namespace TelegramWP10
             { "label_channel", Row("Channel", "Канал", "Канал", "ערוץ") },
             { "label_you", Row("⭐ You", "⭐ Вы", "⭐ Ви", "⭐ אתה") },
             { "label_comments", Row("Comments", "Комментарии", "Коментарі", "תגובות") },
+            { "label_edited", Row("edited", "изменено", "змінено", "נערך") },
 
             // ---- call log ----
             { "call_missed", Row("Missed call", "Пропущенный звонок", "Пропущений дзвінок", "שיחה שלא נענתה") },
