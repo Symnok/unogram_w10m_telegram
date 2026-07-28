@@ -37,6 +37,10 @@ namespace TelegramWP10
         }
         public string NoPhotoVisibility => _photo == null ? "Visible" : "Collapsed";
 
+        // Заглушка при отсутствии фото: цвет из палитры по Id + инициалы из Title
+        public string AvatarColor => AvatarPlaceholder.GetColor(Id);
+        public string AvatarInitials => AvatarPlaceholder.GetInitials(Title);
+
         private string _lastMessage = "";
         public string LastMessage
         {
@@ -104,8 +108,15 @@ namespace TelegramWP10
         }
         public Visibility PinVisibility => _isPinned ? Visibility.Visible : Visibility.Collapsed;
 
+        // Отключены ли уведомления — статус хранится и синхронизируется на сервере
+        // Telegram (setChatNotificationSettings / updateChatNotificationSettings),
+        // а не только локально.
         private bool _isMuted = false;
-        public bool IsMuted { get => _isMuted; set { _isMuted = value; OnPropertyChanged("IsMuted"); } }
+        public bool IsMuted {
+            get => _isMuted;
+            set { _isMuted = value; OnPropertyChanged("IsMuted"); OnPropertyChanged("MutedVisibility"); }
+        }
+        public Visibility MutedVisibility => _isMuted ? Visibility.Visible : Visibility.Collapsed;
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged(string propertyName)
