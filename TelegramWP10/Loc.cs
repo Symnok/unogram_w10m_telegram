@@ -284,6 +284,7 @@ namespace TelegramWP10
             { "media_poll", Row("Poll", "Опрос", "Опитування", "סקר") },
             { "media_call", Row("Call", "Звонок", "Дзвінок", "שיחה") },
             { "media_message", Row("Message", "Сообщение", "Повідомлення", "הודעה") },
+            { "media_richMessage", Row("Rich message", "Форматированное сообщение", "Форматоване повідомлення", "הודעה מעוצבת") },
             { "poll_quiz", Row("Quiz", "Викторина", "Вікторина", "חידון") },
             { "poll_anonymous", Row("Anonymous poll", "Анонимный опрос", "Анонімне опитування", "סקר אנונימי") },
 

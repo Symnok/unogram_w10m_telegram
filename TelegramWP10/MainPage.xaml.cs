@@ -2507,6 +2507,8 @@ namespace TelegramWP10
                     : mtype == "messageContactRegistered" ? "👤 " + Loc.T("svc_contactRegistered")
                     : mtype == "messageLocation" ? "📍 " + Loc.T("svc_location")
                     : mtype == "messageContact" ? "👤 " + Loc.T("svc_contact")
+                    : mtype == "messageRichMessage"
+                        ? (content["text"]?["text"]?.ToString() ?? content["caption"]?["text"]?.ToString() ?? Loc.T("media_richMessage"))
                     : "[" + mtype.Replace("message", "") + "]";
                 item.LastMessage = text;
                 long date = msg["date"]?.ToObject<long>() ?? 0;
@@ -3139,6 +3141,14 @@ namespace TelegramWP10
                         }
                         string namesJoined = addedNames.Count > 0 ? string.Join(", ", addedNames) : Loc.T("label_unknownUser");
                         item.Text = "➕ " + adderName + " " + Loc.T("svc_addedSuffix") + " " + namesJoined;
+                    } else if (type == "messageRichMessage") {
+                        // Точная схема этого типа контента не задокументирована,
+                        // поэтому аккуратно пробуем достать текст/подпись, как у
+                        // обычного текстового/медиа-сообщения, и только если
+                        // ничего не нашлось — показываем общую подпись вместо "[..]".
+                        string richText = content["text"]?["text"]?.ToString()
+                                        ?? content["caption"]?["text"]?.ToString() ?? "";
+                        item.Text = !string.IsNullOrEmpty(richText) ? richText : Loc.T("media_richMessage");
                     } else {
                         item.Text = "[" + type.Replace("message", "") + "]";
                     }
