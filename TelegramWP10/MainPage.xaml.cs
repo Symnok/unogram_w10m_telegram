@@ -3457,8 +3457,17 @@ namespace TelegramWP10
                 if (bitmap != null && _messagesDict.ContainsKey(msgId)) {
                     _messagesDict[msgId].AttachedPhoto = bitmap;
                 } else {
+                    LogStickerDebug("UpdateMsgPhoto NO-OP msg=" + msgId + " path=" + path
+                        + " bitmapNull=" + (bitmap == null) + " inDict=" + _messagesDict.ContainsKey(msgId));
                 }
-            } catch (Exception ex) { Log("UpdateMsgPhoto ERR msg=" + msgId + " | " + ex.Message); }
+            } catch (Exception ex) {
+                Log("UpdateMsgPhoto ERR msg=" + msgId + " | " + ex.Message);
+                // ВРЕМЕННО — тот же самый диагностический файл, что и для sticker RAW,
+                // чтобы увидеть настоящую причину падения декодирования.
+                LogStickerDebug("UpdateMsgPhoto EXCEPTION msg=" + msgId + " path=" + path
+                    + " | " + ex.GetType().FullName + ": " + ex.Message
+                    + " | stack=" + TruncateForLog(ex.StackTrace));
+            }
         }
 
         
