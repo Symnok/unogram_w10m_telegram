@@ -2499,52 +2499,146 @@ namespace TelegramWP10
             return s.Length > 3000 ? s.Substring(0, 3000) + "…(truncated)" : s;
         }
 
+        /// <summary>
+        /// Рекурсивно вытаскивает обычный текст из дерева RichText — того же
+        /// типа, что TDLib давно использует для Instant View страниц:
+        /// richTextPlain — лист с текстом; richTextBold/Italic/Underline/... —
+        /// обёртка вокруг вложенного RichText; richTexts — список из
+        /// нескольких кусков подряд (обычный параграф почти всегда именно
+        /// такой список, а не голый richTextPlain).
+        /// </summary>
+        private string ExtractPlainFromRichText(JToken rt) {
+            if (rt == null) return "";
+            string rtType = rt["@type"]?.ToString() ?? "";
+            switch (rtType) {
+                case "richTextPlain":
+                    return rt["text"]?.ToString() ?? "";
+                case "richTexts": {
+                    var texts = rt["texts"] as JArray;
+                    if (texts == null) return "";
+                    var sb = new System.Text.StringBuilder();
+                    foreach (var t in texts) sb.Append(ExtractPlainFromRichText(t));
+                    return sb.ToString();
+                }
+                case "richTextBold":
+                case "richTextItalic":
+                case "richTextUnderline":
+                case "richTextStrikethrough":
+                case "richTextFixed":
+                case "richTextMarked":
+                case "richTextSubscript":
+                case "richTextSuperscript":
+                case "richTextUrl":
+                case "richTextAnchorLink":
+                    return ExtractPlainFromRichText(rt["text"]);
+                case "richTextEmailAddress":
+                case "richTextPhoneNumber":
+                    return rt["text"]?["text"]?.ToString() ?? ExtractPlainFromRichText(rt["text"]);
+                case "richTextIcon":
+                    return ""; // картинка-иконка, текста нет
+                default:
+                    // Незнакомый вариант RichText — пробуем вложенный text, если есть
+                    if (rt["text"] != null) return ExtractPlainFromRichText(rt["text"]);
+                    return rt.Type == Newtonsoft.Json.Linq.JTokenType.String ? rt.ToString() : "";
+            }
+        }
+
+        /// <summary>Текст одного блока (pageBlockXxx) — с рекурсией для списков/сворачиваемых секций.</summary>
+        private string ExtractPageBlockText(JToken block) {
+            string bType = block?["@type"]?.ToString() ?? "";
+            switch (bType) {
+                case "pageBlockTitle":
+                case "pageBlockSubtitle":
+                case "pageBlockHeader":
+                case "pageBlockSubheader":
+                case "pageBlockKicker":
+                case "pageBlockParagraph":
+                case "pageBlockPreformatted":
+                case "pageBlockFooter":
+                case "pageBlockBlockQuote":
+                    return ExtractPlainFromRichText(block["text"]);
+
+                case "pageBlockPullQuote": {
+                    string quote = ExtractPlainFromRichText(block["text"]);
+                    string credit = ExtractPlainFromRichText(block["credit"]);
+                    return string.IsNullOrEmpty(credit) ? quote : quote + "\n— " + credit;
+                }
+
+                case "pageBlockList": {
+                    var items = block["items"] as JArray;
+                    if (items == null) return "";
+                    var parts = new List<string>();
+                    foreach (var it in items) {
+                        string label = ExtractPlainFromRichText(it?["label"]);
+                        var nested = it?["page_blocks"] as JArray;
+                        string nestedText = "";
+                        if (nested != null) {
+                            var nb = new List<string>();
+                            foreach (var nBlock in nested) {
+                                string t = ExtractPageBlockText(nBlock);
+                                if (!string.IsNullOrEmpty(t)) nb.Add(t);
+                            }
+                            nestedText = string.Join(" ", nb);
+                        }
+                        string line = (string.IsNullOrEmpty(label) ? "•" : label) + " " + nestedText;
+                        if (!string.IsNullOrWhiteSpace(line)) parts.Add(line.Trim());
+                    }
+                    return string.Join("\n", parts);
+                }
+
+                case "pageBlockDetails": {
+                    string header = ExtractPlainFromRichText(block["header"]);
+                    var nested = block["page_blocks"] as JArray;
+                    string nestedText = "";
+                    if (nested != null) {
+                        var nb = new List<string>();
+                        foreach (var nBlock in nested) {
+                            string t = ExtractPageBlockText(nBlock);
+                            if (!string.IsNullOrEmpty(t)) nb.Add(t);
+                        }
+                        nestedText = string.Join("\n", nb);
+                    }
+                    return string.IsNullOrEmpty(nestedText) ? header : header + "\n" + nestedText;
+                }
+
+                case "pageBlockTable": {
+                    var rows = block["cells"] as JArray;
+                    if (rows == null) return "";
+                    var lines = new List<string>();
+                    foreach (var row in rows) {
+                        var rowArr = row as JArray;
+                        if (rowArr == null) continue;
+                        var cellTexts = new List<string>();
+                        foreach (var cell in rowArr)
+                            cellTexts.Add(ExtractPlainFromRichText(cell?["text"]));
+                        lines.Add(string.Join(" | ", cellTexts));
+                    }
+                    return string.Join("\n", lines);
+                }
+
+                // pageBlockMap/pageBlockCollage/pageBlockSlideshow/pageBlockAnimation/
+                // pageBlockAudio/pageBlockPhoto/pageBlockVideo/pageBlockVoiceNote/
+                // pageBlockCover/pageBlockEmbedded(Post)/pageBlockDivider/pageBlockAnchor/
+                // pageBlockChatLink/pageBlockRelatedArticles — не текстовые по сути,
+                // полноценно не рендерим, текст не добавляем.
+                default:
+                    return "";
+            }
+        }
+
         private string ExtractRichMessageText(JToken content) {
             try {
-                // Пробуем без обёртки rich_message — по аналогии с остальными
-                // типами TDLib, где поля лежат прямо в content (как у messageText:
-                // content.text.text, а не content.message_text.text.text).
-                var blocks = content?["blocks"] as JArray
-                          ?? content?["rich_message"]?["blocks"] as JArray; // старая догадка — на всякий случай
+                // Реальная структура (проверено по логу): content.message.blocks,
+                // а не content.blocks и не content.rich_message.blocks, как
+                // предполагалось раньше.
+                var blocks = content?["message"]?["blocks"] as JArray;
                 if (blocks == null || blocks.Count == 0) {
                     Log("RICHMSG RAW (no blocks found): " + TruncateForLog(content?.ToString(Newtonsoft.Json.Formatting.None)));
                     return "";
                 }
                 var sb = new System.Text.StringBuilder();
                 foreach (var block in blocks) {
-                    string bType = block?["@type"]?.ToString() ?? "";
-                    string piece = "";
-                    switch (bType) {
-                        case "richBlockParagraph":
-                        case "richBlockSectionHeading":
-                        case "richBlockPreformatted":
-                        case "richBlockFooter":
-                        case "richBlockBlockQuotation":
-                        case "richBlockPullQuotation":
-                            piece = block["text"]?["text"]?.ToString() ?? "";
-                            break;
-                        case "richBlockList":
-                            var items = block["items"] as JArray;
-                            if (items != null) {
-                                var parts = new List<string>();
-                                foreach (var it in items) {
-                                    string itText = it?["text"]?["text"]?.ToString() ?? "";
-                                    if (!string.IsNullOrEmpty(itText)) parts.Add("• " + itText);
-                                }
-                                piece = string.Join("\n", parts);
-                            }
-                            break;
-                        case "richBlockDetails":
-                            // Заголовок сворачиваемой секции — как приближение к содержимому
-                            piece = block["summary"]?["text"]?.ToString() ?? "";
-                            break;
-                        // richBlockTable/richBlockMap/richBlockCollage/richBlockSlideshow/
-                        // richBlockAnimation/Audio/Photo/Video/VoiceNote/richBlockThinking/
-                        // richBlockMathematicalExpression/richBlockDivider/richBlockAnchor —
-                        // не текстовые по сути, полноценно не рендерим, текст не добавляем.
-                        default:
-                            break;
-                    }
+                    string piece = ExtractPageBlockText(block);
                     if (!string.IsNullOrEmpty(piece)) {
                         if (sb.Length > 0) sb.Append("\n");
                         sb.Append(piece);
@@ -2552,8 +2646,9 @@ namespace TelegramWP10
                 }
                 string result = sb.ToString();
                 if (string.IsNullOrEmpty(result)) {
-                    // Блоки нашлись, но ни один не дал текста — скорее всего,
-                    // неверно угаданы имена полей ВНУТРИ блока (text/items/summary).
+                    // Блоки нашлись, но ни один не дал текста — значит, среди них
+                    // только нетекстовые (медиа/карта/т.п.) либо новый, ещё не
+                    // учтённый тип pageBlock.
                     Log("RICHMSG RAW (blocks found, no text extracted): " + TruncateForLog(content?.ToString(Newtonsoft.Json.Formatting.None)));
                 }
                 return result;
