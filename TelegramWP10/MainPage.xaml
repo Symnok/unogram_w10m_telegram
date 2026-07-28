@@ -806,6 +806,32 @@
             </ListView>
             </ScrollViewer>
 
+            <!-- Результаты поиска внутри чата — та же визуальная стилистика, что и в главном окне -->
+            <ListView x:Name="ChatSearchResultsView" SelectionMode="None" IsItemClickEnabled="True"
+                      ItemClick="ChatSearchResult_ItemClick" Visibility="Collapsed"
+                      Background="#111111" VerticalAlignment="Stretch">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="12,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="{Binding Subtitle}" Foreground="{Binding TitleColor}" FontSize="14"
+                                       TextTrimming="CharacterEllipsis" TextWrapping="Wrap" MaxLines="2"/>
+                            <TextBlock Grid.Row="1" Text="{Binding DateText}" Foreground="#888888" FontSize="11" Margin="0,4,0,0"/>
+                            <Rectangle Grid.Row="1" VerticalAlignment="Bottom" Height="1" Fill="#262626" Margin="0,10,0,-10"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
             <!-- Индикатор дозагрузки старых сообщений — поверх, сверху по центру -->
             <Border x:Name="OlderLoadingIndicator" Background="#CC000000" CornerRadius="16"
                     Padding="12,6" Margin="0,8,0,0"

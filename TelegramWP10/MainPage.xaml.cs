@@ -65,6 +65,7 @@ namespace TelegramWP10
         private string _chatSearchQuery = "";
         private List<long> _chatSearchResultIds = new List<long>();
         private int _chatSearchResultIndex = -1;
+        private ObservableCollection<SearchResultItem> _chatSearchResultItems = new ObservableCollection<SearchResultItem>();
         private Windows.UI.Xaml.DispatcherTimer _chatSearchDebounceTimer;
         private TaskCompletionSource<bool> _optimizeStorageTcs = null; // ждём storageStatistics — подтверждение, что чистка кэша реально завершена
         private long _threadMessageId = 0;
@@ -3319,9 +3320,11 @@ namespace TelegramWP10
             _replyRequests.Clear();
             _editRefreshPendingIds.Clear();
             ChatSearchBar.Visibility = Visibility.Collapsed;
+            ChatSearchResultsView.Visibility = Visibility.Collapsed;
             ChatHeader.Visibility = Visibility.Visible;
             _chatSearchQuery = "";
             _chatSearchResultIds.Clear();
+            _chatSearchResultItems.Clear();
             _chatSearchResultIndex = -1;
             _chatSearchAwaitingResults = false;
             _remoteUniqueIdToMsgId.Clear();
@@ -3838,21 +3841,26 @@ namespace TelegramWP10
 
         private void ChatSearchButton_Click(object sender, RoutedEventArgs e) {
             if (_currentChatId == 0) return;
+            if (ChatSearchResultsView.ItemsSource == null) ChatSearchResultsView.ItemsSource = _chatSearchResultItems;
             ChatHeader.Visibility = Visibility.Collapsed;
             ChatSearchBar.Visibility = Visibility.Visible;
             ChatSearchBox.Text = "";
             ChatSearchCounter.Text = "";
             _chatSearchResultIds.Clear();
+            _chatSearchResultItems.Clear();
             _chatSearchResultIndex = -1;
+            ChatSearchResultsView.Visibility = Visibility.Collapsed;
             ChatSearchBox.Focus(FocusState.Programmatic);
         }
 
         private void ChatSearchClose_Click(object sender, RoutedEventArgs e) {
             ChatSearchBar.Visibility = Visibility.Collapsed;
+            ChatSearchResultsView.Visibility = Visibility.Collapsed;
             ChatHeader.Visibility = Visibility.Visible;
             ChatSearchBox.Text = "";
             _chatSearchQuery = "";
             _chatSearchResultIds.Clear();
+            _chatSearchResultItems.Clear();
             _chatSearchResultIndex = -1;
             _chatSearchAwaitingResults = false;
         }
@@ -3869,8 +3877,10 @@ namespace TelegramWP10
             _chatSearchDebounceTimer.Stop();
             if (string.IsNullOrWhiteSpace(_chatSearchQuery)) {
                 _chatSearchResultIds.Clear();
+                _chatSearchResultItems.Clear();
                 _chatSearchResultIndex = -1;
                 ChatSearchCounter.Text = "";
+                ChatSearchResultsView.Visibility = Visibility.Collapsed;
                 return;
             }
             _chatSearchDebounceTimer.Start();
@@ -3884,26 +3894,51 @@ namespace TelegramWP10
                 ",\"query\":\"" + q + "\",\"from_message_id\":0,\"offset\":0,\"limit\":50}");
         }
 
-        /// <summary>Ответ на searchChatMessages — приходит тем же типом "messages", что и getChatHistory,
-        /// поэтому обрабатывается отдельной, явно помеченной веткой (см. _chatSearchAwaitingResults).</summary>
+        /// <summary>Ответ на searchChatMessages — в TDLib 1.8.66 приходит как "foundChatMessages"
+        /// (см. case "foundChatMessages"), а не "messages" — обрабатывается тут вне зависимости
+        /// от того, из какой именно ветки switch-а был вызван этот метод.</summary>
         private void HandleChatSearchResults(JToken update) {
             var found = update["messages"] as JArray;
             _chatSearchResultIds.Clear();
+            _chatSearchResultItems.Clear();
             if (found != null) {
                 foreach (var fm in found) {
                     long fmId = fm["id"]?.ToObject<long>() ?? 0;
-                    if (fmId != 0) _chatSearchResultIds.Add(fmId);
+                    if (fmId == 0) continue;
+                    _chatSearchResultIds.Add(fmId);
+
+                    string snippet = fm["content"]?["text"]?["text"]?.ToString()
+                                   ?? fm["content"]?["caption"]?["text"]?.ToString() ?? "";
+                    if (string.IsNullOrEmpty(snippet)) snippet = Loc.T("media_message");
+                    int fmDate = fm["date"]?.ToObject<int>() ?? 0;
+                    string fmDateStr = fmDate > 0 ? DateTimeOffset.FromUnixTimeSeconds(fmDate).LocalDateTime.ToString("dd.MM.yyyy HH:mm") : "";
+                    _chatSearchResultItems.Add(new SearchResultItem {
+                        ChatId = _currentChatId, MessageId = fmId,
+                        Subtitle = snippet, DateText = fmDateStr
+                    });
                 }
             }
             _chatSearchResultIndex = _chatSearchResultIds.Count > 0 ? 0 : -1;
             UpdateChatSearchCounter();
-            if (_chatSearchResultIndex >= 0) JumpToMessage(_chatSearchResultIds[_chatSearchResultIndex]);
+            ChatSearchResultsView.Visibility = Visibility.Visible;
         }
 
         private void UpdateChatSearchCounter() {
             ChatSearchCounter.Text = _chatSearchResultIds.Count == 0
                 ? "0/0"
                 : (_chatSearchResultIndex + 1) + "/" + _chatSearchResultIds.Count;
+        }
+
+        /// <summary>Тап по конкретному найденному сообщению в списке — прыгаем к нему и закрываем поиск.</summary>
+        private void ChatSearchResult_ItemClick(object sender, ItemClickEventArgs e) {
+            var item = e.ClickedItem as SearchResultItem;
+            if (item == null) return;
+            int idx = _chatSearchResultIds.IndexOf(item.MessageId);
+            if (idx >= 0) _chatSearchResultIndex = idx;
+            JumpToMessage(item.MessageId);
+            ChatSearchBar.Visibility = Visibility.Collapsed;
+            ChatSearchResultsView.Visibility = Visibility.Collapsed;
+            ChatHeader.Visibility = Visibility.Visible;
         }
 
         // searchChatMessages отдаёт совпадения от новых к старым — "вниз" (⌄) переходит
@@ -4661,6 +4696,7 @@ namespace TelegramWP10
             MessagesPanel.Background       = CB("#111111");
             ChatHeader.Background          = CB("#1F3A52");
             ChatSearchBar.Background       = CB("#1F3A52");
+            ChatSearchResultsView.Background = CB("#111111");
             ChatSearchButton.Foreground     = CB("#FFFFFF");
             ChatSearchBox.Foreground        = CB("#FFFFFF");
             ChatSearchCounter.Foreground    = CB("#CCE8FF");
@@ -4729,6 +4765,7 @@ namespace TelegramWP10
             CurrentChatStatus.Foreground   = CB("#000000");  // тёмно-серый статус
             ChatSearchButton.Foreground    = CB("#2AABEE");
             ChatSearchBar.Background       = CB("#FFFFFF");
+            ChatSearchResultsView.Background = CB("#FFFFFF");
             ChatSearchBox.Foreground       = CB("#000000");
             ChatSearchCounter.Foreground   = CB("#000000");
             ChatSearchUpButton.Foreground  = CB("#2AABEE");
@@ -4875,6 +4912,7 @@ namespace TelegramWP10
         private void NotifyAllChatTheme() {
             foreach (var c in _chatsDict.Values) c.NotifyThemeChanged();
             foreach (var r in _searchAllResults) r.NotifyTitleColor();
+            foreach (var r in _chatSearchResultItems) r.NotifyTitleColor();
         }
 
         private void UpdateBubbleColors() {
@@ -5530,9 +5568,11 @@ namespace TelegramWP10
         private void BackButton_Click(object sender, RoutedEventArgs e) {
             ProfileOverlay.Visibility = Visibility.Collapsed;
             ChatSearchBar.Visibility = Visibility.Collapsed;
+            ChatSearchResultsView.Visibility = Visibility.Collapsed;
             ChatHeader.Visibility = Visibility.Visible;
             _chatSearchQuery = "";
             _chatSearchResultIds.Clear();
+            _chatSearchResultItems.Clear();
             _chatSearchResultIndex = -1;
             _chatSearchAwaitingResults = false;
             if (_threadMessageId != 0) {
