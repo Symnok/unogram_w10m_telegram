@@ -2582,6 +2582,12 @@ namespace TelegramWP10
                 bool outgoing = (bool)msg["is_outgoing"];
                 var senderId = msg["sender_id"];
                 var msgDate = DateTimeOffset.FromUnixTimeSeconds((long)msg["date"]).LocalDateTime;
+                // Пока сообщение в состоянии "отправляется" (ещё не подтверждено
+                // сервером), TDLib отдаёт edit_date ненулевым, хотя никто ничего
+                // не редактировал — иначе абсолютно каждое только что отправленное
+                // сообщение сразу показывало бы "изменено". Доверяем полю только
+                // после подтверждения отправки.
+                bool msgPending = msg["sending_state"]?["@type"]?.ToString() == "messageSendingStatePending";
                 var item = new MessageItem {
                     Id = msgId, Text = txt,
                     Entities = entities.Count > 0 ? entities : null,
@@ -2594,7 +2600,7 @@ namespace TelegramWP10
                     SenderName = outgoing ? "" : (_currentChatIsGroup ? GetSenderName(senderId) : ""),
                     SenderColor = GetSenderColor(senderId),
                     AlbumId = msg["media_album_id"]?.ToString() ?? "",
-                    IsEdited = (msg["edit_date"]?.ToObject<long>() ?? 0) > 0
+                    IsEdited = !msgPending && (msg["edit_date"]?.ToObject<long>() ?? 0) > 0
                 };
 
                 // Аватарка отправителя — только для входящих сообщений в группах
