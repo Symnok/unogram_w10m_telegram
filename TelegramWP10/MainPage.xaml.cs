@@ -2925,8 +2925,9 @@ namespace TelegramWP10
                     IsEdited = trustEditDate && (msg["edit_date"]?.ToObject<long>() ?? 0) > 0
                 };
 
-                // Аватарка отправителя — только для входящих сообщений в группах
-                if (!outgoing && _currentChatIsGroup && senderId?["@type"]?.ToString() == "messageSenderUser") {
+                // Аватарка отправителя — для всех входящих сообщений (и в группах,
+                // и в личке — там это всегда один и тот же собеседник)
+                if (!outgoing && senderId?["@type"]?.ToString() == "messageSenderUser") {
                     long senderUid = senderId["user_id"]?.ToObject<long>() ?? 0;
                     item.SenderUserId = senderUid;
                     if (_senderAvatarCache.ContainsKey(senderUid)) item.SenderPhoto = _senderAvatarCache[senderUid];

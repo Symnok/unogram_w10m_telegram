@@ -190,7 +190,7 @@ namespace TelegramWP10
         public long SenderUserId { get; set; } = 0;
         public string SenderAvatarColor => AvatarPlaceholder.GetColor(SenderUserId);
         public string SenderAvatarInitials => AvatarPlaceholder.GetInitials(_senderName);
-        public Visibility SenderAvatarVisibility => SenderNameVisibility;
+        public Visibility SenderAvatarVisibility => !_isOutgoing && _isLastInGroup ? Visibility.Visible : Visibility.Collapsed;
 
         private BitmapImage _senderPhoto;
         public BitmapImage SenderPhoto {
