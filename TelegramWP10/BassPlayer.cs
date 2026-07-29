@@ -31,28 +31,34 @@ namespace TelegramWP10
 
         // На Windows BASS собирается с __stdcall — это не Cdecl, как у libwebp.
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool BASS_Init(int device, uint freq, uint flags, IntPtr win, IntPtr clsid);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
-        private static extern uint BASS_StreamCreateFile(bool mem, [MarshalAs(UnmanagedType.LPWStr)] string file,
-            long offset, long length, uint flags);
+        private static extern uint BASS_StreamCreateFile([MarshalAs(UnmanagedType.Bool)] bool mem,
+            [MarshalAs(UnmanagedType.LPWStr)] string file, long offset, long length, uint flags);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
-        private static extern bool BASS_ChannelPlay(uint handle, bool restart);
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool BASS_ChannelPlay(uint handle, [MarshalAs(UnmanagedType.Bool)] bool restart);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool BASS_ChannelPause(uint handle);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool BASS_ChannelStop(uint handle);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool BASS_StreamFree(uint handle);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern long BASS_ChannelGetPosition(uint handle, uint mode);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool BASS_ChannelSetPosition(uint handle, long pos, uint mode);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
@@ -72,6 +78,7 @@ namespace TelegramWP10
 
         private static bool _initialized = false;
         private static bool _initFailed = false;
+        private static bool _opusPluginLoaded = false;
         private static uint _currentHandle = 0;
 
         /// <summary>Инициализирует BASS и грузит аддон Opus — один раз за сессию приложения.</summary>
@@ -86,9 +93,12 @@ namespace TelegramWP10
                 }
                 // Без этого аддона основной bass.dll не раскодирует Opus-контент
                 // (сам по себе умеет только Ogg/Vorbis) — voice-note файлы Telegram
-                // именно Opus. Если аддона нет рядом — просто не подгрузится, а
-                // BASS_StreamCreateFile ниже вернёт 0 для .oga-файлов.
-                try { BASS_PluginLoad("bassopus.dll", 0); } catch { }
+                // именно Opus. Проверяем результат явно — если аддона нет рядом,
+                // дальше даже не пытаемся звать StreamCreateFile для .oga/.ogg.
+                try {
+                    uint pluginHandle = BASS_PluginLoad("bassopus.dll", 0);
+                    _opusPluginLoaded = pluginHandle != 0;
+                } catch { _opusPluginLoaded = false; }
                 _initialized = true;
                 return true;
             } catch {
@@ -97,9 +107,10 @@ namespace TelegramWP10
             }
         }
 
-        /// <summary>Открывает и сразу начинает проигрывать файл. false — если BASS/файл недоступны.</summary>
+        /// <summary>Открывает и сразу начинает проигрывать файл. false — если BASS/аддон Opus/файл недоступны.</summary>
         public static bool Play(string path) {
             if (!EnsureInit()) return false;
+            if (!_opusPluginLoaded) return false; // без аддона .oga/.ogg (Opus) всё равно не откроется
             try {
                 Stop();
                 uint h = BASS_StreamCreateFile(false, path, 0, 0, BASS_UNICODE);
