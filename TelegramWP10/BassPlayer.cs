@@ -79,6 +79,13 @@ namespace TelegramWP10
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern int BASS_ErrorGetCode();
 
+        // UWP-песочница не даёт нативному коду (внутри bass.dll) самому открыть
+        // файл другой DLL классическим способом (LoadLibrary) — только через
+        // этот, "пропущенный" системой путь. LoadPackagedLibrary принципиально
+        // не принимает абсолютный путь — только имя файла из собственного пакета.
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr LoadPackagedLibrary([MarshalAs(UnmanagedType.LPWStr)] string libFileName, uint reserved);
+
         private static bool _initialized = false;
         private static bool _initFailed = false;
         private static bool _opusPluginLoaded = false;
@@ -119,10 +126,19 @@ namespace TelegramWP10
                 // именно Opus. Проверяем результат явно — если аддона нет рядом,
                 // дальше даже не пытаемся звать StreamCreateFile для .oga/.ogg.
                 try {
-                    string pluginPath = Windows.ApplicationModel.Package.Current.InstalledLocation.Path + "\\bassopus.dll";
-                    uint pluginHandle = BASS_PluginLoad(pluginPath, 0);
+                    // Сначала — предзагрузка через системный, разрешённый в
+                    // песочнице механизм (принимает только имя файла, не путь).
+                    IntPtr preloaded = LoadPackagedLibrary("bassopus.dll", 0);
+                    int preloadErr = preloaded == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
+                    LogBassDebug("LoadPackagedLibrary(bassopus.dll) -> handle=" + preloaded
+                        + (preloaded == IntPtr.Zero ? " lastError=" + preloadErr : ""));
+
+                    // Теперь просим BASS зарегистрировать плагин — раз модуль уже
+                    // в процессе, его собственный (не UWP-осведомлённый) способ
+                    // поиска должен его найти.
+                    uint pluginHandle = BASS_PluginLoad("bassopus.dll", 0);
                     _opusPluginLoaded = pluginHandle != 0;
-                    LogBassDebug("BASS_PluginLoad(" + pluginPath + ") -> handle=" + pluginHandle
+                    LogBassDebug("BASS_PluginLoad(bassopus.dll) -> handle=" + pluginHandle
                         + (pluginHandle == 0 ? " errCode=" + BASS_ErrorGetCode() : ""));
                 } catch (Exception plex) {
                     _opusPluginLoaded = false;
