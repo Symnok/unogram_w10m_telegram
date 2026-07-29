@@ -3664,12 +3664,20 @@ namespace TelegramWP10
                     _currentChatIsBot = utype == "userTypeBot";
                 }
             }
-            // Аватарка
-            if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
-            else ChatHeaderAvatarBrush.ImageSource = null;
-            ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
-            ChatHeaderAvatarBorder.Fill = CB(AvatarPlaceholder.GetColor(chat.Id));
-            ChatHeaderAvatarInitials.Text = chat.Photo != null ? "" : AvatarPlaceholder.GetInitials(chat.Title);
+            // Аватарка — "Избранное" всегда звезда на голубом кружке, даже если
+            // у chat.Photo реально лежит собственное фото профиля пользователя.
+            if (chat.IsSavedMessages) {
+                ChatHeaderAvatarBrush.ImageSource = null;
+                ChatHeaderAvatarEllipse.Visibility = Visibility.Collapsed;
+                ChatHeaderAvatarBorder.Fill = CB("#2AABEE");
+                ChatHeaderAvatarInitials.Text = "★";
+            } else {
+                if (chat.Photo != null) ChatHeaderAvatarBrush.ImageSource = chat.Photo;
+                else ChatHeaderAvatarBrush.ImageSource = null;
+                ChatHeaderAvatarEllipse.Visibility = chat.Photo != null ? Visibility.Visible : Visibility.Collapsed;
+                ChatHeaderAvatarBorder.Fill = CB(AvatarPlaceholder.GetColor(chat.Id));
+                ChatHeaderAvatarInitials.Text = chat.Photo != null ? "" : AvatarPlaceholder.GetInitials(chat.Title);
+            }
             // Статус для групп/каналов — запрашиваем число участников
             if (_currentChatIsGroup || chat.IsChannel) {
                 CurrentChatStatus.Text = Loc.T("status_loading");
