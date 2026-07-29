@@ -650,7 +650,7 @@ namespace TelegramWP10
                             && (chatUpd["type"]?["user_id"]?.ToObject<long>() ?? 0) == _myUserId
                             && _myUserId != 0;
                         if (isSavedMessages) chatTitle = Loc.T("menu_favorites");
-                        _chatsDict[chatId] = new ChatItem { Id = chatId, Title = chatTitle, OutboxReadId = initOutboxRead > 0 ? initOutboxRead : 0, IsChannel = isChannel };
+                        _chatsDict[chatId] = new ChatItem { Id = chatId, Title = chatTitle, OutboxReadId = initOutboxRead > 0 ? initOutboxRead : 0, IsChannel = isChannel, IsSavedMessages = isSavedMessages };
                     }
                     var chatItem = _chatsDict[chatId];
                     // Заполняем последнее сообщение
@@ -1110,6 +1110,7 @@ namespace TelegramWP10
                             // Переименовываем чат с собой в списке чатов
                             if (_chatsDict.ContainsKey(_myUserId)) {
                                 _chatsDict[_myUserId].Title = Loc.T("menu_favorites");
+                                _chatsDict[_myUserId].IsSavedMessages = true;
                             }
                             if (_contactsPendingMyId && _contactItems != null) {
                                 _contactsPendingMyId = false;

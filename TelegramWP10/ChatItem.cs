@@ -123,6 +123,16 @@ namespace TelegramWP10
         }
         public Visibility MutedVisibility => _isMuted ? Visibility.Visible : Visibility.Collapsed;
 
+        // "Избранное" (чат с самим собой) — вместо аватарки показываем
+        // фирменную звёздочку на голубом кружке, как в оригинале, а не
+        // собственное фото/инициалы пользователя.
+        private bool _isSavedMessages = false;
+        public bool IsSavedMessages {
+            get => _isSavedMessages;
+            set { _isSavedMessages = value; OnPropertyChanged("IsSavedMessages"); OnPropertyChanged("SavedMessagesVisibility"); OnPropertyChanged("NoPhotoVisibility"); }
+        }
+        public Visibility SavedMessagesVisibility => _isSavedMessages ? Visibility.Visible : Visibility.Collapsed;
+
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged(string propertyName)
         {
