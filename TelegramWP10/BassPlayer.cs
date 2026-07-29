@@ -119,9 +119,10 @@ namespace TelegramWP10
                 // именно Opus. Проверяем результат явно — если аддона нет рядом,
                 // дальше даже не пытаемся звать StreamCreateFile для .oga/.ogg.
                 try {
-                    uint pluginHandle = BASS_PluginLoad("bassopus.dll", 0);
+                    string pluginPath = Windows.ApplicationModel.Package.Current.InstalledLocation.Path + "\\bassopus.dll";
+                    uint pluginHandle = BASS_PluginLoad(pluginPath, 0);
                     _opusPluginLoaded = pluginHandle != 0;
-                    LogBassDebug("BASS_PluginLoad(bassopus.dll) -> handle=" + pluginHandle
+                    LogBassDebug("BASS_PluginLoad(" + pluginPath + ") -> handle=" + pluginHandle
                         + (pluginHandle == 0 ? " errCode=" + BASS_ErrorGetCode() : ""));
                 } catch (Exception plex) {
                     _opusPluginLoaded = false;
