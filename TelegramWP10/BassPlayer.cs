@@ -76,10 +76,31 @@ namespace TelegramWP10
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern uint BASS_PluginLoad([MarshalAs(UnmanagedType.LPWStr)] string file, uint flags);
 
+        [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern int BASS_ErrorGetCode();
+
         private static bool _initialized = false;
         private static bool _initFailed = false;
         private static bool _opusPluginLoaded = false;
         private static uint _currentHandle = 0;
+
+        // ================================================================
+        // ВРЕМЕННО — диагностика "голосовые не проигрываются". Отдельный,
+        // самодостаточный файл (BassPlayer — статический класс без доступа
+        // к логгерам MainPage) — убрать после разбора причины.
+        // ================================================================
+        private static readonly System.Threading.SemaphoreSlim _bassDebugLock = new System.Threading.SemaphoreSlim(1, 1);
+        private static async void LogBassDebug(string message) {
+            if (!await _bassDebugLock.WaitAsync(2000)) return;
+            try {
+                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
+                    .CreateFolderAsync("Unogram", Windows.Storage.CreationCollisionOption.OpenIfExists);
+                var file = await folder.CreateFileAsync("bassdebug.txt", Windows.Storage.CreationCollisionOption.OpenIfExists);
+                await Windows.Storage.FileIO.AppendTextAsync(file, "[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message + "\r\n");
+            } catch { } finally {
+                try { _bassDebugLock.Release(); } catch { }
+            }
+        }
 
         /// <summary>Инициализирует BASS и грузит аддон Opus — один раз за сессию приложения.</summary>
         private static bool EnsureInit() {
@@ -87,7 +108,9 @@ namespace TelegramWP10
             if (_initFailed) return false;
             try {
                 // device=-1 — устройство по умолчанию; окно (win) для UWP не нужно.
-                if (!BASS_Init(-1, 44100, 0, IntPtr.Zero, IntPtr.Zero)) {
+                bool initOk = BASS_Init(-1, 44100, 0, IntPtr.Zero, IntPtr.Zero);
+                LogBassDebug("BASS_Init -> " + initOk + (initOk ? "" : " errCode=" + BASS_ErrorGetCode()));
+                if (!initOk) {
                     _initFailed = true;
                     return false;
                 }
@@ -98,26 +121,46 @@ namespace TelegramWP10
                 try {
                     uint pluginHandle = BASS_PluginLoad("bassopus.dll", 0);
                     _opusPluginLoaded = pluginHandle != 0;
-                } catch { _opusPluginLoaded = false; }
+                    LogBassDebug("BASS_PluginLoad(bassopus.dll) -> handle=" + pluginHandle
+                        + (pluginHandle == 0 ? " errCode=" + BASS_ErrorGetCode() : ""));
+                } catch (Exception plex) {
+                    _opusPluginLoaded = false;
+                    LogBassDebug("BASS_PluginLoad EXCEPTION: " + plex.GetType().FullName + ": " + plex.Message);
+                }
                 _initialized = true;
                 return true;
-            } catch {
+            } catch (Exception ex) {
                 _initFailed = true;
+                LogBassDebug("EnsureInit EXCEPTION: " + ex.GetType().FullName + ": " + ex.Message + " | stack=" + ex.StackTrace);
                 return false;
             }
         }
 
         /// <summary>Открывает и сразу начинает проигрывать файл. false — если BASS/аддон Opus/файл недоступны.</summary>
         public static bool Play(string path) {
-            if (!EnsureInit()) return false;
-            if (!_opusPluginLoaded) return false; // без аддона .oga/.ogg (Opus) всё равно не откроется
+            LogBassDebug("Play ENTER path=" + path);
+            if (!EnsureInit()) {
+                LogBassDebug("Play FAIL: EnsureInit()=false");
+                return false;
+            }
+            if (!_opusPluginLoaded) {
+                LogBassDebug("Play FAIL: аддон Opus не подгрузился (_opusPluginLoaded=false)");
+                return false; // без аддона .oga/.ogg (Opus) всё равно не откроется
+            }
             try {
                 Stop();
                 uint h = BASS_StreamCreateFile(false, path, 0, 0, BASS_UNICODE);
-                if (h == 0) return false;
+                if (h == 0) {
+                    LogBassDebug("BASS_StreamCreateFile -> 0 (FAIL) errCode=" + BASS_ErrorGetCode());
+                    return false;
+                }
+                LogBassDebug("BASS_StreamCreateFile -> handle=" + h);
                 _currentHandle = h;
-                return BASS_ChannelPlay(h, true);
-            } catch {
+                bool playOk = BASS_ChannelPlay(h, true);
+                LogBassDebug("BASS_ChannelPlay -> " + playOk + (playOk ? "" : " errCode=" + BASS_ErrorGetCode()));
+                return playOk;
+            } catch (Exception ex) {
+                LogBassDebug("Play EXCEPTION: " + ex.GetType().FullName + ": " + ex.Message + " | stack=" + ex.StackTrace);
                 _currentHandle = 0;
                 return false;
             }
