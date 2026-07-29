@@ -741,17 +741,6 @@ namespace TelegramWP10
                             }
                         }
                         if (fid != 0) {
-                            // ВРЕМЕННО — подробный лог каждого события по файлу, если он
-                            // так или иначе связан с фото/загрузкой
-                            if (_uploadFileToMsgId.ContainsKey(fid) || _fileToMsgId.ContainsKey(fid)) {
-                                LogPhotoDebug("updateFile fid=" + fid + " type=" + type
-                                    + " isCompleted=" + isCompleted + " isUploaded=" + isUploaded
-                                    + " fpath=" + (fpath ?? "(null)")
-                                    + " inUploadMap=" + _uploadFileToMsgId.ContainsKey(fid)
-                                    + " uploadMapMsgId=" + (_uploadFileToMsgId.ContainsKey(fid) ? _uploadFileToMsgId[fid].ToString() : "-")
-                                    + " inFileToMsgMap=" + _fileToMsgId.ContainsKey(fid)
-                                    + " fileToMsgMapMsgId=" + (_fileToMsgId.ContainsKey(fid) ? _fileToMsgId[fid].ToString() : "-"));
-                            }
                             // Upload прогресс
                             bool isUploadingActive = fileObj["remote"]?["is_uploading_active"]?.ToObject<bool>() ?? false;
                             long uploaded = fileObj["remote"]?["uploaded_size"]?.ToObject<long>() ?? 0;
@@ -766,10 +755,7 @@ namespace TelegramWP10
                                         if (!string.IsNullOrEmpty(fpath)) {
                                             _uploadFileToMsgId.Remove(fid);
                                             upItem.DownloadStatus = "";
-                                            LogPhotoDebug("updateFile -> UpdateMessagePhoto upMsgId=" + upMsgId + " fpath=" + fpath);
                                             var tu = UpdateMessagePhoto(upMsgId, fpath);
-                                        } else {
-                                            LogPhotoDebug("updateFile isUploaded=true НО fpath пуст, ждём следующее событие upMsgId=" + upMsgId);
                                         }
                                         // Если путь ещё не готов — не убираем регистрацию, чтобы
                                         // её нашло следующее updateFile для этого же fid.
@@ -781,8 +767,6 @@ namespace TelegramWP10
                                             upItem.DownloadStatus = "⬆ ...";
                                         }
                                     }
-                                } else {
-                                    LogPhotoDebug("updateFile fid=" + fid + " зарегистрирован на upMsgId=" + upMsgId + ", но его НЕТ в _messagesDict");
                                 }
                             }
 
@@ -1527,9 +1511,6 @@ namespace TelegramWP10
                     long sentOldId = update["old_message_id"]?.ToObject<long>() ?? 0;
                     var sentMsg = update["message"];
                     long sentNewId = sentMsg?["id"]?.ToObject<long>() ?? 0;
-                    LogPhotoDebug("updateMessageSendSucceeded oldId=" + sentOldId + " newId=" + sentNewId
-                        + " foundInDict=" + _messagesDict.ContainsKey(sentOldId)
-                        + " RAW message.content.@type=" + (sentMsg?["content"]?["@type"]?.ToString() ?? "?"));
                     if (sentOldId != 0 && sentNewId != 0 && sentOldId != sentNewId && _messagesDict.ContainsKey(sentOldId)) {
                         var sentItem = _messagesDict[sentOldId];
                         sentItem.Id = sentNewId;
@@ -1564,12 +1545,6 @@ namespace TelegramWP10
                 case "updateMessageContent":
                     long umcChatId = update["chat_id"]?.ToObject<long>() ?? 0;
                     long umcMsgId = update["message_id"]?.ToObject<long>() ?? 0;
-                    {
-                        string umcNewType = update["new_content"]?["@type"]?.ToString() ?? "?";
-                        if (umcNewType == "messagePhoto")
-                            LogPhotoDebug("updateMessageContent msgId=" + umcMsgId + " chatMatch=" + (umcChatId == _currentChatId)
-                                + " inDict=" + _messagesDict.ContainsKey(umcMsgId) + " newType=" + umcNewType);
-                    }
                     if (umcChatId == _currentChatId && _messagesDict.ContainsKey(umcMsgId)) {
                         var content = update["new_content"];
                         string cType = content?["@type"]?.ToString() ?? "";
@@ -2562,23 +2537,6 @@ namespace TelegramWP10
             return s.Length > 3000 ? s.Substring(0, 3000) + "…(truncated)" : s;
         }
 
-        // ================================================================
-        // ВРЕМЕННО — подробная диагностика отправки фото (через раз пустой
-        // пузырь). Отдельный, самодостаточный файл — убрать после разбора.
-        // ================================================================
-        private static readonly System.Threading.SemaphoreSlim _photoDebugLock = new System.Threading.SemaphoreSlim(1, 1);
-        private static async void LogPhotoDebug(string message) {
-            if (!await _photoDebugLock.WaitAsync(2000)) return;
-            try {
-                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
-                    .CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
-                var file = await folder.CreateFileAsync("photodebug.txt", CreationCollisionOption.OpenIfExists);
-                await FileIO.AppendTextAsync(file, "[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message + "\r\n");
-            } catch { } finally {
-                try { _photoDebugLock.Release(); } catch { }
-            }
-        }
-
         /// <summary>
         /// Рекурсивно вытаскивает обычный текст из дерева RichText — того же
         /// типа, что TDLib давно использует для Instant View страниц:
@@ -2860,9 +2818,6 @@ namespace TelegramWP10
         /// </summary>
         private void ApplyPhotoContent(MessageItem item, long msgId, JToken content, bool outgoing) {
             var sizes = content?["photo"]?["sizes"] as JArray;
-            LogPhotoDebug("ApplyPhotoContent ENTER msgId=" + msgId + " outgoing=" + outgoing
-                + " sizesCount=" + (sizes?.Count ?? -1)
-                + " RAW photo=" + TruncateForLog(content?["photo"]?.ToString(Newtonsoft.Json.Formatting.None)));
             if (sizes == null || sizes.Count == 0) return;
 
             // Оригинал — только для полноэкранного просмотра/сохранения,
@@ -2903,17 +2858,10 @@ namespace TelegramWP10
                 item.DownloadStatus = (phTotal > 0 && alreadyUpl > 0)
                     ? "⬆ " + (int)(alreadyUpl * 100 / phTotal) + "%" : "⬆ 0%";
             }
-            LogPhotoDebug("ApplyPhotoContent CHOSE msgId=" + msgId + " pfid=" + pfid + " bestIdx=" + bestIdx
-                + " isUploaded=" + isUploaded + " phPath=" + (phPath ?? "(null)")
-                + " registeredUpload=" + (outgoing && !isUploaded));
             if (!string.IsNullOrEmpty(phPath)) {
-                LogPhotoDebug("ApplyPhotoContent -> UpdateMessagePhoto msgId=" + msgId + " path=" + phPath);
                 var t = UpdateMessagePhoto(msgId, phPath);
             } else if (isUploaded || !outgoing) {
-                LogPhotoDebug("ApplyPhotoContent -> downloadFile msgId=" + msgId + " pfid=" + pfid);
                 TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + pfid + ",\"priority\":10,\"synchronous\":false}");
-            } else {
-                LogPhotoDebug("ApplyPhotoContent -> NOTHING (path пуст, isUploaded=false, outgoing=true) msgId=" + msgId + " pfid=" + pfid);
             }
         }
 
@@ -3518,7 +3466,6 @@ namespace TelegramWP10
             // Ремап словарей (fileId → msgId) эту гонку не лечит: сам вызов уже
             // "в полёте" со старым id к моменту завершения декодирования.
             if (!_messagesDict.TryGetValue(msgId, out var targetItem)) return;
-            LogPhotoDebug("UpdateMessagePhoto ENTER msgId=" + msgId + " path=" + path);
             try {
                 // .tgs это gzip+lottie — не можем отобразить, пропускаем
                 if (path.EndsWith(".tgs", StringComparison.OrdinalIgnoreCase)) {
@@ -3550,15 +3497,9 @@ namespace TelegramWP10
 
                 if (bitmap != null) {
                     targetItem.AttachedPhoto = bitmap;
-                    LogPhotoDebug("UpdateMessagePhoto SUCCESS msgId=" + msgId);
-                } else {
-                    LogPhotoDebug("UpdateMessagePhoto NO-OP (bitmap==null) msgId=" + msgId);
                 }
             } catch (Exception ex) {
                 Log("UpdateMsgPhoto ERR msg=" + msgId + " | " + ex.Message);
-                LogPhotoDebug("UpdateMessagePhoto EXCEPTION msgId=" + msgId + " path=" + path
-                    + " | " + ex.GetType().FullName + ": " + ex.Message
-                    + " | stack=" + TruncateForLog(ex.StackTrace));
             }
         }
 
@@ -4107,7 +4048,6 @@ namespace TelegramWP10
                         ",\"disable_content_type_detection\":false}" +
                         ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
                 }
-                LogPhotoDebug("AttachFile_Click SEND isPhoto=" + isPhoto + " path=" + path);
                 TdJson.SendUtf8(_client, req);
             }
         }
@@ -4459,7 +4399,6 @@ namespace TelegramWP10
             long msgId = (long)btn.Tag;
             if (!_messagesDict.ContainsKey(msgId)) return;
             var item = _messagesDict[msgId];
-            LogPhotoDebug("SaveAudio_Click msgId=" + msgId + " FilePath=" + (item.FilePath ?? "(null)"));
             if (!string.IsNullOrEmpty(item.FilePath)) {
                 SaveAndToast(item.FilePath, Windows.Storage.Pickers.PickerLocationId.MusicLibrary);
             } else {
@@ -5447,13 +5386,8 @@ namespace TelegramWP10
         /// показывается системный диалог "куда сохранить", а не тихо в один тап.
         /// </summary>
         private async Task<bool> SaveFileToLibraryAsync(string sourcePath, Windows.Storage.Pickers.PickerLocationId suggestedLocation) {
-            LogPhotoDebug("SaveFileToLibraryAsync ENTER sourcePath=" + (sourcePath ?? "(null)")
-                + " suggestedLocation=" + suggestedLocation);
             try {
-                if (string.IsNullOrEmpty(sourcePath)) {
-                    LogPhotoDebug("SaveFileToLibraryAsync FAIL: sourcePath пуст");
-                    return false;
-                }
+                if (string.IsNullOrEmpty(sourcePath)) return false;
                 var srcFile = await StorageFile.GetFileFromPathAsync(sourcePath);
                 string ext = System.IO.Path.GetExtension(srcFile.Name);
                 if (string.IsNullOrEmpty(ext)) ext = ".dat";
@@ -5465,10 +5399,7 @@ namespace TelegramWP10
                     new List<string> { ext });
 
                 var destFile = await picker.PickSaveFileAsync();
-                if (destFile == null) {
-                    LogPhotoDebug("SaveFileToLibraryAsync: пользователь отменил выбор файла");
-                    return false; // пользователь сам отменил — не ошибка, просто без тоста об успехе
-                }
+                if (destFile == null) return false; // пользователь сам отменил — не ошибка, просто без тоста об успехе
 
                 using (var srcStream = await srcFile.OpenReadAsync())
                 using (var destStream = await destFile.OpenAsync(Windows.Storage.FileAccessMode.ReadWrite)) {
@@ -5477,14 +5408,9 @@ namespace TelegramWP10
                 }
                 try { await Windows.Storage.CachedFileManager.CompleteUpdatesAsync(destFile); } catch { }
 
-                LogPhotoDebug("SaveFileToLibraryAsync SUCCESS -> " + destFile.Path);
                 return true;
             } catch (Exception ex) {
                 Log("SAVE ERR: " + ex.Message);
-                LogPhotoDebug("SaveFileToLibraryAsync EXCEPTION sourcePath=" + sourcePath
-                    + " | " + ex.GetType().FullName + ": " + ex.Message
-                    + " | HResult=" + ex.HResult
-                    + " | stack=" + TruncateForLog(ex.StackTrace));
                 return false;
             }
         }
