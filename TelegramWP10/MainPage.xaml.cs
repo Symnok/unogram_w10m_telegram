@@ -2911,7 +2911,8 @@ namespace TelegramWP10
                     Background = outgoing ? BubbleColorOut : BubbleColorIn,
                     IsOutgoing = outgoing,
                     IsRead = outgoing && (msg["id"]?.ToObject<long>() ?? 0) <= _currentChatOutboxReadId,
-                    SenderName = outgoing ? "" : (_currentChatIsGroup ? GetSenderName(senderId) : ""),
+                    SenderName = outgoing ? "" : GetSenderName(senderId),
+                    IsGroupChat = _currentChatIsGroup,
                     SenderColor = GetSenderColor(senderId),
                     AlbumId = msg["media_album_id"]?.ToString() ?? "",
                     // Проверка через sending_state оказалась ненадёжной — у только

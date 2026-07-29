@@ -179,10 +179,14 @@ namespace TelegramWP10
             }
         }
 
-        // Ник отправителя (для групп, входящих)
+        // Ник отправителя — теперь заполняется всегда (нужен для инициалов в
+        // кружке-заглушке даже в личке), а показывается текстом только в
+        // группах (IsGroupChat) — в личке дублировать имя над каждым
+        // сообщением не нужно, но инициалы в аватарке — нужны.
         private string _senderName = "";
         public string SenderName { get => _senderName; set { _senderName = value; OnPropertyChanged("SenderName"); OnPropertyChanged("SenderNameVisibility"); OnPropertyChanged("SenderAvatarInitials"); } }
-        public Visibility SenderNameVisibility => !string.IsNullOrEmpty(_senderName) && !_isOutgoing && _isLastInGroup ? Visibility.Visible : Visibility.Collapsed;
+        public bool IsGroupChat { get; set; } = false;
+        public Visibility SenderNameVisibility => !string.IsNullOrEmpty(_senderName) && !_isOutgoing && _isLastInGroup && IsGroupChat ? Visibility.Visible : Visibility.Collapsed;
 
         public string SenderColor { get; set; } = "#7EC8E3";
 
