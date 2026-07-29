@@ -4459,6 +4459,7 @@ namespace TelegramWP10
             long msgId = (long)btn.Tag;
             if (!_messagesDict.ContainsKey(msgId)) return;
             var item = _messagesDict[msgId];
+            LogPhotoDebug("SaveAudio_Click msgId=" + msgId + " FilePath=" + (item.FilePath ?? "(null)"));
             if (!string.IsNullOrEmpty(item.FilePath)) {
                 SaveAndToast(item.FilePath, Windows.Storage.KnownFolders.MusicLibrary);
             } else {
@@ -5438,13 +5439,24 @@ namespace TelegramWP10
 
         /// <summary>Копирует уже скачанный локальный файл в общую библиотеку (Фото/Видео/Музыка).</summary>
         private async Task<bool> SaveFileToLibraryAsync(string sourcePath, Windows.Storage.StorageFolder targetFolder) {
+            LogPhotoDebug("SaveFileToLibraryAsync ENTER sourcePath=" + (sourcePath ?? "(null)")
+                + " targetFolder=" + (targetFolder?.Path ?? "(null)"));
             try {
-                if (string.IsNullOrEmpty(sourcePath)) return false;
+                if (string.IsNullOrEmpty(sourcePath)) {
+                    LogPhotoDebug("SaveFileToLibraryAsync FAIL: sourcePath пуст");
+                    return false;
+                }
                 var srcFile = await StorageFile.GetFileFromPathAsync(sourcePath);
+                LogPhotoDebug("SaveFileToLibraryAsync srcFile OK name=" + srcFile.Name + " -> копируем в " + (targetFolder?.Path ?? "(null)"));
                 await srcFile.CopyAsync(targetFolder, srcFile.Name, Windows.Storage.NameCollisionOption.GenerateUniqueName);
+                LogPhotoDebug("SaveFileToLibraryAsync SUCCESS");
                 return true;
             } catch (Exception ex) {
                 Log("SAVE ERR: " + ex.Message);
+                LogPhotoDebug("SaveFileToLibraryAsync EXCEPTION sourcePath=" + sourcePath
+                    + " | " + ex.GetType().FullName + ": " + ex.Message
+                    + " | HResult=" + ex.HResult
+                    + " | stack=" + TruncateForLog(ex.StackTrace));
                 return false;
             }
         }
