@@ -867,7 +867,7 @@ namespace TelegramWP10
                                         if (isCompleted && isVideoFile && !string.IsNullOrEmpty(fpath)) {
                                             msgItem.FilePath = fpath;
                                             msgItem.VideoDownloadProgress = null;
-                                            if (_pendingSaveMsgIds.Remove(mid)) SaveAndToast(fpath, Windows.Storage.KnownFolders.VideosLibrary);
+                                            if (_pendingSaveMsgIds.Remove(mid)) SaveAndToast(fpath, Windows.Storage.Pickers.PickerLocationId.VideosLibrary);
                                         } else if (isVideoFile && total > 0) {
                                             int pct = (int)(downloaded * 100 / total);
                                             msgItem.VideoDownloadProgress = "⏳ " + pct + "%";
@@ -887,7 +887,7 @@ namespace TelegramWP10
                                         if (isCompleted && !string.IsNullOrEmpty(fpath)) {
                                             msgItem.FilePath = fpath;
                                             msgItem.AudioPlayStatus = "▶";
-                                            if (_pendingSaveMsgIds.Remove(mid)) SaveAndToast(fpath, Windows.Storage.KnownFolders.MusicLibrary);
+                                            if (_pendingSaveMsgIds.Remove(mid)) SaveAndToast(fpath, Windows.Storage.Pickers.PickerLocationId.MusicLibrary);
                                         } else if (total > 0) {
                                             int pct = (int)(downloaded * 100 / total);
                                             msgItem.AudioPlayStatus = "⏳" + pct + "%";
@@ -4003,7 +4003,7 @@ namespace TelegramWP10
         /// <summary>Кнопка "💾" в полноэкранном просмотре фото.</summary>
         private void PhotoOverlaySave_Click(object sender, RoutedEventArgs e) {
             if (!string.IsNullOrEmpty(_currentPhotoOverlayPath))
-                SaveAndToast(_currentPhotoOverlayPath, Windows.Storage.KnownFolders.PicturesLibrary);
+                SaveAndToast(_currentPhotoOverlayPath, Windows.Storage.Pickers.PickerLocationId.PicturesLibrary);
             else
                 _pendingPhotoSave = true; // полный размер ещё не докачался — сохраним, как только будет готов
         }
@@ -4020,7 +4020,7 @@ namespace TelegramWP10
                 _currentPhotoOverlayPath = path;
                 if (_pendingPhotoSave) {
                     _pendingPhotoSave = false;
-                    SaveAndToast(path, Windows.Storage.KnownFolders.PicturesLibrary);
+                    SaveAndToast(path, Windows.Storage.Pickers.PickerLocationId.PicturesLibrary);
                 }
             } catch (Exception ex) { Log("FULLPHOTO ERR: " + ex.Message); }
         }
@@ -4136,7 +4136,7 @@ namespace TelegramWP10
             var item = _selectedMessageForCopy;
             if (item == null) return;
             if (!string.IsNullOrEmpty(item.FilePath)) {
-                SaveAndToast(item.FilePath, Windows.Storage.KnownFolders.VideosLibrary);
+                SaveAndToast(item.FilePath, Windows.Storage.Pickers.PickerLocationId.VideosLibrary);
                 return;
             }
             // Ещё не скачано — докачиваем и сохраняем сразу по завершении
@@ -4461,7 +4461,7 @@ namespace TelegramWP10
             var item = _messagesDict[msgId];
             LogPhotoDebug("SaveAudio_Click msgId=" + msgId + " FilePath=" + (item.FilePath ?? "(null)"));
             if (!string.IsNullOrEmpty(item.FilePath)) {
-                SaveAndToast(item.FilePath, Windows.Storage.KnownFolders.MusicLibrary);
+                SaveAndToast(item.FilePath, Windows.Storage.Pickers.PickerLocationId.MusicLibrary);
             } else {
                 // Аудио больше не качается автоматически при открытии чата —
                 // запускаем загрузку сами и сохраним сразу по завершении.
@@ -5438,18 +5438,46 @@ namespace TelegramWP10
         }
 
         /// <summary>Копирует уже скачанный локальный файл в общую библиотеку (Фото/Видео/Музыка).</summary>
-        private async Task<bool> SaveFileToLibraryAsync(string sourcePath, Windows.Storage.StorageFolder targetFolder) {
+        /// <summary>
+        /// KnownFolders (MusicLibrary/PicturesLibrary/VideosLibrary) оказались
+        /// ненадёжны на этой сборке Windows 10 Mobile — Path у них резолвился
+        /// в пустую строку, отсюда и Access is denied при прямом копировании.
+        /// FileSavePicker работает через системный брокер и не требует этих
+        /// capability вообще — минус в том, что теперь при каждом сохранении
+        /// показывается системный диалог "куда сохранить", а не тихо в один тап.
+        /// </summary>
+        private async Task<bool> SaveFileToLibraryAsync(string sourcePath, Windows.Storage.Pickers.PickerLocationId suggestedLocation) {
             LogPhotoDebug("SaveFileToLibraryAsync ENTER sourcePath=" + (sourcePath ?? "(null)")
-                + " targetFolder=" + (targetFolder?.Path ?? "(null)"));
+                + " suggestedLocation=" + suggestedLocation);
             try {
                 if (string.IsNullOrEmpty(sourcePath)) {
                     LogPhotoDebug("SaveFileToLibraryAsync FAIL: sourcePath пуст");
                     return false;
                 }
                 var srcFile = await StorageFile.GetFileFromPathAsync(sourcePath);
-                LogPhotoDebug("SaveFileToLibraryAsync srcFile OK name=" + srcFile.Name + " -> копируем в " + (targetFolder?.Path ?? "(null)"));
-                await srcFile.CopyAsync(targetFolder, srcFile.Name, Windows.Storage.NameCollisionOption.GenerateUniqueName);
-                LogPhotoDebug("SaveFileToLibraryAsync SUCCESS");
+                string ext = System.IO.Path.GetExtension(srcFile.Name);
+                if (string.IsNullOrEmpty(ext)) ext = ".dat";
+
+                var picker = new Windows.Storage.Pickers.FileSavePicker();
+                picker.SuggestedStartLocation = suggestedLocation;
+                picker.SuggestedFileName = srcFile.Name;
+                picker.FileTypeChoices.Add(ext.TrimStart('.').ToUpperInvariant() + " (" + ext + ")",
+                    new List<string> { ext });
+
+                var destFile = await picker.PickSaveFileAsync();
+                if (destFile == null) {
+                    LogPhotoDebug("SaveFileToLibraryAsync: пользователь отменил выбор файла");
+                    return false; // пользователь сам отменил — не ошибка, просто без тоста об успехе
+                }
+
+                using (var srcStream = await srcFile.OpenReadAsync())
+                using (var destStream = await destFile.OpenAsync(Windows.Storage.FileAccessMode.ReadWrite)) {
+                    await Windows.Storage.Streams.RandomAccessStream.CopyAsync(srcStream, destStream);
+                    await destStream.FlushAsync();
+                }
+                try { await Windows.Storage.CachedFileManager.CompleteUpdatesAsync(destFile); } catch { }
+
+                LogPhotoDebug("SaveFileToLibraryAsync SUCCESS -> " + destFile.Path);
                 return true;
             } catch (Exception ex) {
                 Log("SAVE ERR: " + ex.Message);
@@ -5461,9 +5489,9 @@ namespace TelegramWP10
             }
         }
 
-        /// <summary>Сохраняет файл и показывает лёгкий тост с результатом (fire-and-forget).</summary>
-        private async void SaveAndToast(string sourcePath, Windows.Storage.StorageFolder targetFolder) {
-            bool ok = await SaveFileToLibraryAsync(sourcePath, targetFolder);
+        /// <summary>Сохраняет файл (через FileSavePicker) и показывает лёгкий тост с результатом (fire-and-forget).</summary>
+        private async void SaveAndToast(string sourcePath, Windows.Storage.Pickers.PickerLocationId suggestedLocation) {
+            bool ok = await SaveFileToLibraryAsync(sourcePath, suggestedLocation);
             ShowToastNotification(Loc.T(ok ? "toast_saved" : "toast_save_failed"), "", 0);
         }
 
