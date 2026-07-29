@@ -165,6 +165,7 @@ namespace TelegramWP10
         private Windows.Media.Core.MediaSource _currentAudioSource = null;
         private TimeSpan _currentAudioPosition = TimeSpan.Zero;
         private string _currentAudioFilePath = null;
+        private bool _currentAudioIsBass = false; // true — играем через BassPlayer (.oga/.ogg), а не MediaPlayer
         private Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession _mediaSession = null;
         private long _pendingDeleteChatId = 0;
         private StorageFolder _filesFolder = null;
@@ -260,7 +261,29 @@ namespace TelegramWP10
             _audioPositionTimer = new Windows.UI.Xaml.DispatcherTimer();
             _audioPositionTimer.Interval = TimeSpan.FromMilliseconds(500);
             _audioPositionTimer.Tick += (s, e) => {
-                if (_currentAudioPlayer == null || _audioSliderDragging) return;
+                if (_audioSliderDragging) return;
+                if (_currentAudioIsBass) {
+                    if (!BassPlayer.HasActiveStream || !_messagesDict.ContainsKey(_currentAudioMsgId)) return;
+                    if (BassPlayer.HasEnded()) {
+                        // Доиграло само — сбрасываем состояние, как MediaEnded у MediaPlayer
+                        var endedItem = _messagesDict[_currentAudioMsgId];
+                        endedItem.AudioPlayStatus = "▶";
+                        BassPlayer.Stop();
+                        _currentAudioIsBass = false;
+                        _currentAudioMsgId = 0;
+                        _currentAudioFilePath = null;
+                        return;
+                    }
+                    var bassItem = _messagesDict[_currentAudioMsgId];
+                    var bassLen = BassPlayer.GetLength();
+                    var bassPos = BassPlayer.GetPosition();
+                    if (bassLen.TotalSeconds > 0) bassItem.AudioDurationSeconds = bassLen.TotalSeconds;
+                    bassItem.AudioPosition = bassPos.TotalSeconds;
+                    bassItem.AudioPositionText = $"{(int)bassPos.TotalMinutes}:{bassPos.Seconds:D2}";
+                    _currentAudioPosition = bassPos;
+                    return;
+                }
+                if (_currentAudioPlayer == null) return;
                 var session = _currentAudioPlayer.PlaybackSession;
                 if (session.NaturalDuration.TotalSeconds > 0 && _messagesDict.ContainsKey(_currentAudioMsgId)) {
                     var item = _messagesDict[_currentAudioMsgId];
@@ -4401,9 +4424,14 @@ namespace TelegramWP10
         }
         private void AudioSlider_ManipulationCompleted(object sender, Windows.UI.Xaml.Input.ManipulationCompletedRoutedEventArgs e) {
             _audioSliderDragging = false;
-            if (_currentAudioPlayer == null) return;
             var slider = sender as Windows.UI.Xaml.Controls.Slider;
             if (slider == null) return;
+            if (_currentAudioIsBass) {
+                if (!BassPlayer.HasActiveStream) return;
+                BassPlayer.Seek(TimeSpan.FromSeconds(slider.Value));
+                return;
+            }
+            if (_currentAudioPlayer == null) return;
             _currentAudioPlayer.PlaybackSession.Position = TimeSpan.FromSeconds(slider.Value);
         }
 
@@ -4436,29 +4464,16 @@ namespace TelegramWP10
             if (!_messagesDict.ContainsKey(msgId)) return;
             var item = _messagesDict[msgId];
             // Если уже играет — стоп
-            if (_currentAudioMsgId == msgId && _currentAudioPlayer != null) {
-                _currentAudioPlayer.Pause();
-                _currentAudioPlayer.Source = null;
-                _currentAudioPlayer.SystemMediaTransportControls.PlaybackStatus = Windows.Media.MediaPlaybackStatus.Stopped;
-                _currentAudioPlayer = null; // сбрасываем ссылку (не сам плеер — он синглтон)
-                _currentAudioSource = null;
+            if (_currentAudioMsgId == msgId && (_currentAudioPlayer != null || _currentAudioIsBass)) {
+                StopCurrentAudio();
                 item.AudioPlayStatus = "▶";
-                _currentAudioMsgId = 0;
-                _currentAudioFilePath = null;
-                ReleaseMediaSession();
                 return;
             }
             // Остановить предыдущий трек
-            if (_currentAudioPlayer != null) {
-                _currentAudioPlayer.Pause();
-                _currentAudioPlayer.Source = null;
-                _currentAudioPlayer.SystemMediaTransportControls.PlaybackStatus = Windows.Media.MediaPlaybackStatus.Stopped;
+            if (_currentAudioPlayer != null || _currentAudioIsBass) {
                 if (_messagesDict.ContainsKey(_currentAudioMsgId))
                     _messagesDict[_currentAudioMsgId].AudioPlayStatus = "▶";
-                _currentAudioPlayer = null;
-                _currentAudioSource = null;
-                _currentAudioFilePath = null;
-                ReleaseMediaSession();
+                StopCurrentAudio();
             }
             if (string.IsNullOrEmpty(item.FilePath)) {
                 // Первый клик — запускаем загрузку (как и с видео), не проигрываем сразу
@@ -4471,6 +4486,30 @@ namespace TelegramWP10
                 }
                 return;
             }
+
+            // .oga/.ogg (голосовые Telegram — Opus в Ogg) Media Foundation на
+            // Windows 10 Mobile нативно не декодирует, поэтому для них отдельный
+            // путь через BASS. Всё остальное (mp3 и т.п.) — как раньше, MediaPlayer.
+            bool isOggVoice = item.FilePath.EndsWith(".oga", StringComparison.OrdinalIgnoreCase)
+                            || item.FilePath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase);
+            if (isOggVoice) {
+                if (BassPlayer.Play(item.FilePath)) {
+                    AudioPlayerHost.Children.Clear();
+                    _currentAudioIsBass = true;
+                    _currentAudioMsgId = msgId;
+                    item.AudioPlayStatus = "⏹";
+                    _currentAudioFilePath = item.FilePath;
+                    _currentAudioPosition = TimeSpan.Zero;
+                    var lenNow = BassPlayer.GetLength();
+                    if (lenNow.TotalSeconds > 0) item.AudioDurationSeconds = lenNow.TotalSeconds;
+                } else {
+                    // bass.dll/bassopus.dll не найдены или не смогли открыть файл —
+                    // тихо возвращаем кнопку в исходное состояние, ничего не играет.
+                    item.AudioPlayStatus = "▶";
+                }
+                return;
+            }
+
             try {
                 var player = new Windows.Media.Playback.MediaPlayer();
                 player.AudioCategory = Windows.Media.Playback.MediaPlayerAudioCategory.Media;
@@ -4489,6 +4528,23 @@ namespace TelegramWP10
                 _currentAudioPosition = TimeSpan.Zero;
                 await RequestMediaSessionAsync();
             } catch { }
+        }
+
+        /// <summary>Останавливает текущий трек независимо от того, MediaPlayer это или BASS.</summary>
+        private void StopCurrentAudio() {
+            if (_currentAudioIsBass) {
+                BassPlayer.Stop();
+                _currentAudioIsBass = false;
+            } else if (_currentAudioPlayer != null) {
+                _currentAudioPlayer.Pause();
+                _currentAudioPlayer.Source = null;
+                _currentAudioPlayer.SystemMediaTransportControls.PlaybackStatus = Windows.Media.MediaPlaybackStatus.Stopped;
+                ReleaseMediaSession();
+            }
+            _currentAudioPlayer = null;
+            _currentAudioSource = null;
+            _currentAudioMsgId = 0;
+            _currentAudioFilePath = null;
         }
 
         // Настройка SMTC и обработчиков событий плеера. Вызывается и при старте, и при восстановлении после suspend.
