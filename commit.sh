@@ -6,5 +6,5 @@ RANDOM_MSG=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 10)
 echo $RANDOM_MSG
 git add -A
 #git commit -m "$RANDOM_MSG"_nallion
-git commit -m "Fix avatar in Personal Savings chat"
+git commit -m "Fix avatar in Channels"
 git push

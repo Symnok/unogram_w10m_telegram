@@ -186,6 +186,11 @@ namespace TelegramWP10
         private string _senderName = "";
         public string SenderName { get => _senderName; set { _senderName = value; OnPropertyChanged("SenderName"); OnPropertyChanged("SenderNameVisibility"); OnPropertyChanged("SenderAvatarInitials"); } }
         public bool IsGroupChat { get; set; } = false;
+        // В каналах пост всегда "от имени канала" (messageSenderChat), а не
+        // конкретного пользователя — аватарку канала логично показывать один
+        // раз в шапке, а не перед каждым сообщением, поэтому исключаем каналы
+        // из показа per-message аватарки/инициалов отдельно от групп/личных чатов.
+        public bool IsChannelChat { get; set; } = false;
         public Visibility SenderNameVisibility => !string.IsNullOrEmpty(_senderName) && !_isOutgoing && _isLastInGroup && IsGroupChat ? Visibility.Visible : Visibility.Collapsed;
 
         public string SenderColor { get; set; } = "#7EC8E3";
@@ -194,7 +199,7 @@ namespace TelegramWP10
         public long SenderUserId { get; set; } = 0;
         public string SenderAvatarColor => AvatarPlaceholder.GetColor(SenderUserId);
         public string SenderAvatarInitials => AvatarPlaceholder.GetInitials(_senderName);
-        public Visibility SenderAvatarVisibility => !_isOutgoing && _isLastInGroup ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility SenderAvatarVisibility => !_isOutgoing && _isLastInGroup && !IsChannelChat ? Visibility.Visible : Visibility.Collapsed;
 
         private BitmapImage _senderPhoto;
         public BitmapImage SenderPhoto {

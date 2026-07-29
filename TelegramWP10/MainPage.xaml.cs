@@ -73,6 +73,7 @@ namespace TelegramWP10
         private long _threadMessageId = 0;
         private long _threadChatId = 0;
         private bool _currentChatIsGroup = false;
+        private bool _currentChatIsChannel = false;
         private Windows.UI.Xaml.DispatcherTimer _statusTimer;
         private Windows.UI.Xaml.DispatcherTimer _audioPositionTimer;
         private Windows.UI.Xaml.DispatcherTimer _typingTimer;
@@ -2914,6 +2915,7 @@ namespace TelegramWP10
                     IsRead = outgoing && (msg["id"]?.ToObject<long>() ?? 0) <= _currentChatOutboxReadId,
                     SenderName = outgoing ? "" : GetSenderName(senderId),
                     IsGroupChat = _currentChatIsGroup,
+                    IsChannelChat = _currentChatIsChannel,
                     SenderColor = GetSenderColor(senderId),
                     AlbumId = msg["media_album_id"]?.ToString() ?? "",
                     // Проверка через sending_state оказалась ненадёжной — у только
@@ -3572,12 +3574,14 @@ namespace TelegramWP10
             RemoveToastsForChat(chat.Id);   // чат открыт — уведомления по нему больше не нужны
             // Группа если тип chatTypeBasicGroup или chatTypeSupergroup не-канал
             _currentChatIsGroup = false;
+            _currentChatIsChannel = false;
             if (_rawChatsDict.ContainsKey(chat.Id)) {
                 var rawC = _rawChatsDict[chat.Id] as Newtonsoft.Json.Linq.JObject;
                 string ctype = rawC?["type"]?["@type"]?.ToString() ?? "";
                 bool isSupergroup = ctype == "chatTypeSupergroup";
                 bool isChannel = rawC?["type"]?["is_channel"]?.ToObject<bool>() ?? false;
                 _currentChatIsGroup = ctype == "chatTypeBasicGroup" || (isSupergroup && !isChannel);
+                _currentChatIsChannel = isSupergroup && isChannel;
             }
             _pendingHistoryChatId = chat.Id;
             _historyRetryCount = 0;
