@@ -35,10 +35,6 @@ namespace TelegramWP10
         private static extern bool BASS_Init(int device, uint freq, uint flags, IntPtr win, IntPtr clsid);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
-        private static extern uint BASS_StreamCreateFile([MarshalAs(UnmanagedType.Bool)] bool mem,
-            [MarshalAs(UnmanagedType.LPWStr)] string file, long offset, long length, uint flags);
-
-        [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool BASS_ChannelPlay(uint handle, [MarshalAs(UnmanagedType.Bool)] bool restart);
 
@@ -74,21 +70,20 @@ namespace TelegramWP10
         private static extern int BASS_ChannelIsActive(uint handle);
 
         [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
-        private static extern uint BASS_PluginLoad([MarshalAs(UnmanagedType.LPWStr)] string file, uint flags);
-
-        [DllImport("bass.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern int BASS_ErrorGetCode();
 
-        // UWP-песочница не даёт нативному коду (внутри bass.dll) самому открыть
-        // файл другой DLL классическим способом (LoadLibrary) — только через
-        // этот, "пропущенный" системой путь. LoadPackagedLibrary принципиально
-        // не принимает абсолютный путь — только имя файла из собственного пакета.
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        private static extern IntPtr LoadPackagedLibrary([MarshalAs(UnmanagedType.LPWStr)] string libFileName, uint reserved);
+        // Прямой вызов в сам bassopus.dll, в обход системы плагинов BASS
+        // (BASS_PluginLoad) — та внутри пытается открыть файл классическим,
+        // не-UWP-осведомлённым способом и падает в песочнице с FILEOPEN,
+        // даже если модуль уже загружен в процесс. А вот загрузка самого
+        // bassopus.dll через обычный [DllImport] (как и bass.dll) работает
+        // нормально — тем же путём, что уже подтверждён логами.
+        [DllImport("bassopus.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern uint BASS_OPUS_StreamCreateFile([MarshalAs(UnmanagedType.Bool)] bool mem,
+            [MarshalAs(UnmanagedType.LPWStr)] string file, long offset, long length, uint flags);
 
         private static bool _initialized = false;
         private static bool _initFailed = false;
-        private static bool _opusPluginLoaded = false;
         private static uint _currentHandle = 0;
 
         // ================================================================
@@ -109,7 +104,7 @@ namespace TelegramWP10
             }
         }
 
-        /// <summary>Инициализирует BASS и грузит аддон Opus — один раз за сессию приложения.</summary>
+        /// <summary>Инициализирует BASS — один раз за сессию приложения.</summary>
         private static bool EnsureInit() {
             if (_initialized) return true;
             if (_initFailed) return false;
@@ -121,29 +116,6 @@ namespace TelegramWP10
                     _initFailed = true;
                     return false;
                 }
-                // Без этого аддона основной bass.dll не раскодирует Opus-контент
-                // (сам по себе умеет только Ogg/Vorbis) — voice-note файлы Telegram
-                // именно Opus. Проверяем результат явно — если аддона нет рядом,
-                // дальше даже не пытаемся звать StreamCreateFile для .oga/.ogg.
-                try {
-                    // Сначала — предзагрузка через системный, разрешённый в
-                    // песочнице механизм (принимает только имя файла, не путь).
-                    IntPtr preloaded = LoadPackagedLibrary("bassopus.dll", 0);
-                    int preloadErr = preloaded == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
-                    LogBassDebug("LoadPackagedLibrary(bassopus.dll) -> handle=" + preloaded
-                        + (preloaded == IntPtr.Zero ? " lastError=" + preloadErr : ""));
-
-                    // Теперь просим BASS зарегистрировать плагин — раз модуль уже
-                    // в процессе, его собственный (не UWP-осведомлённый) способ
-                    // поиска должен его найти.
-                    uint pluginHandle = BASS_PluginLoad("bassopus.dll", 0);
-                    _opusPluginLoaded = pluginHandle != 0;
-                    LogBassDebug("BASS_PluginLoad(bassopus.dll) -> handle=" + pluginHandle
-                        + (pluginHandle == 0 ? " errCode=" + BASS_ErrorGetCode() : ""));
-                } catch (Exception plex) {
-                    _opusPluginLoaded = false;
-                    LogBassDebug("BASS_PluginLoad EXCEPTION: " + plex.GetType().FullName + ": " + plex.Message);
-                }
                 _initialized = true;
                 return true;
             } catch (Exception ex) {
@@ -153,25 +125,21 @@ namespace TelegramWP10
             }
         }
 
-        /// <summary>Открывает и сразу начинает проигрывать файл. false — если BASS/аддон Opus/файл недоступны.</summary>
+        /// <summary>Открывает и сразу начинает проигрывать файл. false — если BASS/bassopus.dll/файл недоступны.</summary>
         public static bool Play(string path) {
             LogBassDebug("Play ENTER path=" + path);
             if (!EnsureInit()) {
                 LogBassDebug("Play FAIL: EnsureInit()=false");
                 return false;
             }
-            if (!_opusPluginLoaded) {
-                LogBassDebug("Play FAIL: аддон Opus не подгрузился (_opusPluginLoaded=false)");
-                return false; // без аддона .oga/.ogg (Opus) всё равно не откроется
-            }
             try {
                 Stop();
-                uint h = BASS_StreamCreateFile(false, path, 0, 0, BASS_UNICODE);
+                uint h = BASS_OPUS_StreamCreateFile(false, path, 0, 0, BASS_UNICODE);
                 if (h == 0) {
-                    LogBassDebug("BASS_StreamCreateFile -> 0 (FAIL) errCode=" + BASS_ErrorGetCode());
+                    LogBassDebug("BASS_OPUS_StreamCreateFile -> 0 (FAIL) errCode=" + BASS_ErrorGetCode());
                     return false;
                 }
-                LogBassDebug("BASS_StreamCreateFile -> handle=" + h);
+                LogBassDebug("BASS_OPUS_StreamCreateFile -> handle=" + h);
                 _currentHandle = h;
                 bool playOk = BASS_ChannelPlay(h, true);
                 LogBassDebug("BASS_ChannelPlay -> " + playOk + (playOk ? "" : " errCode=" + BASS_ErrorGetCode()));
