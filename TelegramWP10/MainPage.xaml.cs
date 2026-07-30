@@ -1001,15 +1001,25 @@ namespace TelegramWP10
                         bool isFresh    = sentAt == 0 ||
                             DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt <= maxAge;
                         bool notYetSeen = BackgroundService.ShouldNotify(newMsgChatId, toastMsgId);
+                        // The message belongs to the chat the user is reading, so
+                        // there is nothing to announce: no sound, no banner and no
+                        // notification-bar glyph, which means raising no toast at
+                        // all. The on-screen test is what makes this safe — a chat
+                        // left open while the app is minimised must still notify.
+                        bool inOpenChatOnScreen = newMsgChatId == _currentChatId
+                                               && BackgroundService.IsAppOnScreen;
+                        bool shouldToast = !isOutgoing && !isMuted && isFresh
+                                        && notYetSeen && !inOpenChatOnScreen;
                         // В фоне записываем, почему уведомление не показано —
                         // иначе отсутствие toast'а невозможно отличить от причин.
-                        if (background && !(!isOutgoing && !isMuted && isFresh && notYetSeen))
+                        if (background && !shouldToast)
                             BackgroundService.Diag("Toast skipped: sound=" + _soundEnabled
                                 + " outgoing=" + isOutgoing + " muted=" + isMuted
                                 + " fresh=" + isFresh + " age=" + (sentAt == 0 ? -1 :
                                     DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt)
-                                + " notYetSeen=" + notYetSeen + " chat=" + newMsgChatId);
-                        if (!isOutgoing && !isMuted && isFresh && notYetSeen) {
+                                + " notYetSeen=" + notYetSeen + " chat=" + newMsgChatId
+                                + " inOpenChat=" + inOpenChatOnScreen);
+                        if (shouldToast) {
                             // Собираем имя и текст для уведомления
                             string senderName = "";
                             if (_chatsDict.ContainsKey(newMsgChatId))
@@ -1022,7 +1032,7 @@ namespace TelegramWP10
                             string msgText = mc?["text"]?["text"]?.ToString()
                                           ?? mc?["caption"]?["text"]?.ToString()
                                           ?? (mc?["@type"]?.ToString()?.Replace("message","") ?? Loc.T("media_message"));
-                            ShowToastNotification(senderName, msgText, newMsgChatId);
+                            ShowToastNotification(senderName, msgText, newMsgChatId, true);
                         }
                     }
                     break;
@@ -5450,9 +5460,22 @@ namespace TelegramWP10
             ShowToastNotification(Loc.T(ok ? "toast_saved" : "toast_save_failed"), "", 0);
         }
 
-        private void ShowToastNotification(string title, string body, long chatId) {
+        /// <summary>
+        /// <paramref name="silentWhenOnScreen"/> marks a message notification:
+        /// with the app on screen the user does not need to be alerted by
+        /// sound, but the banner still has to appear — it is what tells them an
+        /// event happened and what puts the glyph in the notification bar.
+        /// Toasts that are direct feedback for an action the user just took
+        /// (e.g. "saved") pass false and keep their sound.
+        /// </summary>
+        private void ShowToastNotification(string title, string body, long chatId,
+                                           bool silentWhenOnScreen = false) {
             try {
+                bool silent = silentWhenOnScreen && BackgroundService.IsAppOnScreen;
                 // Строим XML вручную — полный контроль над звуком
+                string audio = silent
+                    ? @"<audio silent=""true""/>"
+                    : @"<audio src=""ms-winsoundevent:Notification.IM"" loop=""false""/>";
                 string xml = $@"<toast duration=""short"">
   <visual>
     <binding template=""ToastGeneric"">
@@ -5460,11 +5483,15 @@ namespace TelegramWP10
       <text>{EscapeXml(body)}</text>
     </binding>
   </visual>
-  <audio src=""ms-winsoundevent:Notification.IM"" loop=""false""/>
+  {audio}
 </toast>";
                 var toastXml = new Windows.Data.Xml.Dom.XmlDocument();
                 toastXml.LoadXml(xml);
                 var toast = new Windows.UI.Notifications.ToastNotification(toastXml);
+                // SuppressPopup is deliberately not used: it does deliver the
+                // notification to the centre, but without the banner the shell
+                // raises no status-bar glyph, so the user never learns anything
+                // arrived. Silencing the audio alone keeps the notice visible.
                 // Tag/Group нужны, чтобы уведомление можно было потом убрать из
                 // центра уведомлений — без них History.Remove адресовать нечего.
                 toast.Tag = ToastTagForChat(chatId);

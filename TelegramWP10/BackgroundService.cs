@@ -65,6 +65,86 @@ namespace TelegramWP10
         /// </summary>
         public static volatile bool IsCatchUpRunning = false;
 
+        /// <summary>
+        /// How long after coming to the foreground notifications stay silent.
+        /// On resume TDLib hands over everything that arrived while the app
+        /// was away, and that backlog reaches the UI thread while the window is
+        /// still being brought up — a visibility check on its own would let the
+        /// first few toasts through with sound at the very moment the user
+        /// opens the app.
+        /// </summary>
+        private const int ForegroundGraceSeconds = 3;
+
+        private static DateTime _foregroundSince = DateTime.MinValue;
+
+        /// <summary>The app is about to be shown (LeavingBackground / Resuming / launch).</summary>
+        public static void NoteComingToForeground()
+        {
+            IsInForeground = true;
+            _foregroundSince = DateTime.UtcNow;
+        }
+
+        /// <summary>The app has left the screen (EnteredBackground / Suspending).</summary>
+        public static void NoteWentToBackground()
+        {
+            IsInForeground = false;
+            // Clearing the stamp matters: without it, minimising within the
+            // grace period would keep the next notification silent.
+            _foregroundSince = DateTime.MinValue;
+        }
+
+        /// <summary>
+        /// The app is on screen right now, so a notification must not make a
+        /// sound. The banner is still shown: the user asked to be told that
+        /// something arrived, only not to be alerted audibly for a message that
+        /// lands while they are already looking at the app.
+        ///
+        /// The window's own visibility is the authority rather than
+        /// IsInForeground, which cannot answer this question in two cases that
+        /// matter: it is set from Resuming, raised on a background thread and
+        /// therefore racing the polling thread that delivers the backlog; and
+        /// with the keep-alive session held it stays true while the screen is
+        /// locked, where silencing notifications the user cannot see would be
+        /// exactly wrong. Anything uncertain counts as background — for a
+        /// messenger, a stray sound beats a missed message.
+        /// </summary>
+        public static bool IsAppOnScreen
+        {
+            get
+            {
+                // A visible window outranks everything else, catch-up included:
+                // the 15-minute trigger fires while the app is open too, and for
+                // the ~20s it drains updates the user is still looking at the UI.
+                if (IsWindowVisible()) return true;
+                // No window: a cold catch-up process has none at all, and a
+                // backgrounded one is not on screen. Both must stay audible,
+                // and this also expires a grace stamp left by a missed
+                // EnteredBackground.
+                if (IsCatchUpRunning) return false;
+                // Window.Current is only trustworthy on the thread that owns the
+                // view, and returns null anywhere else — so a false from it is
+                // not proof the app is hidden. IsInForeground is the second
+                // opinion: EnteredBackground / LeavingBackground drive it on
+                // every visibility change, including the screen lock that the
+                // keep-alive session would otherwise hide from us.
+                if (IsInForeground) return true;
+                return _foregroundSince != DateTime.MinValue
+                    && DateTime.UtcNow - _foregroundSince < TimeSpan.FromSeconds(ForegroundGraceSeconds);
+            }
+        }
+
+        private static bool IsWindowVisible()
+        {
+            try
+            {
+                // Null off the UI thread, and in a cold background-task process
+                // there is no window at all — both mean "not on screen".
+                var window = Windows.UI.Xaml.Window.Current;
+                return window != null && window.Visible;
+            }
+            catch { return false; }
+        }
+
         // ------------------------------------------------------------------
         // 1. Suspension grace window
         // ------------------------------------------------------------------
@@ -397,7 +477,7 @@ namespace TelegramWP10
         public void ShutdownBackgroundWork()
         {
             IsShuttingDown = true;
-            IsInForeground = false;
+            NoteWentToBackground();
             StopKeepAlive();   // releases the LocationTracking session and the geolocator
             ClearSession();    // the grace window, if one was granted
             try { UnregisterCatchUpTask(); } catch { }
@@ -896,12 +976,40 @@ namespace TelegramWP10
                 var toast = new ToastNotification(xml);
                 toast.Tag = ToastTagForChat(chatId);
                 toast.Group = ToastGroup;
+                // This path only runs in a cold process, so the app is not on
+                // screen; the check is here so the rule holds in one place
+                // regardless of who ends up calling this.
+                if (IsAppOnScreen) MakeSilent(xml);
                 ToastNotificationManager.CreateToastNotifier().Show(toast);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("[BG] Toast failed: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Takes the sound off a toast and nothing else. The banner still
+        /// appears and the entry still reaches the notification centre — the
+        /// popup is what raises the status-bar glyph and tells the user
+        /// something happened, so only the noise is removed.
+        /// </summary>
+        private static void MakeSilent(Windows.Data.Xml.Dom.XmlDocument xml)
+        {
+            try
+            {
+                var root = xml.SelectSingleNode("/toast") as Windows.Data.Xml.Dom.XmlElement;
+                if (root != null)
+                {
+                    // An <audio> already in the template would keep playing.
+                    var existing = xml.SelectSingleNode("/toast/audio");
+                    if (existing != null) root.RemoveChild(existing);
+                    var audio = xml.CreateElement("audio");
+                    audio.SetAttribute("silent", "true");
+                    root.AppendChild(audio);
+                }
+            }
+            catch (Exception ex) { Debug.WriteLine("[BG] Silent audio failed: " + ex.Message); }
         }
     }
 }
