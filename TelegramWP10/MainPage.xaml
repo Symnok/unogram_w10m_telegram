@@ -142,6 +142,7 @@
                                                 <MenuFlyoutSeparator/>
                                                 <MenuFlyoutItem x:Name="KeepAliveToggleItem" Text="📍 Background mode: Off" Click="KeepAliveToggle_Click"/>
                                                 <MenuFlyoutItem x:Name="CatchUpToggleItem" Text="🔔 Notifications when app&#10;is closed: On" Click="CatchUpToggle_Click"/>
+                                                <MenuFlyoutItem x:Name="ProxyMenuItem" Text="{Binding [proxy_title], Source={StaticResource Loc}}" Click="ProxySettingsButton_Click"/>
                                                 <MenuFlyoutSeparator/>
                                                 <MenuFlyoutSubItem x:Name="LanguageSubItem" Text="🌐 Language">
                                                     <MenuFlyoutItem Text="English"    Tag="en" Click="Language_Click"/>
