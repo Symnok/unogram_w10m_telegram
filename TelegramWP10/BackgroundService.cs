@@ -50,6 +50,14 @@ namespace TelegramWP10
         public static bool IsInForeground = true;
 
         /// <summary>
+        /// The app is closing via the back button from the main screen. While
+        /// this is set, nothing may request an execution extension again:
+        /// Exit() raises Suspending, and without the check we would hand
+        /// ourselves a fresh grace window on the way out.
+        /// </summary>
+        public static volatile bool IsShuttingDown = false;
+
+        /// <summary>
         /// Catch-up is running. A separate flag rather than something inferred
         /// from IsInForeground: activating the background task un-freezes a
         /// suspended process, which may raise Resuming and set IsInForeground
@@ -68,6 +76,13 @@ namespace TelegramWP10
         /// </summary>
         public async Task<bool> RequestGraceWindowAsync()
         {
+            // Back-button exit: the process is meant to die, not to survive a minimise.
+            if (IsShuttingDown)
+            {
+                Diag("Suspend: shutting down, grace window not requested");
+                return false;
+            }
+
             // The keep-alive session already holds the process; no second extension needed.
             if (_keepAliveSession != null)
             {
@@ -214,6 +229,7 @@ namespace TelegramWP10
         /// </summary>
         public async Task<bool> StartKeepAliveAsync()
         {
+            if (IsShuttingDown) return false;
             if (_keepAliveSession != null) return true;
 
             bool coarseAvailable = false;
@@ -353,12 +369,39 @@ namespace TelegramWP10
 
             // SystemPolicy usually means resource pressure. Retry once after a
             // minute; if refused again, the TimeTrigger remains as fallback.
-            if (args.Reason == ExtendedExecutionRevokedReason.SystemPolicy && KeepAliveEnabled)
+            // On a back-button exit we revoke the session ourselves; bringing it
+            // back, and the geolocator with it, would defeat the whole point.
+            if (args.Reason == ExtendedExecutionRevokedReason.SystemPolicy
+                && KeepAliveEnabled && !IsShuttingDown)
             {
                 await Task.Delay(TimeSpan.FromMinutes(1));
-                if (KeepAliveEnabled && _keepAliveSession == null)
+                if (KeepAliveEnabled && _keepAliveSession == null && !IsShuttingDown)
                     await StartKeepAliveAsync();
             }
+        }
+
+        // ------------------------------------------------------------------
+        // 1c. Full background unload (back-button exit)
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Drops everything that could outlive the window: the keep-alive
+        /// session together with its position subscription, the grace window
+        /// and the periodic catch-up task. Afterwards the system has nothing
+        /// left to wake the app with, and the app has no location access.
+        ///
+        /// User settings are left alone: <see cref="CatchUpEnabled"/> and
+        /// <see cref="KeepAliveEnabled"/> keep their values, and the task is
+        /// registered again from App.OnLaunched on the next start.
+        /// </summary>
+        public void ShutdownBackgroundWork()
+        {
+            IsShuttingDown = true;
+            IsInForeground = false;
+            StopKeepAlive();   // releases the LocationTracking session and the geolocator
+            ClearSession();    // the grace window, if one was granted
+            try { UnregisterCatchUpTask(); } catch { }
+            Diag("Shutdown: keep-alive, geolocator and catch-up task unloaded");
         }
 
         // ------------------------------------------------------------------

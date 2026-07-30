@@ -78,6 +78,9 @@ namespace TelegramWP10
         {
             var deferral = e.SuspendingOperation.GetDeferral();
             BackgroundService.IsInForeground = false;
+            // Exit() raises Suspending too. A back-button exit is not a
+            // minimise: there is nothing left to hold the process, and no reason to.
+            if (BackgroundService.IsShuttingDown) { deferral.Complete(); return; }
             try
             {
                 // Просим отсрочку. Дадут — соединение переживёт сворачивание;

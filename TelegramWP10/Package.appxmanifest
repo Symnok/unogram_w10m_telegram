@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" IgnorableNamespaces="uap mp uap3">
   <!-- Publisher must match the CN of the signing certificate (see AutoSignAppx in the .csproj) -->
-  <Identity Name="Unogram" Publisher="CN=TelegramWP10" Version="1.0.34.0" ProcessorArchitecture="arm" />
+  <Identity Name="Unogram" Publisher="CN=DevUser" Version="1.0.35.0" ProcessorArchitecture="arm" />
   <mp:PhoneIdentity PhoneProductId="8f3d1c62-4a7e-4b19-9c05-2ed6a4f7b310" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>Unogram</DisplayName>
