@@ -81,7 +81,6 @@
     <Compile Include="ChatItem.cs" />
     <Compile Include="MessageItem.cs" />
     <Compile Include="WebPDecoder.cs" />
-    <Compile Include="BassPlayer.cs" />
     <Compile Include="StickerItem.cs" />
     <Compile Include="ContactItem.cs" />
     <Compile Include="SearchMessageItem.cs" />
@@ -124,18 +123,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="libsharpyuv.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <!-- BASS audio library — для проигрывания голосовых заметок (.oga/.ogg,
-         Opus в Ogg-контейнере), которые Media Foundation на Windows 10 Mobile
-         не умеет декодировать нативно. bass.dll — ядро библиотеки, bassopus.dll —
-         официальный аддон для Opus. Оба файла нужно скачать вручную с
-         un4seen.com (ARM-сборка под UWP) и положить рядом с этим .csproj —
-         сама среда сборки их сюда не подтянет. -->
-    <Content Include="bass.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="bassopus.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

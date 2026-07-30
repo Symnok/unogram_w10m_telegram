@@ -209,6 +209,11 @@ namespace UnogramBackground
                             {
                                 if (!authorized) LogMemory("tdlib ready");
                                 authorized = true;
+                                // Без явного запроса TDLib не обязан присылать updateNewChat
+                                // для всех чатов сразу — а без него mutedChats/titles не
+                                // успевают наполниться раньше, чем придут updateNewMessage
+                                // по этим же чатам, и фильтр по мьюту просто не срабатывает.
+                                Send(c, "{\"@type\":\"loadChats\",\"chat_list\":{\"@type\":\"chatListMain\"},\"limit\":200}");
                             }
                             else if (state != null && state.StartsWith("authorizationStateWait"))
                                 abort = true;
