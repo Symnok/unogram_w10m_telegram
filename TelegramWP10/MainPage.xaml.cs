@@ -18,6 +18,14 @@ namespace TelegramWP10
     public sealed partial class MainPage : Page
     {
         private IntPtr _client;
+        // ---- Back-button exit from the main screen ----
+        // The LongPolling thread reads these flags, hence volatile: it has to
+        // see the close immediately, not whenever the JIT re-reads the field.
+        private volatile bool _shuttingDown = false;
+        private volatile bool _tdClosing = false;
+        private DateTime _tdCloseDeadline = DateTime.MaxValue;
+        /// <summary>Set by the LongPolling thread once it has left the read loop.</summary>
+        private readonly TaskCompletionSource<bool> _pollingStopped = new TaskCompletionSource<bool>();
         private ObservableCollection<ChatItem> _chatListItems = new ObservableCollection<ChatItem>();
         private List<ChatItem> _allChatItems = new List<ChatItem>(); // все чаты для фильтрации
         private int _currentFolderId = -1;
@@ -274,20 +282,7 @@ namespace TelegramWP10
             _audioPositionTimer.Start();
             // Системная кнопка "назад"
             var sysNav = Windows.UI.Core.SystemNavigationManager.GetForCurrentView();
-            sysNav.BackRequested += (s, e) => {
-                if (PhotoOverlay.Visibility == Visibility.Visible) {
-                    PhotoOverlay.Visibility = Visibility.Collapsed;
-                    PhotoOverlayImage.Source = null;
-                    _fullPhotoMsgId = 0;
-                    e.Handled = true;
-                } else if (_currentChatId != 0) {
-                    BackButton_Click(null, null);
-                    e.Handled = true;
-                } else if (_inArchive) {
-                    ArchiveBack_Click(null, null);
-                    e.Handled = true;
-                }
-            };
+            sysNav.BackRequested += (s, e) => HandleSystemBackRequest(e);
             InitAsync();
             // Логируем lifecycle приложения для диагностики фонового аудио
             Application.Current.EnteredBackground += (s, e) => { };
@@ -471,20 +466,34 @@ namespace TelegramWP10
 
         private void LongPolling() {
             while (true) {
+                // The close is dragging on (no network — TDLib is waiting for the
+                // server): leave on the deadline, or exiting the app would hang.
+                if (_tdClosing && DateTime.UtcNow >= _tdCloseDeadline) break;
                 IntPtr resPtr = TdJson.td_json_client_receive(_client, 1.0);
-                if (resPtr != IntPtr.Zero) {
-                    string json = TdJson.IntPtrToStringUtf8(resPtr);
-                    if (string.IsNullOrEmpty(json)) continue;
-                    var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
-                        try {
-                            var update = JObject.Parse(json);
-                            string type = update["@type"]?.ToString();
-                            if (type != "updateOption")
-                            HandleUpdate(type, update);
-                        } catch (Exception ex) { Log("PARSE ERR: " + ex.Message); }
-                    });
+                if (resPtr == IntPtr.Zero) continue;
+                string json = TdJson.IntPtrToStringUtf8(resPtr);
+                if (string.IsNullOrEmpty(json)) continue;
+                if (_tdClosing) {
+                    // The app is already closing: updates are no longer handed
+                    // to the UI (the page is coming apart), we only wait for
+                    // the confirmation.
+                    if (json.Contains("authorizationStateClosed")) break;
+                    continue;
                 }
+                var ignored = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => {
+                    try {
+                        var update = JObject.Parse(json);
+                        string type = update["@type"]?.ToString();
+                        if (type != "updateOption")
+                        HandleUpdate(type, update);
+                    } catch (Exception ex) { Log("PARSE ERR: " + ex.Message); }
+                });
             }
+            // The client itself is not released here: ExitApplicationAsync does
+            // that once it sees the reading has stopped. Otherwise the pointer
+            // would be zeroed from a foreign thread and the UI could still send
+            // a request into an already dead client.
+            _pollingStopped.TrySetResult(true);
         }
 
 
@@ -992,15 +1001,25 @@ namespace TelegramWP10
                         bool isFresh    = sentAt == 0 ||
                             DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt <= maxAge;
                         bool notYetSeen = BackgroundService.ShouldNotify(newMsgChatId, toastMsgId);
+                        // The message belongs to the chat the user is reading, so
+                        // there is nothing to announce: no sound, no banner and no
+                        // notification-bar glyph, which means raising no toast at
+                        // all. The on-screen test is what makes this safe — a chat
+                        // left open while the app is minimised must still notify.
+                        bool inOpenChatOnScreen = newMsgChatId == _currentChatId
+                                               && BackgroundService.IsAppOnScreen;
+                        bool shouldToast = !isOutgoing && !isMuted && isFresh
+                                        && notYetSeen && !inOpenChatOnScreen;
                         // В фоне записываем, почему уведомление не показано —
                         // иначе отсутствие toast'а невозможно отличить от причин.
-                        if (background && !(!isOutgoing && !isMuted && isFresh && notYetSeen))
+                        if (background && !shouldToast)
                             BackgroundService.Diag("Toast skipped: sound=" + _soundEnabled
                                 + " outgoing=" + isOutgoing + " muted=" + isMuted
                                 + " fresh=" + isFresh + " age=" + (sentAt == 0 ? -1 :
                                     DateTimeOffset.UtcNow.ToUnixTimeSeconds() - sentAt)
-                                + " notYetSeen=" + notYetSeen + " chat=" + newMsgChatId);
-                        if (!isOutgoing && !isMuted && isFresh && notYetSeen) {
+                                + " notYetSeen=" + notYetSeen + " chat=" + newMsgChatId
+                                + " inOpenChat=" + inOpenChatOnScreen);
+                        if (shouldToast) {
                             // Собираем имя и текст для уведомления
                             string senderName = "";
                             if (_chatsDict.ContainsKey(newMsgChatId))
@@ -1013,7 +1032,7 @@ namespace TelegramWP10
                             string msgText = mc?["text"]?["text"]?.ToString()
                                           ?? mc?["caption"]?["text"]?.ToString()
                                           ?? (mc?["@type"]?.ToString()?.Replace("message","") ?? Loc.T("media_message"));
-                            ShowToastNotification(senderName, msgText, newMsgChatId);
+                            ShowToastNotification(senderName, msgText, newMsgChatId, true);
                         }
                     }
                     break;
@@ -5441,9 +5460,22 @@ namespace TelegramWP10
             ShowToastNotification(Loc.T(ok ? "toast_saved" : "toast_save_failed"), "", 0);
         }
 
-        private void ShowToastNotification(string title, string body, long chatId) {
+        /// <summary>
+        /// <paramref name="silentWhenOnScreen"/> marks a message notification:
+        /// with the app on screen the user does not need to be alerted by
+        /// sound, but the banner still has to appear — it is what tells them an
+        /// event happened and what puts the glyph in the notification bar.
+        /// Toasts that are direct feedback for an action the user just took
+        /// (e.g. "saved") pass false and keep their sound.
+        /// </summary>
+        private void ShowToastNotification(string title, string body, long chatId,
+                                           bool silentWhenOnScreen = false) {
             try {
+                bool silent = silentWhenOnScreen && BackgroundService.IsAppOnScreen;
                 // Строим XML вручную — полный контроль над звуком
+                string audio = silent
+                    ? @"<audio silent=""true""/>"
+                    : @"<audio src=""ms-winsoundevent:Notification.IM"" loop=""false""/>";
                 string xml = $@"<toast duration=""short"">
   <visual>
     <binding template=""ToastGeneric"">
@@ -5451,11 +5483,15 @@ namespace TelegramWP10
       <text>{EscapeXml(body)}</text>
     </binding>
   </visual>
-  <audio src=""ms-winsoundevent:Notification.IM"" loop=""false""/>
+  {audio}
 </toast>";
                 var toastXml = new Windows.Data.Xml.Dom.XmlDocument();
                 toastXml.LoadXml(xml);
                 var toast = new Windows.UI.Notifications.ToastNotification(toastXml);
+                // SuppressPopup is deliberately not used: it does deliver the
+                // notification to the centre, but without the banner the shell
+                // raises no status-bar glyph, so the user never learns anything
+                // arrived. Silencing the audio alone keeps the notice visible.
                 // Tag/Group нужны, чтобы уведомление можно было потом убрать из
                 // центра уведомлений — без них History.Remove адресовать нечего.
                 toast.Tag = ToastTagForChat(chatId);
@@ -6029,6 +6065,116 @@ namespace TelegramWP10
             MainListHeader.Visibility = Visibility.Visible;
             ArchiveListHeader.Visibility = Visibility.Collapsed;
             ArchiveRow.Visibility = Visibility.Visible;
+        }
+
+        // ================================================================
+        // Back button: closes UI layers, and from the main screen exits the
+        // app completely
+        // ================================================================
+
+        /// <summary>
+        /// While there is somewhere to go back to, the topmost UI layer is
+        /// closed. From the main screen (chat list, nothing open) there is
+        /// nowhere left, and back means exit: the app unloads completely,
+        /// along with the background task and location access.
+        ///
+        /// The home button never reaches this handler — it still just
+        /// minimises the app (App.OnSuspending), as before.
+        /// </summary>
+        private void HandleSystemBackRequest(Windows.UI.Core.BackRequestedEventArgs e) {
+            if (_shuttingDown) { e.Handled = true; return; }
+
+            if (PhotoOverlay.Visibility == Visibility.Visible) {
+                PhotoOverlay.Visibility = Visibility.Collapsed;
+                PhotoOverlayImage.Source = null;
+                _fullPhotoMsgId = 0;
+            } else if (ProxyPopup != null && ProxyPopup.IsOpen) {
+                // Layers reachable straight from the main screen: without these
+                // two checks, back from the proxy settings or the contact list
+                // would close the app.
+                ProxyPopup.IsOpen = false;
+            } else if (ContactsOverlay.Visibility == Visibility.Visible) {
+                ContactsOverlay_Close(null, null);
+            } else if (_currentChatId != 0) {
+                BackButton_Click(null, null);
+            } else if (_inArchive) {
+                ArchiveBack_Click(null, null);
+            } else if (!string.IsNullOrEmpty(_searchQuery)) {
+                SearchClear_Click(null, null);
+            } else {
+                var ignored = ExitApplicationAsync();
+            }
+
+            // Always mark it handled: an unhandled back is what the system
+            // reads as "minimise the app", and the exit is ours to drive now.
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Unloads the app completely. The order matters: first drop everything
+        /// able to outlive the window (execution extensions, the geolocator,
+        /// the background task, audio playback), then close the TDLib session
+        /// properly — otherwise the database is left with an open journal —
+        /// and only then kill the process.
+        /// </summary>
+        private async Task ExitApplicationAsync() {
+            if (_shuttingDown) return;
+            _shuttingDown = true;
+
+            // 1. Background: keep-alive together with the position
+            //    subscription, the grace window and the catch-up task.
+            try { BackgroundService.Instance.ShutdownBackgroundWork(); } catch { }
+
+            // 2. Timers and playback. With the backgroundMediaPlayback
+            //    capability, a live MediaPlayer holds the process on its own.
+            try {
+                _statusTimer?.Stop();
+                _typingTimer?.Stop();
+                _audioPositionTimer?.Stop();
+                _proxyTimer?.Stop();
+                _scrollTimer?.Stop();
+                _restoreTimer?.Stop();
+                _videoNoteTimer?.Stop();
+                _chatSearchDebounceTimer?.Stop();
+            } catch { }
+            var dyingPlayer = _currentAudioPlayer;
+            try { StopCurrentAudio(); } catch { }
+            // StopCurrentAudio does not release the player — unnecessary when
+            // switching tracks, necessary here: with backgroundMediaPlayback a
+            // live playback session is one more reason to keep the process.
+            try { dyingPlayer?.Dispose(); } catch { }
+            try { ReleaseMediaSession(); } catch { }
+
+            // 3. TDLib: close -> authorizationStateClosed -> destroy. The
+            //    _tdClosing flag takes the reading thread out of its loop (see
+            //    LongPolling), and only once it is out may the client be
+            //    released — destroy during an active td_json_client_receive
+            //    is a race.
+            bool pollingStopped = false;
+            try {
+                _tdCloseDeadline = DateTime.UtcNow.AddSeconds(5);
+                _tdClosing = true;
+                TdJson.SendUtf8(_client, "{\"@type\":\"close\"}");
+                pollingStopped = await Task.WhenAny(
+                    _pollingStopped.Task, Task.Delay(TimeSpan.FromSeconds(7))) == _pollingStopped.Task;
+            } catch { }
+
+            IntPtr dying = _client;
+            _client = IntPtr.Zero;
+            ActiveClient = IntPtr.Zero;
+            // Timed out — releasing is not allowed, the thread is still reading.
+            // The database was already closed by close itself, and the process
+            // is about to die anyway, so leaking the pointer costs nothing.
+            if (pollingStopped && dying != IntPtr.Zero)
+                try { TdJson.td_json_client_destroy(dying); } catch { }
+
+            // 4. Session mutex: the next process (the background task included)
+            //    must find the database free.
+            try { _tdSessionMutex?.ReleaseMutex(); } catch { }
+            try { _tdSessionMutex?.Dispose(); } catch { }
+            _tdSessionMutex = null;
+
+            Application.Current.Exit();
         }
 
         private void UpdateArchiveUnreadBadge() {

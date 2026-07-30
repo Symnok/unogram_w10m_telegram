@@ -25,6 +25,10 @@ namespace TelegramWP10
 
         public static void SendUtf8(IntPtr client, string request)
         {
+            // The pointer is zeroed after td_json_client_destroy, but requests
+            // queued on the dispatcher may still arrive. Passing nullptr into
+            // native code takes the process down.
+            if (client == IntPtr.Zero) return;
             if (string.IsNullOrEmpty(request)) return;
             // Кодируем в UTF-8 с нулевым терминатором для C++
             byte[] bytes = Encoding.UTF8.GetBytes(request + "\0");

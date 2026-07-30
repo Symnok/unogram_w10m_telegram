@@ -18,6 +18,11 @@ namespace TelegramWP10
 
             this.Suspending += OnSuspending;
             this.Resuming += OnResuming;
+            // Visibility transitions, which unlike Suspending/Resuming still
+            // fire while an extended execution session defers suspension. They
+            // decide whether a notification is allowed to make a sound.
+            this.EnteredBackground += (s, e) => BackgroundService.NoteWentToBackground();
+            this.LeavingBackground += (s, e) => BackgroundService.NoteComingToForeground();
         }
 
         protected override async void OnLaunched(LaunchActivatedEventArgs e)
@@ -31,7 +36,7 @@ namespace TelegramWP10
             if (rootFrame.Content == null) rootFrame.Navigate(typeof(MainPage), e.Arguments);
             Window.Current.Activate();
 
-            BackgroundService.IsInForeground = true;
+            BackgroundService.NoteComingToForeground();
             // Регистрация идёт после Activate(), чтобы не задерживать показ окна.
             if (BackgroundService.CatchUpEnabled)
                 await BackgroundService.RegisterCatchUpTaskAsync();
@@ -77,7 +82,10 @@ namespace TelegramWP10
         private async void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
-            BackgroundService.IsInForeground = false;
+            BackgroundService.NoteWentToBackground();
+            // Exit() raises Suspending too. A back-button exit is not a
+            // minimise: there is nothing left to hold the process, and no reason to.
+            if (BackgroundService.IsShuttingDown) { deferral.Complete(); return; }
             try
             {
                 // Просим отсрочку. Дадут — соединение переживёт сворачивание;
@@ -92,7 +100,7 @@ namespace TelegramWP10
 
         private async void OnResuming(object sender, object e)
         {
-            BackgroundService.IsInForeground = true;
+            BackgroundService.NoteComingToForeground();
             BackgroundService.RequestForegroundHandover();
             BackgroundService.Instance.ReleaseGraceWindow();
         

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -11,7 +11,6 @@
     <AssemblyName>TelegramWP10</AssemblyName>
     <DefaultLanguage>ru-RU</DefaultLanguage>
     <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier>
-
     <!-- Windows 10 Mobile 1709 = OS build 15254, branched from 15063 (1703).
          15063 is the newest SDK whose API surface actually exists on the device.
          Do NOT raise TargetPlatformVersion to 16299/17763/18362.
@@ -19,7 +18,6 @@
          anything above 10.0.15254.0 would block installation entirely. -->
     <TargetPlatformVersion>10.0.15063.0</TargetPlatformVersion>
     <TargetPlatformMinVersion>10.0.10240.0</TargetPlatformMinVersion>
-
     <MinimumVisualStudioVersion>14</MinimumVisualStudioVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -31,8 +29,9 @@
     <AppxBundle>Never</AppxBundle>
     <AppxBundlePlatforms>ARM</AppxBundlePlatforms>
     <UapAppxPackageBuildMode>SideloadOnly</UapAppxPackageBuildMode>
+    <AppInstallerUpdateFrequency>1</AppInstallerUpdateFrequency>
+    <AppInstallerCheckForUpdateFrequency>OnApplicationRun</AppInstallerCheckForUpdateFrequency>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM'">
     <OutputPath>bin\ARM\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE;NETFX_CORE;WINDOWS_UWP</DefineConstants>
@@ -44,7 +43,6 @@
     <UseVSHostingProcess>false</UseVSHostingProcess>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|ARM'">
     <OutputPath>bin\ARM\Release\</OutputPath>
     <DefineConstants>TRACE;NETFX_CORE;WINDOWS_UWP</DefineConstants>
@@ -56,7 +54,6 @@
     <ErrorReport>prompt</ErrorReport>
     <UseDotNetNativeToolchain>true</UseDotNetNativeToolchain>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- 6.0.x (.NET Native 2.0) is the line that matches uap10.0.15063.
          6.1.x/6.2.x require min version 10.0.16299 and will fail restore here. -->
@@ -67,7 +64,6 @@
       <Version>13.0.1</Version>
     </PackageReference>
   </ItemGroup>
-
   <ItemGroup>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
@@ -87,7 +83,6 @@
     <Compile Include="SearchResultItem.cs" />
     <Compile Include="AvatarPlaceholder.cs" />
   </ItemGroup>
-
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
       <Generator>MSBuild:Compile</Generator>
@@ -98,13 +93,11 @@
       <SubType>Designer</SubType>
     </Page>
   </ItemGroup>
-
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
       <SubType>Designer</SubType>
     </AppxManifest>
   </ItemGroup>
-
   <ItemGroup>
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\Square150x150Logo.png" />
@@ -126,16 +119,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
   <!-- Fail loudly if someone tries to build a non-ARM platform or shifts the
        supported OS range. This project is Windows 10 Mobile, ARM only. -->
   <Target Name="EnforceArmOnlyMobile" BeforeTargets="PrepareForBuild">
-    <Error Condition="'$(Platform)' != 'ARM'"
-           Text="TelegramWP10 builds for ARM only (Windows 10 Mobile). Requested platform: '$(Platform)'." />
-    <Error Condition="'$(TargetPlatformMinVersion)' != '10.0.10240.0'"
-           Text="TargetPlatformMinVersion must remain 10.0.10240.0. Current value: '$(TargetPlatformMinVersion)'." />
+    <Error Condition="'$(Platform)' != 'ARM'" Text="TelegramWP10 builds for ARM only (Windows 10 Mobile). Requested platform: '$(Platform)'." />
+    <Error Condition="'$(TargetPlatformMinVersion)' != '10.0.10240.0'" Text="TargetPlatformMinVersion must remain 10.0.10240.0. Current value: '$(TargetPlatformMinVersion)'." />
   </Target>
-
   <!-- Генерируем rd.xml на лету — не нужно хранить в репозитории -->
   <Target Name="GenerateRdXml" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
@@ -153,7 +142,5 @@
       <Content Include="$(RdXmlPath)" />
     </ItemGroup>
   </Target>
-
   <Import Project="$(MSBuildExtensionsPath)\Microsoft\WindowsXaml\v$(VisualStudioVersion)\Microsoft.Windows.UI.Xaml.CSharp.targets" />
-
 </Project>
