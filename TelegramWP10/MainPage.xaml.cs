@@ -530,6 +530,7 @@ namespace TelegramWP10
                         _isAuthorized = true;
                         LoginPanel.Visibility = Visibility.Collapsed;
                         ChatListView.Visibility = Visibility.Visible;
+                        ProxyBottomRow.Visibility = Visibility.Collapsed; // теперь доступно через меню настроек
                         if (SearchPanel != null) SearchPanel.Visibility = Visibility.Visible;
                         if (!_proxyApplied) {
                             _proxyApplied = true;
@@ -549,6 +550,7 @@ namespace TelegramWP10
                         _mainListLoaded = false;
                         ChatListView.Visibility = Visibility.Collapsed;
                         LoginPanel.Visibility = Visibility.Visible;
+                        ProxyBottomRow.Visibility = Visibility.Visible;
                         LoginStatus.Text = Loc.T("login_enterPhone");
                         PhoneInput.Text = "";
                         PhoneInput.IsEnabled = true;

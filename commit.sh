@@ -6,5 +6,5 @@ RANDOM_MSG=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 10)
 echo $RANDOM_MSG
 git add -A
 #git commit -m "$RANDOM_MSG"_nallion
-git commit -m "Stop notifications from muted channels"
+git commit -m "ProxyButton manipulation"
 git push
