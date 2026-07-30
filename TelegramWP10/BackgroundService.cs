@@ -183,8 +183,8 @@ namespace TelegramWP10
         /// <summary>
         /// Пользовательская настройка: получать ли уведомления о новых
         /// сообщениях, пока приложение полностью закрыто (через CatchUpTask).
-        /// По умолчанию — true, чтобы не менять поведение для тех, кто уже
-        /// пользуется приложением и ничего не трогал в настройках.
+        /// По умолчанию — false: задача не создаётся при первом запуске,
+        /// только когда пользователь сам включит её в настройках.
         /// </summary>
         public static bool CatchUpEnabled
         {
@@ -193,9 +193,9 @@ namespace TelegramWP10
                 try
                 {
                     var v = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
-                    return !v.ContainsKey(CatchUpEnabledSettingKey) || (bool)v[CatchUpEnabledSettingKey];
+                    return v.ContainsKey(CatchUpEnabledSettingKey) && (bool)v[CatchUpEnabledSettingKey];
                 }
-                catch { return true; }
+                catch { return false; }
             }
             set
             {
@@ -370,8 +370,30 @@ namespace TelegramWP10
         /// activation arrives in App.OnBackgroundActivated, so no separate winmd
         /// project is required.
         /// </summary>
+        // ================================================================
+        // Диагностика регистрации фоновой задачи в планировщике — отдельный,
+        // самодостаточный файл (не связан с общим Diag, который сейчас нигде
+        // не пишет на диск специально) — чтобы видеть, реально ли создалась
+        // задача и с каким TaskId.
+        // ================================================================
+        private static readonly System.Threading.SemaphoreSlim _bgTaskDebugLock = new System.Threading.SemaphoreSlim(1, 1);
+        private static async void LogBgTaskDebug(string message)
+        {
+            if (!await _bgTaskDebugLock.WaitAsync(2000)) return;
+            try
+            {
+                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
+                    .CreateFolderAsync("Unogram", Windows.Storage.CreationCollisionOption.OpenIfExists);
+                var file = await folder.CreateFileAsync("bgtaskdebug.txt", Windows.Storage.CreationCollisionOption.OpenIfExists);
+                await Windows.Storage.FileIO.AppendTextAsync(file, "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] " + message + "\r\n");
+            }
+            catch { }
+            finally { try { _bgTaskDebugLock.Release(); } catch { } }
+        }
+
         public static async Task<bool> RegisterCatchUpTaskAsync()
         {
+            LogBgTaskDebug("RegisterCatchUpTaskAsync() called");
             BackgroundAccessStatus access;
             try
             {
@@ -380,14 +402,19 @@ namespace TelegramWP10
             catch (Exception ex)
             {
                 Debug.WriteLine("[BG] RequestAccessAsync failed: " + ex.Message);
+                LogBgTaskDebug("RequestAccessAsync EXCEPTION: " + ex.Message);
                 return false;
             }
 
             Diag("Background access: " + access);
+            LogBgTaskDebug("BackgroundAccessStatus = " + access);
             if (access == BackgroundAccessStatus.DeniedByUser ||
                 access == BackgroundAccessStatus.DeniedBySystemPolicy ||
                 access == BackgroundAccessStatus.Unspecified)
+            {
+                LogBgTaskDebug("Доступ к фоновому выполнению не предоставлен — задача НЕ будет зарегистрирована");
                 return false;
+            }
 
             // The task entry point has changed before (in-process ->
             // out-of-process), BackgroundTaskRegistration does not expose it,
@@ -399,18 +426,25 @@ namespace TelegramWP10
                 ? Convert.ToInt32(settings["bg_reg_version"]) : 0;
 
             bool exists = false;
+            Guid existingTaskId = Guid.Empty;
             foreach (var t in BackgroundTaskRegistration.AllTasks)
-                if (t.Value.Name == CatchUpTaskName) exists = true;
+                if (t.Value.Name == CatchUpTaskName) { exists = true; existingTaskId = t.Value.TaskId; }
+
+            LogBgTaskDebug("Уже зарегистрировано в планировщике: " + exists
+                + (exists ? " taskId=" + existingTaskId : "")
+                + " | registeredVersion=" + registeredVersion + " currentVersion=" + RegistrationVersion);
 
             if (exists && registeredVersion == RegistrationVersion)
             {
                 Diag("Catch-up task already registered (v" + registeredVersion + ")");
+                LogBgTaskDebug("Регистрация актуальна, повторно не создаём. taskId=" + existingTaskId);
                 return true;
             }
             if (exists)
             {
                 UnregisterCatchUpTask();
                 Diag("Re-registering catch-up task: v" + registeredVersion + " -> v" + RegistrationVersion);
+                LogBgTaskDebug("Старая регистрация снята (устарела), создаём заново");
             }
 
             try
@@ -425,29 +459,39 @@ namespace TelegramWP10
                 // trigger fires, it defers the task until the system agrees the
                 // condition holds, which on a sleeping phone can be forever.
                 builder.SetTrigger(new TimeTrigger(CatchUpIntervalMinutes, false));
-                builder.Register();
+                var registration = builder.Register();
                 settings["bg_reg_version"] = RegistrationVersion;
                 Diag("Catch-up task registered in-process, v" + RegistrationVersion
                      + " (" + CatchUpIntervalMinutes + " min)");
+                LogBgTaskDebug("СОЗДАНА новая регистрация в планировщике. taskId=" + registration.TaskId
+                    + " name=" + registration.Name + " v" + RegistrationVersion
+                    + " интервал=" + CatchUpIntervalMinutes + " мин");
                 return true;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("[BG] Catch-up task registration failed: " + ex.Message);
+                LogBgTaskDebug("РЕГИСТРАЦИЯ НЕ УДАЛАСЬ: " + ex.GetType().FullName + ": " + ex.Message);
                 return false;
             }
         }
 
         public static void UnregisterCatchUpTask()
         {
+            LogBgTaskDebug("UnregisterCatchUpTask() called");
+            bool foundAny = false;
             foreach (var t in BackgroundTaskRegistration.AllTasks)
             {
                 if (t.Value.Name == CatchUpTaskName)
                 {
-                    try { t.Value.Unregister(true); } catch { }
+                    foundAny = true;
+                    Guid tid = t.Value.TaskId;
+                    try { t.Value.Unregister(true); LogBgTaskDebug("Снята регистрация taskId=" + tid); }
+                    catch (Exception ex) { LogBgTaskDebug("Не удалось снять регистрацию taskId=" + tid + ": " + ex.Message); }
                     Debug.WriteLine("[BG] Catch-up task unregistered");
                 }
             }
+            if (!foundAny) LogBgTaskDebug("Нечего снимать — задача не была зарегистрирована");
         }
 
         /// <summary>Called from App.OnBackgroundActivated.</summary>
