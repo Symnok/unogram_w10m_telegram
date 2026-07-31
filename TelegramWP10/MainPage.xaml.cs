@@ -815,7 +815,8 @@ namespace TelegramWP10
                                 _pendingStickerFileId = 0;
                                 _pendingStickerChatId = 0;
                                 string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + sChatId +
-                                    (sThreadId != 0 ? ",\"message_thread_id\":" + sThreadId : "") +
+                                    (sThreadId != 0 ? ",\"topic_id\":{\"@type\":\"messageTopicThread\",\"message_thread_id\":" + sThreadId + "}" +
+                                                      ",\"message_thread_id\":" + sThreadId : "") +
                                     ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
                                     ",\"sticker\":{\"@type\":\"inputSticker\"" +
                                     ",\"sticker\":{\"@type\":\"inputFileId\",\"id\":" + sFileId + "}" +
@@ -3912,9 +3913,21 @@ namespace TelegramWP10
                     ["text"] = new JObject { ["@type"] = "formattedText", ["text"] = text }
                 }
             };
-            // Если открыт тред комментариев — передаём message_thread_id
-            if (_threadMessageId != 0)
+            // Если открыт тред комментариев — привязываем сообщение к треду.
+            // В TDLib 1.8.66 у сообщения больше нет плоского message_thread_id —
+            // его заменил topic_id типа MessageTopic (видно в самом ответе
+            // messageThreadInfo). Старый параметр TDLib молча игнорировал,
+            // поэтому комментарий уходил в группу обсуждений обычным сообщением,
+            // без привязки к посту, и никакой ошибки при этом не возникало.
+            // Старое поле оставлено рядом: неизвестные параметры TDLib
+            // пропускает без ошибки, так что на более старой сборке сработает оно.
+            if (_threadMessageId != 0) {
+                sendReq["topic_id"] = new JObject {
+                    ["@type"] = "messageTopicThread",
+                    ["message_thread_id"] = _threadMessageId
+                };
                 sendReq["message_thread_id"] = _threadMessageId;
+            }
             if (_replyToMessageId != 0) {
                 sendReq["reply_to"] = new JObject {
                     ["@type"] = "inputMessageReplyToMessage",
@@ -3930,6 +3943,21 @@ namespace TelegramWP10
             // Аналогично — иначе клавиатура прячется после каждой отправки,
             // потому что фокус после тапа по кнопке уходит с текстового поля.
             MessageInput.Focus(FocusState.Programmatic);
+        }
+
+        /// <summary>
+        /// JSON-фрагмент привязки сообщения к треду комментариев (или пустая
+        /// строка, если тред не открыт). В TDLib 1.8.66 привязка задаётся через
+        /// topic_id типа MessageTopic — прежний плоский message_thread_id
+        /// библиотека молча игнорирует, из-за чего комментарий уходил в группу
+        /// обсуждений обычным сообщением. Старое поле оставлено рядом: лишние
+        /// параметры TDLib пропускает без ошибки, так что на более старой
+        /// сборке сработает оно.
+        /// </summary>
+        private string ThreadJsonPart() {
+            if (_threadMessageId == 0) return "";
+            return ",\"topic_id\":{\"@type\":\"messageTopicThread\",\"message_thread_id\":" + _threadMessageId + "}" +
+                   ",\"message_thread_id\":" + _threadMessageId;
         }
 
         private void SubscribeRichText(Windows.UI.Xaml.Controls.RichTextBlock rtb, MessageItem item) {
@@ -4145,13 +4173,13 @@ namespace TelegramWP10
                 bool isPhoto = ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" || ext == ".bmp";
                 string req;
                 if (isPhoto) {
-                    req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                    req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId + ThreadJsonPart() +
                         ",\"input_message_content\":{\"@type\":\"inputMessagePhoto\"" +
                         ",\"photo\":{\"@type\":\"inputPhoto\"" +
                         ",\"photo\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}}" +
                         ",\"caption\":{\"@type\":\"formattedText\",\"text\":\"\"}}}";
                 } else {
-                    req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                    req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId + ThreadJsonPart() +
                         ",\"input_message_content\":{\"@type\":\"inputMessageDocument\"" +
                         ",\"document\":{\"@type\":\"inputDocument\"" +
                         ",\"document\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
@@ -4678,7 +4706,7 @@ namespace TelegramWP10
                 var props = await _recordingFile.Properties.GetMusicPropertiesAsync();
                 int durationSec = (int)props.Duration.TotalSeconds;
                 string voicePath = _recordingFile.Path.Replace("\\", "/");
-                string voiceReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                string voiceReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId + ThreadJsonPart() +
                     ",\"input_message_content\":{\"@type\":\"inputMessageVoiceNote\"" +
                     ",\"voice_note\":{\"@type\":\"inputVoiceNote\"" +
                     ",\"voice_note\":{\"@type\":\"inputFileLocal\",\"path\":\"" + voicePath.Replace("\"","\\\"") + "\"}" +
@@ -4752,7 +4780,7 @@ namespace TelegramWP10
                 _videoCaptureCapture = null;
                 if (_videoNoteSeconds < 1) return; // слишком короткое
                 string path = _videoNoteFile.Path.Replace("\\", "/");
-                string req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
+                string req = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId + ThreadJsonPart() +
                     ",\"input_message_content\":{\"@type\":\"inputMessageVideoNote\"" +
                     ",\"video_note\":{\"@type\":\"inputVideoNote\"" +
                     ",\"video_note\":{\"@type\":\"inputFileLocal\",\"path\":\"" + path.Replace("\"","\\\"") + "\"}" +
@@ -5875,7 +5903,8 @@ namespace TelegramWP10
 
             if (!string.IsNullOrEmpty(item.RemoteFileId)) {
                 string sReq = "{\"@type\":\"sendMessage\",\"chat_id\":" + _currentChatId +
-                    (_threadMessageId != 0 ? ",\"message_thread_id\":" + _threadMessageId : "") +
+                    (_threadMessageId != 0 ? ",\"topic_id\":{\"@type\":\"messageTopicThread\",\"message_thread_id\":" + _threadMessageId + "}" +
+                                             ",\"message_thread_id\":" + _threadMessageId : "") +
                     ",\"input_message_content\":{\"@type\":\"inputMessageSticker\"" +
                     ",\"sticker\":{\"@type\":\"inputSticker\"" +
                     ",\"sticker\":{\"@type\":\"inputFileRemote\",\"id\":\"" + item.RemoteFileId + "\"}" +
