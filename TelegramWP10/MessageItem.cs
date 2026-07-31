@@ -164,7 +164,16 @@ namespace TelegramWP10
         public bool IsOutgoing { get => _isOutgoing; set { _isOutgoing = value; OnPropertyChanged("IsOutgoing"); OnPropertyChanged("ReadStatusVisibility"); OnPropertyChanged("ReadStatusText"); OnPropertyChanged("SenderNameVisibility"); OnPropertyChanged("SenderAvatarVisibility"); } }
         public bool IsRead { get => _isRead; set { _isRead = value; OnPropertyChanged("IsRead"); OnPropertyChanged("ReadStatusText"); OnPropertyChanged("ReadStatusColor"); } }
         public Visibility ReadStatusVisibility => _isOutgoing ? Visibility.Visible : Visibility.Collapsed;
-        public string ReadStatusText => _isRead ? "✓✓" : "✓";
+        public string ReadStatusText => _sendFailed ? "⚠" : (_isRead ? "✓✓" : "✓");
+
+        // Отправка отклонена сервером (updateMessageSendFailed). Без этого
+        // локальное "эхо" сообщения висело бы с обычной галочкой, как будто
+        // всё доставлено.
+        private bool _sendFailed = false;
+        public bool SendFailed {
+            get => _sendFailed;
+            set { _sendFailed = value; OnPropertyChanged("SendFailed"); OnPropertyChanged("ReadStatusText"); OnPropertyChanged("ReadStatusColor"); }
+        }
 
         // Метка "изменено" — TDLib присылает edit_date в каждом сообщении
         private bool _isEdited = false;
@@ -174,6 +183,7 @@ namespace TelegramWP10
         public string ReadStatusColor {
             get {
                 bool isLight = _background == "#FFFFFF" || _background == "#EFFDDE";
+                if (_sendFailed) return "#FF5252";   // не отправлено — красный, в обеих темах
                 if (_isRead) return isLight ? "#4CAF50" : "#CCFFFFFF";
                 return isLight ? "#AAAAAA" : "#88FFFFFF";
             }

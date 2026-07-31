@@ -1565,6 +1565,43 @@ namespace TelegramWP10
                     break;
                 }
 
+                case "updateMessageSendFailed": {
+                    // Раньше не обрабатывалось вообще: TDLib создаёт локальное
+                    // "эхо" сообщения ещё до подтверждения сервера, и если сервер
+                    // отказывал, отказ оставался незамеченным — сообщение висело
+                    // с обычной галочкой, как будто доставлено.
+                    long failOldId = update["old_message_id"]?.ToObject<long>() ?? 0;
+                    var failMsg = update["message"];
+                    long failNewId = failMsg?["id"]?.ToObject<long>() ?? 0;
+                    // В разных версиях TDLib ошибка лежит либо вложенным объектом
+                    // error, либо плоскими полями — читаем оба варианта.
+                    var failErr = update["error"];
+                    int failCode = failErr?["code"]?.ToObject<int>()
+                                ?? update["error_code"]?.ToObject<int>() ?? 0;
+                    string failText = failErr?["message"]?.ToString()
+                                   ?? update["error_message"]?.ToString() ?? "";
+
+                    MessageItem failItem = null;
+                    if (failOldId != 0 && _messagesDict.ContainsKey(failOldId)) failItem = _messagesDict[failOldId];
+                    else if (failNewId != 0 && _messagesDict.ContainsKey(failNewId)) failItem = _messagesDict[failNewId];
+
+                    if (failItem != null) {
+                        failItem.SendFailed = true;
+                        // Неудачному сообщению TDLib тоже выдаёт новый id — переносим,
+                        // чтобы дальнейшие апдейты по нему находили тот же объект.
+                        if (failOldId != 0 && failNewId != 0 && failOldId != failNewId
+                            && _messagesDict.ContainsKey(failOldId)) {
+                            failItem.Id = failNewId;
+                            _messagesDict.Remove(failOldId);
+                            _messagesDict[failNewId] = failItem;
+                        }
+                    }
+
+                    string failBody = failCode != 0 ? failCode + ": " + failText : failText;
+                    ShowToastNotification(Loc.T("toast_send_failed"), failBody, 0);
+                    break;
+                }
+
                 case "updateMessageContent":
                     long umcChatId = update["chat_id"]?.ToObject<long>() ?? 0;
                     long umcMsgId = update["message_id"]?.ToObject<long>() ?? 0;

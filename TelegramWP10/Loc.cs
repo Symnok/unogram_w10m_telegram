@@ -201,6 +201,7 @@ namespace TelegramWP10
             { "msgmenu_save", Row("💾 Save", "💾 Сохранить", "💾 Зберегти", "💾 שמור") },
             { "toast_saved", Row("Saved", "Сохранено", "Збережено", "נשמר") },
             { "toast_save_failed", Row("Save failed", "Не удалось сохранить", "Не вдалося зберегти", "השמירה נכשלה") },
+            { "toast_send_failed", Row("Message not sent", "Сообщение не отправлено", "Повідомлення не надіслано", "ההודעה לא נשלחה") },
             { "chatmenu_archive", Row("📁 Move to archive", "📁 Переместить в архив", "📁 Перемістити в архів", "📁 העבר לארכיון") },
             { "chatmenu_unarchive", Row("📤 Move from archive", "📤 Переместить из архива", "📤 Перемістити з архіву", "📤 העבר מהארכיון") },
             { "chatmenu_unread", Row("🔵 Mark as unread", "🔵 Отметить непрочитанным", "🔵 Позначити непрочитаним", "🔵 סמן כלא נקרא") },
