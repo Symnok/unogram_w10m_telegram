@@ -2064,7 +2064,6 @@ namespace TelegramWP10
                             if (memUsage > MemoryThreshold) {
                                 _hasMoreHistory = false;
                                 _outOfMemory = true;
-                                MemoryWarningBanner.Visibility = Visibility.Visible;
                             } else {
                                 _scrollTimer?.Stop();
                                 _autoScrolling = false;
@@ -3664,8 +3663,6 @@ namespace TelegramWP10
             _autoScrolling = false;
             _scrollTimer?.Stop();
             _restoreTimer?.Stop();
-            if (MemoryWarningBanner != null)
-                MemoryWarningBanner.Visibility = Visibility.Collapsed;
             if (OlderLoadingIndicator != null) {
                 OlderLoadingIndicator.Visibility = Visibility.Collapsed;
                 OlderProgressRing.IsActive = false;

@@ -231,7 +231,6 @@ namespace TelegramWP10
             { "proxy_login", Row("Login (optional)", "Логин (опционально)", "Логін (необов'язково)", "שם משתמש (אופציונלי)") },
             { "proxy_password", Row("Password (optional)", "Пароль (опционально)", "Пароль (необов'язково)", "סיסמה (אופציונלי)") },
             { "proxy_secret", Row("Secret", "Секрет", "Секрет", "סוד") },
-            { "err_outOfMemory", Row("⚠ Out of memory", "⚠ Оперативная память закончилась", "⚠ Оперативна пам'ять вичерпана", "⚠ הזיכרון אזל") },
             // ---- extended execution descriptions ----
             { "session_grace", Row("Finishing Telegram updates", "Дочитываем обновления Telegram", "Завершуємо оновлення Telegram", "משלים עדכוני Telegram") },
             { "session_keepAlive", Row("Unogram stays connected", "Unogram остаётся на связи", "Unogram залишається на зв'язку", "Unogram נשאר מחובר") },
