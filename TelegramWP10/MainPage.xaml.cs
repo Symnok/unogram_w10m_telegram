@@ -144,7 +144,7 @@ namespace TelegramWP10
         private Windows.UI.Xaml.DispatcherTimer _connectingTimer; // таймер 10с на подключение
         private bool _proxyConnected = false;
         private bool _proxyApplied = false;
-        private bool _soundEnabled = true; // звук уведомлений
+        private bool _soundEnabled = false; // уведомления (звук+баннер), пока приложение открыто
         // Стикеры
         private bool _stickerPanelOpen = false;
         private List<ContactItem> _contactItems = new List<ContactItem>();
@@ -575,11 +575,6 @@ namespace TelegramWP10
 
                 case "error":
                     string errMsg = update["message"]?.ToString();
-                    // ВРЕМЕННО: пока открыт тред комментариев, любая ошибка TDLib
-                    // важна — штатно она уходит в LoginStatus, который после
-                    // авторизации скрыт, и её просто никто не видит.
-                    if (_threadMessageId != 0)
-                        LogCommentDebug("TDLib ERROR: " + TruncateForLog(update.ToString(Newtonsoft.Json.Formatting.None)));
                     // Если нет закреплённого сообщения — сбрасываем флаг
                     if (_pinnedMessageId == -1)
                         _pinnedMessageId = 0;
@@ -1429,16 +1424,10 @@ namespace TelegramWP10
                     // Ответ на getMessageThread — открываем тред
                     long threadChatId = update["chat_id"]?.ToObject<long>() ?? 0;
                     long threadMsgId  = update["message_thread_id"]?.ToObject<long>() ?? 0;
-                    LogCommentDebug("messageThreadInfo chat_id=" + threadChatId + " message_thread_id=" + threadMsgId
-                        + " вЧатах=" + _chatsDict.ContainsKey(threadChatId)
-                        + " текущийЧат(канал)=" + _currentChatId
-                        + " RAW=" + TruncateForLog(update.ToString(Newtonsoft.Json.Formatting.None)));
                     if (threadChatId != 0 && threadMsgId != 0 && _chatsDict.ContainsKey(threadChatId)) {
                         _threadMessageId = threadMsgId;
                         _threadChatId = threadChatId;
                         OpenChat(_chatsDict[threadChatId], threadMsgId);
-                    } else {
-                        LogCommentDebug("messageThreadInfo ОТБРОШЕН — тред не открыт");
                     }
                     break;
 
@@ -1546,11 +1535,6 @@ namespace TelegramWP10
                     long sentOldId = update["old_message_id"]?.ToObject<long>() ?? 0;
                     var sentMsg = update["message"];
                     long sentNewId = sentMsg?["id"]?.ToObject<long>() ?? 0;
-                    if (_threadMessageId != 0)
-                        LogCommentDebug("ПОДТВЕРЖДЕНО sendSucceeded oldId=" + sentOldId + " newId=" + sentNewId
-                            + " message.chat_id=" + (sentMsg?["chat_id"]?.ToString() ?? "?")
-                            + " message.message_thread_id=" + (sentMsg?["message_thread_id"]?.ToString() ?? "(нет)")
-                            + " ожидалиThread=" + _threadMessageId);
                     if (sentOldId != 0 && sentNewId != 0 && sentOldId != sentNewId && _messagesDict.ContainsKey(sentOldId)) {
                         var sentItem = _messagesDict[sentOldId];
                         sentItem.Id = sentNewId;
@@ -1615,8 +1599,6 @@ namespace TelegramWP10
                     }
 
                     string failBody = failCode != 0 ? failCode + ": " + failText : failText;
-                    LogCommentDebug("ОТКАЗ sendFailed oldId=" + failOldId + " newId=" + failNewId
-                        + " code=" + failCode + " message=" + failText);
                     ShowToastNotification(Loc.T("toast_send_failed"), failBody, 0);
                     break;
                 }
@@ -2614,23 +2596,6 @@ namespace TelegramWP10
         private static string TruncateForLog(string s) {
             if (string.IsNullOrEmpty(s)) return "(null)";
             return s.Length > 3000 ? s.Substring(0, 3000) + "…(truncated)" : s;
-        }
-
-        // ================================================================
-        // ВРЕМЕННО — диагностика комментариев к постам канала (уходят
-        // "успешно", но на сервере их нет). Убрать после разбора причины.
-        // ================================================================
-        private static readonly System.Threading.SemaphoreSlim _commentDebugLock = new System.Threading.SemaphoreSlim(1, 1);
-        private static async void LogCommentDebug(string message) {
-            if (!await _commentDebugLock.WaitAsync(2000)) return;
-            try {
-                var folder = await Windows.Storage.ApplicationData.Current.LocalFolder
-                    .CreateFolderAsync("Unogram", CreationCollisionOption.OpenIfExists);
-                var file = await folder.CreateFileAsync("commentdebug.txt", CreationCollisionOption.OpenIfExists);
-                await FileIO.AppendTextAsync(file, "[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message + "\r\n");
-            } catch { } finally {
-                try { _commentDebugLock.Release(); } catch { }
-            }
         }
 
         /// <summary>
@@ -3938,8 +3903,6 @@ namespace TelegramWP10
                 ReplyPreviewText.Text = "";
             }
             TdJson.SendUtf8(_client, sendReq.ToString(Newtonsoft.Json.Formatting.None));
-            if (_threadMessageId != 0)
-                LogCommentDebug("ОТПРАВКА sendMessage: " + sendReq.ToString(Newtonsoft.Json.Formatting.None));
             // Аналогично — иначе клавиатура прячется после каждой отправки,
             // потому что фокус после тапа по кнопке уходит с текстового поля.
             MessageInput.Focus(FocusState.Programmatic);

@@ -138,7 +138,7 @@
                                                 <MenuFlyoutItem x:Name="FavoritesItem" Text="⭐ Saved Messages" Click="Favorites_Click"/>
                                                 <MenuFlyoutSeparator/>
                                                 <MenuFlyoutItem x:Name="ClearCacheItem" Text="🗑 Clear cache" Click="ClearCache_Click"/>
-                                                <MenuFlyoutItem x:Name="SoundToggleItem" Text="🔔 Sound: On" Click="SoundToggle_Click"/>
+                                                <MenuFlyoutItem x:Name="SoundToggleItem" Text="🔕 Notifications: Off" Click="SoundToggle_Click"/>
                                                 <MenuFlyoutSeparator/>
                                                 <MenuFlyoutItem x:Name="KeepAliveToggleItem" Text="📍 Background mode: Off" Click="KeepAliveToggle_Click"/>
                                                 <MenuFlyoutItem x:Name="CatchUpToggleItem" Text="🔔 Notifications when app&#10;is closed: On" Click="CatchUpToggle_Click"/>

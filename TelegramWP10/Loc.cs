@@ -116,8 +116,8 @@ namespace TelegramWP10
             // ---- settings menu ----
             { "menu_favorites", Row("⭐ Saved Messages", "⭐ Избранное", "⭐ Збережене", "⭐ הודעות שמורות") },
             { "menu_clearCache", Row("🗑 Clear cache", "🗑 Очистить кэш", "🗑 Очистити кеш", "🗑 נקה מטמון") },
-            { "menu_sound_on", Row("🔔 Sound: On", "🔔 Звук: Вкл", "🔔 Звук: Увімк", "🔔 צליל: פועל") },
-            { "menu_sound_off", Row("🔕 Sound: Off", "🔕 Звук: Выкл", "🔕 Звук: Вимк", "🔕 צליל: כבוי") },
+            { "menu_sound_on", Row("🔔 Notifications: On", "🔔 Уведомления: Вкл", "🔔 Сповіщення: Увімк", "🔔 התראות: פועל") },
+            { "menu_sound_off", Row("🔕 Notifications: Off", "🔕 Уведомления: Выкл", "🔕 Сповіщення: Вимк", "🔕 התראות: כבוי") },
             { "menu_keepAlive_on", Row("📍 Background mode: On", "📍 Фоновый режим: Вкл", "📍 Фоновий режим: Увімк", "📍 מצב רקע: פועל") },
             { "menu_keepAlive_off", Row("📍 Background mode: Off", "📍 Фоновый режим: Выкл", "📍 Фоновий режим: Вимк", "📍 מצב רקע: כבוי") },
             { "menu_catchup_on", Row("🔔 Notifications when app\nis closed: On", "🔔 Уведомления при закрытом\nприложении: Вкл", "🔔 Сповіщення коли додаток\nзакрито: Увімк", "🔔 התראות כשהאפליקציה\nסגורה: פועל") },
