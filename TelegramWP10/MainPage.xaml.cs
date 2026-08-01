@@ -3346,13 +3346,22 @@ namespace TelegramWP10
                         else
                             TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + vnFid + ",\"priority\":10,\"synchronous\":false}");
                     }
-                    // Превью (миниатюра)
+                    // Превью (миниатюра) — переиспользуем уже отлаженный путь
+                    // декодирования (DecodePixelWidth для памяти, привязка по
+                    // ссылке на объект, а не по id), тот же, что и у фото/стикеров.
+                    // Раньше миниатюра ещё и не докачивалась вовсе, если её не
+                    // было в кэше TDLib заранее — превью просто никогда не
+                    // появлялось.
                     var vnThumb = videoNote?["thumbnail"]?["file"] as JObject;
                     if (vnThumb != null) {
+                        long vnTfid = (long)vnThumb["id"];
+                        _fileToMsgId[vnTfid] = msgId;
+                        _inlinePhotoFileId[msgId] = vnTfid;
                         string vnTPath = vnThumb["local"]?["path"]?.ToString();
-                        if (!string.IsNullOrEmpty(vnTPath)) {
-                            try { item.AttachedPhoto = new Windows.UI.Xaml.Media.Imaging.BitmapImage(new Uri(vnTPath)); } catch { }
-                        }
+                        if (!string.IsNullOrEmpty(vnTPath))
+                            { var tvn = UpdateMessagePhoto(msgId, vnTPath); }
+                        else
+                            TdJson.SendUtf8(_client, "{\"@type\":\"downloadFile\",\"file_id\":" + vnTfid + ",\"priority\":10,\"synchronous\":false}");
                     }
                 } else if (type == "messageAudio") {
                     var audio = content["audio"];
