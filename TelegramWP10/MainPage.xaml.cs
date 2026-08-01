@@ -91,8 +91,6 @@ namespace TelegramWP10
         private bool _loadingOlderHistory = false;
         private bool _hasMoreHistory = true;
         private bool _trimming = false;
-        private bool _outOfMemory = false;
-        private const ulong MemoryThreshold = 400 * 1024 * 1024;
         private Windows.UI.Xaml.DispatcherTimer _restoreTimer = null;
         private ItemsStackPanel _messagesStackPanel = null;
 
@@ -1992,7 +1990,6 @@ namespace TelegramWP10
                         }
                         _messageItems.Clear();
                         _hasMoreHistory = gotCount > 0;
-                        _outOfMemory = false;
                         for (int i = msgs.Count - 1; i >= 0; i--) {
                             var it = ParseMessage(msgs[i]);
                             if (it != null) _messageItems.Add(it);
@@ -2060,39 +2057,33 @@ namespace TelegramWP10
                         if (gotCount == 0) {
                             _hasMoreHistory = false;
                         } else {
-                            ulong memUsage = Windows.System.MemoryManager.AppMemoryUsage;
-                            if (memUsage > MemoryThreshold) {
-                                _hasMoreHistory = false;
-                                _outOfMemory = true;
-                            } else {
-                                _scrollTimer?.Stop();
-                                _autoScrolling = false;
-                                double oldHeight = MessagesScrollViewer.ExtentHeight;
-                                double oldOffset = MessagesScrollViewer.VerticalOffset;
-                                int insertIdx = 0;
-                                for (int i = msgs.Count - 1; i >= 0; i--) {
-                                    var it = ParseMessage(msgs[i]);
-                                    if (it != null) _messageItems.Insert(insertIdx++, it);
-                                }
-                                RebuildDateSeparators();
-                                RecomputeAlbumGrouping();
-                                _hasMoreHistory = gotCount > 0;
-                                _trimming = true;
-                                double capturedOld = oldOffset;
-                                double capturedOldH = oldHeight;
-                                int attempts = 0;
-                                var fixTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-                                fixTimer.Tick += (ft, fe) => {
-                                    double newH = MessagesScrollViewer.ExtentHeight;
-                                    if (newH > capturedOldH || attempts >= 10) {
-                                        fixTimer.Stop();
-                                        MessagesScrollViewer.ChangeView(null, capturedOld + (newH - capturedOldH), null, true);
-                                        _trimming = false;
-                                    }
-                                    attempts++;
-                                };
-                                fixTimer.Start();
+                            _scrollTimer?.Stop();
+                            _autoScrolling = false;
+                            double oldHeight = MessagesScrollViewer.ExtentHeight;
+                            double oldOffset = MessagesScrollViewer.VerticalOffset;
+                            int insertIdx = 0;
+                            for (int i = msgs.Count - 1; i >= 0; i--) {
+                                var it = ParseMessage(msgs[i]);
+                                if (it != null) _messageItems.Insert(insertIdx++, it);
                             }
+                            RebuildDateSeparators();
+                            RecomputeAlbumGrouping();
+                            _hasMoreHistory = gotCount > 0;
+                            _trimming = true;
+                            double capturedOld = oldOffset;
+                            double capturedOldH = oldHeight;
+                            int attempts = 0;
+                            var fixTimer = new Windows.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+                            fixTimer.Tick += (ft, fe) => {
+                                double newH = MessagesScrollViewer.ExtentHeight;
+                                if (newH > capturedOldH || attempts >= 10) {
+                                    fixTimer.Stop();
+                                    MessagesScrollViewer.ChangeView(null, capturedOld + (newH - capturedOldH), null, true);
+                                    _trimming = false;
+                                }
+                                attempts++;
+                            };
+                            fixTimer.Start();
                         }
                     }
                     break;
@@ -2155,7 +2146,7 @@ namespace TelegramWP10
 
             bool nearTop = offset < 50;
             if (nearTop && !_loadingOlderHistory && !_isLoadingHistory && _hasMoreHistory
-                && _currentChatId != 0 && !_autoScrolling && !_outOfMemory && !_trimming) {
+                && _currentChatId != 0 && !_autoScrolling && !_trimming) {
                 LoadOlderMessages();
             }
         }
@@ -3659,7 +3650,6 @@ namespace TelegramWP10
 
 
             _trimming = false;
-            _outOfMemory = false;
             _autoScrolling = false;
             _scrollTimer?.Stop();
             _restoreTimer?.Stop();
