@@ -2291,7 +2291,14 @@ namespace TelegramWP10
                         // Определяем список по флагу загрузки
                         if (_loadingArchive) {
                             if (!_archiveChatItems.Contains(existing)) {
-                                _archiveChatItems.Add(existing);
+                                if (existing.IsPinned) {
+                                    int insertAt = 0;
+                                    for (int pi = 0; pi < _archiveChatItems.Count; pi++)
+                                        if (_archiveChatItems[pi].IsPinned) insertAt = pi + 1;
+                                    _archiveChatItems.Insert(insertAt, existing);
+                                } else {
+                                    _archiveChatItems.Add(existing);
+                                }
                                 ArchiveChatCountText.Text = Loc.T("archive_count") + _archiveChatItems.Count;
                             }
                         } else {
