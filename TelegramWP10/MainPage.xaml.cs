@@ -6155,6 +6155,12 @@ namespace TelegramWP10
             LoadingIndicator.Visibility = Visibility.Collapsed;
             MessagesListView.Visibility = Visibility.Visible;
             MessagesPanel.Visibility = Visibility.Collapsed;
+            // Подстраховка: пересобираем видимый список чатов заново из уже
+            // накопленного _chatsDict/_allChatItems (без обращения к серверу —
+            // SwitchFolder только перекладывает уже готовые объекты), а не
+            // полагаемся только на то, что каждая отдельная вставка/перестановка
+            // по ходу апдейтов TDLib была применена без единого расхождения.
+            if (!_inArchive) SwitchFolder(_currentFolderId);
             StartPanel.Visibility = Visibility.Visible;
         }
 
