@@ -11,6 +11,10 @@
     <AssemblyName>TelegramWP10</AssemblyName>
     <DefaultLanguage>ru-RU</DefaultLanguage>
     <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier>
+     <!-- Package name AppPackages\ is created as $(ProjectName)_<version>_<platform>.
+         Set installer name as Unogram_1.0.35.5_ARM.appx,
+         without changing AssemblyName -->
+    <ProjectName>Unogram</ProjectName>
     <!-- Windows 10 Mobile 1709 = OS build 15254, branched from 15063 (1703).
          15063 is the newest SDK whose API surface actually exists on the device.
          Do NOT raise TargetPlatformVersion to 16299/17763/18362.
